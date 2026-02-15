@@ -9,7 +9,7 @@ class LoginView(ft.View):
             horizontal_alignment=ft.CrossAxisAlignment.CENTER,
             vertical_alignment=ft.MainAxisAlignment.CENTER,
         )
-        self.page = page
+        self._page = page
         self.repo = repo
         self.on_login_success = on_login_success
 
@@ -60,7 +60,7 @@ class LoginView(ft.View):
 
         if not username or not password:
             self.error_text.value = _("Please enter both username and password.")
-            self.page.update()
+            self._page.update()
             return
 
         # Attempt to authenticate
@@ -69,4 +69,4 @@ class LoginView(ft.View):
             self.on_login_success(user)
         else:
             self.error_text.value = _("Invalid username or password.")
-            self.page.update()
+            self._page.update()

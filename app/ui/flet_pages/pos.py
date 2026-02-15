@@ -22,7 +22,7 @@ class POSView(ft.View):
             padding=0,
             spacing=0,
         )
-        self.page = page
+        self._page = page
         self.repo = repo
         
         # Order State
@@ -49,7 +49,7 @@ class POSView(ft.View):
             title=ft.Text(_("Sales POS")),
             bgcolor=ft.colors.BLUE_700,
             color=ft.colors.WHITE,
-            leading=ft.IconButton(ft.icons.ARROW_BACK, on_click=lambda _: self.page.go("/"))
+            leading=ft.IconButton(ft.icons.ARROW_BACK, on_click=lambda _: self._page.go("/"))
         )
         
         self.content_area = ft.Container(expand=True, padding=20)
@@ -94,7 +94,7 @@ class POSView(ft.View):
             ft.Divider(height=30),
             grid
         ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=20)
-        self.page.update()
+        self._page.update()
 
     def start_with_category(self, category):
         """User selected a category, proceed to customer selection."""
@@ -186,7 +186,7 @@ class POSView(ft.View):
                 padding=20
             )
         )
-        self.page.update()
+        self._page.update()
 
     def perform_customer_search(self):
         """Search customers by name, phone, city."""
@@ -209,7 +209,7 @@ class POSView(ft.View):
                     padding=20
                 )
             )
-            self.page.update()
+            self._page.update()
             return
 
         search_term = " ".join(terms)
@@ -249,7 +249,7 @@ class POSView(ft.View):
                         bgcolor=ft.colors.BLUE_50
                     )
                 )
-        self.page.update()
+        self._page.update()
 
     def select_existing_customer(self, customer):
         """User clicked on an existing customer."""
@@ -260,21 +260,21 @@ class POSView(ft.View):
         self.c_email.value = customer.get("email", "")
         self.c_address.value = customer.get("address", "")
         self.selected_customer = customer
-        self.page.update()
+        self._page.update()
 
         # Show confirmation
-        self.page.snack_bar = ft.SnackBar(ft.Text(f"✓ {_('Selected')}: {customer.get('name')}"))
-        self.page.snack_bar.open = True
-        self.page.update()
+        self._page.snack_bar = ft.SnackBar(ft.Text(f"✓ {_('Selected')}: {customer.get('name')}"))
+        self._page.snack_bar.open = True
+        self._page.update()
 
     def validate_and_proceed_customer(self):
         """Validate customer data and proceed to next step."""
         name = self.c_name.value.strip() if self.c_name.value else ""
 
         if not name:
-            self.page.snack_bar = ft.SnackBar(ft.Text(_("Please enter customer name.")))
-            self.page.snack_bar.open = True
-            self.page.update()
+            self._page.snack_bar = ft.SnackBar(ft.Text(_("Please enter customer name.")))
+            self._page.snack_bar.open = True
+            self._page.update()
             return
 
         # If no customer selected, create new one
@@ -406,12 +406,12 @@ class POSView(ft.View):
         def use_past_exam(exam):
             """Use a past examination - add it as a new row."""
             self.add_exam_row(exam)
-            self.page.snack_bar = ft.SnackBar(ft.Text(f"✓ {_('Past examination loaded')}"))
-            self.page.snack_bar.open = True
+            self._page.snack_bar = ft.SnackBar(ft.Text(f"✓ {_('Past examination loaded')}"))
+            self._page.snack_bar.open = True
             # Close the drawer
             if hasattr(self, 'past_rx_drawer'):
                 self.past_rx_drawer.open = False
-            self.page.update()
+            self._page.update()
 
         def show_past_prescriptions(e):
             """Show the past prescriptions in a bottom sheet / end drawer."""
@@ -439,13 +439,13 @@ class POSView(ft.View):
                 open=True,
                 enable_drag=True,
             )
-            self.page.overlay.append(self.past_rx_drawer)
-            self.page.update()
+            self._page.overlay.append(self.past_rx_drawer)
+            self._page.update()
 
         def close_drawer():
             if hasattr(self, 'past_rx_drawer'):
                 self.past_rx_drawer.open = False
-                self.page.update()
+                self._page.update()
 
         # Button to show past prescriptions
         past_rx_button = ft.ElevatedButton(
@@ -520,7 +520,7 @@ class POSView(ft.View):
                 )
             ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN)
         ], scroll=ft.ScrollMode.AUTO, spacing=8, expand=True)
-        self.page.update()
+        self._page.update()
 
     def add_exam_row(self, data=None):
         """Add an examination row to the form."""
@@ -556,7 +556,7 @@ class POSView(ft.View):
                     # Select all text in the next field
                     if next_field.value:
                         next_field.selection = ft.TextSelection(0, len(next_field.value))
-                    self.page.update()
+                    self._page.update()
             except (ValueError, IndexError):
                 pass
 
@@ -639,13 +639,13 @@ class POSView(ft.View):
                     image_path_ref["path"] = result.files[0].path
                     image_indicator.name = ft.icons.CHECK_CIRCLE
                     image_indicator.color = ft.colors.GREEN_700
-                    self.page.snack_bar = ft.SnackBar(ft.Text(f"✓ {_('Image attached')}: {result.files[0].name}"))
-                    self.page.snack_bar.open = True
-                    self.page.update()
+                    self._page.snack_bar = ft.SnackBar(ft.Text(f"✓ {_('Image attached')}: {result.files[0].name}"))
+                    self._page.snack_bar.open = True
+                    self._page.update()
 
             file_picker = ft.FilePicker(on_result=on_result)
-            self.page.overlay.append(file_picker)
-            self.page.update()
+            self._page.overlay.append(file_picker)
+            self._page.update()
             file_picker.pick_files(
                 allowed_extensions=["png", "jpg", "jpeg", "gif", "bmp"],
                 dialog_title=_("Select Prescription Image")
@@ -661,7 +661,7 @@ class POSView(ft.View):
         def remove_row(e, idx=row_index):
             if len(self.exam_rows_container.controls) > 1:
                 self.exam_rows_container.controls.pop(idx)
-                self.page.update()
+                self._page.update()
 
         # Single compact row layout
         row_container = ft.Container(
@@ -699,7 +699,7 @@ class POSView(ft.View):
         }
 
         self.exam_rows_container.controls.append(row_container)
-        self.page.update()
+        self._page.update()
 
     def save_exams_and_proceed(self):
         """Save examination data from all rows and proceed to payment."""
@@ -830,7 +830,7 @@ class POSView(ft.View):
         ], spacing=10, expand=True)
 
         self.load_additional_products()
-        self.page.update()
+        self._page.update()
 
     def load_additional_products(self):
         """Load products for additional items selection."""
@@ -855,7 +855,7 @@ class POSView(ft.View):
                     ),
                 )
             )
-        self.page.update()
+        self._page.update()
 
     def add_product_to_cart_from_list(self, product):
         """Add a product to the cart from the additional items list."""
@@ -872,9 +872,9 @@ class POSView(ft.View):
                 "total_price": float(product.get("sale_price", 0))
             })
 
-        self.page.snack_bar = ft.SnackBar(ft.Text(f"✓ {product.get('name')} {_('added to cart')}"))
-        self.page.snack_bar.open = True
-        self.page.update()
+        self._page.snack_bar = ft.SnackBar(ft.Text(f"✓ {product.get('name')} {_('added to cart')}"))
+        self._page.snack_bar.open = True
+        self._page.update()
 
     # ==================== STEP 4: ITEMS & CART ====================
     def show_step_4(self):
@@ -962,7 +962,7 @@ class POSView(ft.View):
                 )
             ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN)
         ], scroll=ft.ScrollMode.AUTO, spacing=10)
-        self.page.update()
+        self._page.update()
 
     def add_product_to_cart(self, search_term):
         """Add product to cart by SKU or name."""
@@ -972,9 +972,9 @@ class POSView(ft.View):
         product = self.repo.find_product_by_name_or_sku(search_term)
 
         if not product:
-            self.page.snack_bar = ft.SnackBar(ft.Text(f"{_('Product not found')}: {search_term}"))
-            self.page.snack_bar.open = True
-            self.page.update()
+            self._page.snack_bar = ft.SnackBar(ft.Text(f"{_('Product not found')}: {search_term}"))
+            self._page.snack_bar.open = True
+            self._page.update()
             return
 
         existing = next((item for item in self.cart_items if item["product_id"] == product["id"]), None)
@@ -992,7 +992,7 @@ class POSView(ft.View):
 
         self.update_cart_display()
         self.update_totals_display()
-        self.page.update()
+        self._page.update()
 
     def update_cart_display(self):
         """Update cart table display."""
@@ -1004,7 +1004,7 @@ class POSView(ft.View):
                     self.cart_items.remove(itm)
                     self.update_cart_display()
                     self.update_totals_display()
-                    self.page.update()
+                    self._page.update()
                 return remove_item
 
             def make_qty_change_callback(itm):
@@ -1013,7 +1013,7 @@ class POSView(ft.View):
                     itm["total_price"] = itm["qty"] * itm["unit_price"]
                     self.update_cart_display()
                     self.update_totals_display()
-                    self.page.update()
+                    self._page.update()
                 return change_qty
 
             qty_control = ft.Row([
@@ -1071,28 +1071,28 @@ class POSView(ft.View):
                 )
             ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
         ])
-        self.page.update()
+        self._page.update()
 
     def clear_cart(self):
         """Clear all items from the cart."""
         self.cart_items.clear()
         self.update_cart_display()
         self.update_totals_display()
-        self.page.update()
+        self._page.update()
 
     # ==================== CHECKOUT ====================
     def finish_order(self):
         """Finalize the sale: save to database, create stock movements, show receipt."""
         if not self.cart_items and not self.examinations:
-            self.page.snack_bar = ft.SnackBar(ft.Text(_("Cart is empty and no examinations. Cannot checkout.")))
-            self.page.snack_bar.open = True
-            self.page.update()
+            self._page.snack_bar = ft.SnackBar(ft.Text(_("Cart is empty and no examinations. Cannot checkout.")))
+            self._page.snack_bar.open = True
+            self._page.update()
             return
 
         try:
             # Prepare sale data
             # Get user ID safely
-            user = self.page.data.get("user") if hasattr(self.page, 'data') and self.page.data else None
+            user = self._page.data.get("user") if hasattr(self.page, 'data') and self._page.data else None
             user_id = user.get("id") if user else None
 
             sale_data = {
@@ -1122,9 +1122,9 @@ class POSView(ft.View):
             self.show_receipt_preview(sale_data)
 
         except Exception as ex:
-            self.page.snack_bar = ft.SnackBar(ft.Text(f"{_('Error saving order')}: {str(ex)}"))
-            self.page.snack_bar.open = True
-            self.page.update()
+            self._page.snack_bar = ft.SnackBar(ft.Text(f"{_('Error saving order')}: {str(ex)}"))
+            self._page.snack_bar.open = True
+            self._page.update()
 
     def show_receipt_preview(self, sale_data):
         """Show receipt preview dialog with 3 print options: Shop, Customer, Lab."""
@@ -1292,7 +1292,7 @@ class POSView(ft.View):
                 preview_text.value = build_customer_copy()
             elif copy_type == "lab":
                 preview_text.value = build_lab_copy()
-            self.page.update()
+            self._page.update()
 
         def print_copy(copy_type):
             if copy_type == "shop":
@@ -1302,9 +1302,9 @@ class POSView(ft.View):
             elif copy_type == "lab":
                 content = build_lab_copy()
             print(content)
-            self.page.snack_bar = ft.SnackBar(ft.Text(f"✓ {_('Sent to printer')}"))
-            self.page.snack_bar.open = True
-            self.page.update()
+            self._page.snack_bar = ft.SnackBar(ft.Text(f"✓ {_('Sent to printer')}"))
+            self._page.snack_bar.open = True
+            self._page.update()
 
         def print_all(e):
             print(build_shop_copy())
@@ -1312,14 +1312,14 @@ class POSView(ft.View):
             print(build_customer_copy())
             print("\n" + "="*50 + "\n")
             print(build_lab_copy())
-            self.page.snack_bar = ft.SnackBar(ft.Text(f"✓ {_('All copies sent to printer')}"))
-            self.page.snack_bar.open = True
-            self.page.update()
+            self._page.snack_bar = ft.SnackBar(ft.Text(f"✓ {_('All copies sent to printer')}"))
+            self._page.snack_bar.open = True
+            self._page.update()
 
         def close_and_reset(e):
             dlg.open = False
             self.reset_pos()
-            self.page.go("/")
+            self._page.go("/")
 
         # Show shop copy by default
         show_preview("shop")
@@ -1389,9 +1389,9 @@ class POSView(ft.View):
             ],
             actions_alignment=ft.MainAxisAlignment.SPACE_BETWEEN
         )
-        self.page.dialog = dlg
+        self._page.dialog = dlg
         dlg.open = True
-        self.page.update()
+        self._page.update()
 
     def reset_pos(self):
         """Reset POS to initial state."""
