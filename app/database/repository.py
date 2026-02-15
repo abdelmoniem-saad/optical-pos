@@ -2,12 +2,12 @@ import json
 import os
 import uuid
 import datetime
-from app.config import IS_WEB, SUPABASE_URL, SUPABASE_KEY, LOCAL_JSON_DB
+from app.config import USE_SUPABASE, SUPABASE_URL, SUPABASE_KEY, LOCAL_JSON_DB
 
 class POSRepository:
     def __init__(self):
         self.supabase = None
-        if IS_WEB:
+        if USE_SUPABASE:
             if SUPABASE_URL and SUPABASE_KEY:
                 try:
                     from supabase import create_client

@@ -1,0 +1,186 @@
+[
+    {
+        "group": {
+            "name": "My Shared Expenses",
+            "id": "fe5a6d31-d5a6-45e1-95c3-f8bcf7a7175c",
+            "members": [
+                {
+                    "name": "a",
+                    "id": "f1465a4e-8e6d-462a-860c-d54a5168be9c"
+                },
+                {
+                    "name": "b",
+                    "id": "63e6206e-8c57-4f4d-9470-bc3cb50a1d4a"
+                },
+                {
+                    "name": "c",
+                    "id": "86a621ab-916a-4a71-87df-4fa261bc66dc"
+                },
+                {
+                    "name": "d",
+                    "id": "82b9cae7-6c22-4835-b468-60910c0eac36"
+                },
+                {
+                    "name": "e",
+                    "id": "72bf7eda-3d62-428f-95c4-a8832e1a9d91"
+                }
+            ]
+        },
+        "expenses": [
+            {
+                "description": "shrimp",
+                "amount": 109.0,
+                "paid_by": {
+                    "name": "a",
+                    "id": "f1465a4e-8e6d-462a-860c-d54a5168be9c"
+                },
+                "splits": [
+                    {
+                        "user": {
+                            "name": "a",
+                            "id": "f1465a4e-8e6d-462a-860c-d54a5168be9c"
+                        },
+                        "amount": 21.8
+                    },
+                    {
+                        "user": {
+                            "name": "b",
+                            "id": "63e6206e-8c57-4f4d-9470-bc3cb50a1d4a"
+                        },
+                        "amount": 21.8
+                    },
+                    {
+                        "user": {
+                            "name": "c",
+                            "id": "86a621ab-916a-4a71-87df-4fa261bc66dc"
+                        },
+                        "amount": 21.8
+                    },
+                    {
+                        "user": {
+                            "name": "d",
+                            "id": "82b9cae7-6c22-4835-b468-60910c0eac36"
+                        },
+                        "amount": 21.8
+                    },
+                    {
+                        "user": {
+                            "name": "e",
+                            "id": "72bf7eda-3d62-428f-95c4-a8832e1a9d91"
+                        },
+                        "amount": 21.8
+                    }
+                ],
+                "group_id": "fe5a6d31-d5a6-45e1-95c3-f8bcf7a7175c",
+                "category": "Other",
+                "receipt_image_url": null,
+                "date": 1770956339.0615516,
+                "id": "fe9ab50a-3fae-4ab7-80a6-81cc5f41b1d2"
+            }
+        ],
+        "settlements": [
+            {
+                "from_user": {
+                    "name": "a",
+                    "id": "f1465a4e-8e6d-462a-860c-d54a5168be9c"
+                },
+                "to_user": {
+                    "name": "c",
+                    "id": "86a621ab-916a-4a71-87df-4fa261bc66dc"
+                },
+                "amount": 30.0,
+                "group_id": "fe5a6d31-d5a6-45e1-95c3-f8bcf7a7175c",
+                "date": 1770956366.6147206,
+                "id": "a928d841-c3d8-42d4-bf33-9dd9baffc8f5"
+            },
+            {
+                "from_user": {
+                    "name": "a",
+                    "id": "f1465a4e-8e6d-462a-860c-d54a5168be9c"
+                },
+                "to_user": {
+                    "name": "c",
+                    "id": "86a621ab-916a-4a71-87df-4fa261bc66dc"
+                },
+                "amount": 30.0,
+                "group_id": "fe5a6d31-d5a6-45e1-95c3-f8bcf7a7175c",
+                "date": 1770956621.118006,
+                "id": "543aca1d-116c-424d-aaca-76edad5529f6"
+            }
+        ]
+    },
+    {
+        "group": {
+            "name": "UCPH",
+            "id": "cef8cd00-dd4f-491a-81b0-bc6be8d5fa2e",
+            "members": [
+                {
+                    "name": "abdelmoniem",
+                    "id": "3038a7c9-218a-40c4-b7f4-9d4548bbc33b"
+                },
+                {
+                    "name": "basmala",
+                    "id": "3a76a689-4f66-41a6-94a1-d39f705219df"
+                },
+                {
+                    "name": "mariam",
+                    "id": "b8efd0f6-926f-4eef-b958-2036e2a648e2"
+                }
+            ]
+        },
+        "expenses": [
+            {
+                "description": "hhh",
+                "amount": 52.0,
+                "paid_by": {
+                    "name": "abdelmoniem",
+                    "id": "3038a7c9-218a-40c4-b7f4-9d4548bbc33b"
+                },
+                "splits": [
+                    {
+                        "user": {
+                            "name": "abdelmoniem",
+                            "id": "3038a7c9-218a-40c4-b7f4-9d4548bbc33b"
+                        },
+                        "amount": 17.333333333333332
+                    },
+                    {
+                        "user": {
+                            "name": "basmala",
+                            "id": "3a76a689-4f66-41a6-94a1-d39f705219df"
+                        },
+                        "amount": 17.333333333333332
+                    },
+                    {
+                        "user": {
+                            "name": "mariam",
+                            "id": "b8efd0f6-926f-4eef-b958-2036e2a648e2"
+                        },
+                        "amount": 17.333333333333332
+                    }
+                ],
+                "group_id": "cef8cd00-dd4f-491a-81b0-bc6be8d5fa2e",
+                "category": "Groceries",
+                "receipt_image_url": null,
+                "date": 1771108632.3498318,
+                "id": "513488a2-147d-495f-aa2c-4223a5469c8c"
+            }
+        ],
+        "settlements": [
+            {
+                "from_user": {
+                    "name": "mariam",
+                    "id": "b8efd0f6-926f-4eef-b958-2036e2a648e2"
+                },
+                "to_user": {
+                    "name": "abdelmoniem",
+                    "id": "3038a7c9-218a-40c4-b7f4-9d4548bbc33b"
+                },
+                "amount": 17.333333333333332,
+                "group_id": "cef8cd00-dd4f-491a-81b0-bc6be8d5fa2e",
+                "date": 1771108721.5781367,
+                "id": "d705035f-625b-4740-9a57-3caaaf15fa3f"
+            }
+        ]
+    }
+]
