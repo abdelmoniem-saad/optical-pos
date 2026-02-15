@@ -25,14 +25,16 @@ def main(page: ft.Page):
     # Open in fullscreen/maximized mode
     page.window_maximized = True
 
-    # Session State
-    page.session.set("user", None)
-    
+    # Session State - use page.data dict for session storage
+    if not hasattr(page, 'data') or page.data is None:
+        page.data = {}
+    page.data["user"] = None
+
     # Initialize Repository
     repo = POSRepository()
 
     def on_login_success(user):
-        page.session.set("user", user)
+        page.data["user"] = user
         page.go("/")
 
     def wrap_with_top_bar(view_content, route):
@@ -61,7 +63,7 @@ def main(page: ft.Page):
         page.views.clear()
         
         # Auth Guard
-        user = page.session.get("user")
+        user = page.data.get("user") if hasattr(page, 'data') and page.data else None
         if not user and page.route != "/login":
             page.go("/login")
             return

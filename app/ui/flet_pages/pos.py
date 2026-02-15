@@ -1092,7 +1092,7 @@ class POSView(ft.View):
         try:
             # Prepare sale data
             # Get user ID safely
-            user = self.page.session.get("user")
+            user = self.page.data.get("user") if hasattr(self.page, 'data') and self.page.data else None
             user_id = user.get("id") if user else None
 
             sale_data = {

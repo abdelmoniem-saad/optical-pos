@@ -40,11 +40,12 @@ def DashboardView(page: ft.Page, repo):
 
     # --- Logout ---
     def logout(e):
-        page.session.set("user", None)
+        if hasattr(page, 'data') and page.data:
+            page.data["user"] = None
         page.go("/login")
 
     # --- User Info ---
-    user = page.session.get("user")
+    user = page.data.get("user") if hasattr(page, 'data') and page.data else None
     user_name = user.get("full_name") or user.get("username") if user else "User"
 
     # --- Stat Card Builder ---
