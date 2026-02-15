@@ -12,12 +12,12 @@ def InventoryView(page: ft.Page, repo):
 
         if not inventory:
             items_list.controls.append(
-                ft.ListTile(title=ft.Text(_("No products found"), italic=True, color=ft.colors.GREY_700))
+                ft.ListTile(title=ft.Text(_("No products found"), italic=True, color=ft.Colors.GREY_700))
             )
         else:
             for item in inventory:
                 stock = item.get("stock_qty", 0)
-                stock_color = ft.colors.GREEN_700 if stock > 0 else ft.colors.RED_700
+                stock_color = ft.Colors.GREEN_700 if stock > 0 else ft.Colors.RED_700
 
                 items_list.controls.append(
                     ft.ListTile(
@@ -30,7 +30,7 @@ def InventoryView(page: ft.Page, repo):
                         trailing=ft.Row([
                             ft.Container(
                                 ft.Text(f"{stock}", weight=ft.FontWeight.BOLD, color=stock_color),
-                                bgcolor=ft.colors.GREY_200,
+                                bgcolor=ft.Colors.GREY_200,
                                 padding=ft.padding.symmetric(horizontal=10, vertical=5),
                                 border_radius=5
                             ),
@@ -344,46 +344,46 @@ def InventoryView(page: ft.Page, repo):
                 lens_types_list.controls.append(
                     ft.Container(
                         ft.Row([
-                            ft.Icon(ft.icons.LENS, size=16, color=ft.colors.BLUE_700),
+                            ft.Icon(ft.icons.LENS, size=16, color=ft.Colors.BLUE_700),
                             ft.Text(lt.get("name", ""), expand=True),
                         ], spacing=10),
                         padding=ft.padding.symmetric(horizontal=10, vertical=8),
                         border_radius=5,
-                        bgcolor=ft.colors.BLUE_50
+                        bgcolor=ft.Colors.BLUE_50
                     )
                 )
             for ftype in repo.get_frame_types():
                 frame_types_list.controls.append(
                     ft.Container(
                         ft.Row([
-                            ft.Icon(ft.icons.CROP_SQUARE, size=16, color=ft.colors.GREEN_700),
+                            ft.Icon(ft.icons.CROP_SQUARE, size=16, color=ft.Colors.GREEN_700),
                             ft.Text(ftype.get("name", ""), expand=True),
                         ], spacing=10),
                         padding=ft.padding.symmetric(horizontal=10, vertical=8),
                         border_radius=5,
-                        bgcolor=ft.colors.GREEN_50
+                        bgcolor=ft.Colors.GREEN_50
                     )
                 )
             for fcolor in repo.get_frame_colors():
                 frame_colors_list.controls.append(
                     ft.Container(
                         ft.Row([
-                            ft.Icon(ft.icons.COLOR_LENS, size=16, color=ft.colors.PURPLE_700),
+                            ft.Icon(ft.icons.COLOR_LENS, size=16, color=ft.Colors.PURPLE_700),
                             ft.Text(fcolor.get("name", ""), expand=True),
                         ], spacing=10),
                         padding=ft.padding.symmetric(horizontal=10, vertical=8),
                         border_radius=5,
-                        bgcolor=ft.colors.PURPLE_50
+                        bgcolor=ft.Colors.PURPLE_50
                     )
                 )
 
             # Add placeholder if empty
             if not lens_types_list.controls:
-                lens_types_list.controls.append(ft.Text(_("No lens types yet"), italic=True, color=ft.colors.GREY_500))
+                lens_types_list.controls.append(ft.Text(_("No lens types yet"), italic=True, color=ft.Colors.GREY_500))
             if not frame_types_list.controls:
-                frame_types_list.controls.append(ft.Text(_("No frame types yet"), italic=True, color=ft.colors.GREY_500))
+                frame_types_list.controls.append(ft.Text(_("No frame types yet"), italic=True, color=ft.Colors.GREY_500))
             if not frame_colors_list.controls:
-                frame_colors_list.controls.append(ft.Text(_("No colors yet"), italic=True, color=ft.colors.GREY_500))
+                frame_colors_list.controls.append(ft.Text(_("No colors yet"), italic=True, color=ft.Colors.GREY_500))
 
             page.update()
 
@@ -418,7 +418,7 @@ def InventoryView(page: ft.Page, repo):
                     ft.Container(
                         items_list,
                         height=200,
-                        border=ft.border.all(1, ft.colors.GREY_300),
+                        border=ft.border.all(1, ft.Colors.GREY_300),
                         border_radius=5,
                         padding=5
                     ),
@@ -435,7 +435,7 @@ def InventoryView(page: ft.Page, repo):
                 ], spacing=10),
                 col={"xs": 12, "md": 4},
                 padding=15,
-                border=ft.border.all(1, ft.colors.GREY_200),
+                border=ft.border.all(1, ft.Colors.GREY_200),
                 border_radius=10
             )
 
@@ -445,12 +445,12 @@ def InventoryView(page: ft.Page, repo):
                 ft.Text(_("Optical Settings"), size=22, weight=ft.FontWeight.BOLD),
             ], spacing=10),
             ft.Text(_("Manage lens types, frame types, and colors used in prescriptions and orders."),
-                    color=ft.colors.GREY_700, size=14),
+                    color=ft.Colors.GREY_700, size=14),
             ft.Divider(height=20),
             ft.ResponsiveRow([
-                create_settings_card(_("Lens Types"), ft.icons.LENS, ft.colors.BLUE_700, lens_types_list, lens_input, "lens_types"),
-                create_settings_card(_("Frame Types"), ft.icons.CROP_SQUARE, ft.colors.GREEN_700, frame_types_list, frame_type_input, "frame_types"),
-                create_settings_card(_("Frame Colors"), ft.icons.COLOR_LENS, ft.colors.PURPLE_700, frame_colors_list, frame_color_input, "frame_colors"),
+                create_settings_card(_("Lens Types"), ft.icons.LENS, ft.Colors.BLUE_700, lens_types_list, lens_input, "lens_types"),
+                create_settings_card(_("Frame Types"), ft.icons.CROP_SQUARE, ft.Colors.GREEN_700, frame_types_list, frame_type_input, "frame_types"),
+                create_settings_card(_("Frame Colors"), ft.icons.COLOR_LENS, ft.Colors.PURPLE_700, frame_colors_list, frame_color_input, "frame_colors"),
             ], spacing=15, run_spacing=15)
         ], expand=True, spacing=10)
 
@@ -474,8 +474,8 @@ def InventoryView(page: ft.Page, repo):
         [
             ft.AppBar(
                 title=ft.Text(_("Inventory Management")),
-                bgcolor=ft.colors.BLUE_700,
-                color=ft.colors.WHITE,
+                bgcolor=ft.Colors.BLUE_700,
+                color=ft.Colors.WHITE,
                 leading=ft.IconButton(ft.icons.ARROW_BACK, on_click=lambda _: page.go("/"))
             ),
             ft.Container(content=tabs, expand=True, padding=10)

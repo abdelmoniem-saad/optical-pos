@@ -19,7 +19,7 @@ def CustomersView(page: ft.Page, repo):
 
         if not customers:
             cust_list.controls.append(
-                ft.ListTile(title=ft.Text(_("No customers found"), italic=True, color=ft.colors.GREY_700))
+                ft.ListTile(title=ft.Text(_("No customers found"), italic=True, color=ft.Colors.GREY_700))
             )
         else:
             for c in customers:
@@ -28,7 +28,7 @@ def CustomersView(page: ft.Page, repo):
                 total_spent = sum(float(s.get("net_amount", 0)) for s in sales if s.get("customer_id") == c.get("id"))
                 balance = sum(float(s.get("net_amount", 0)) - float(s.get("amount_paid", 0)) for s in sales if s.get("customer_id") == c.get("id"))
 
-                balance_color = ft.colors.RED_700 if balance > 0 else ft.colors.GREEN_700
+                balance_color = ft.Colors.RED_700 if balance > 0 else ft.Colors.GREEN_700
 
                 cust_list.controls.append(
                     ft.Card(
@@ -141,16 +141,16 @@ def CustomersView(page: ft.Page, repo):
         dialog = ft.AlertDialog(
             title=ft.Text(_("Delete Customer")),
             content=ft.Column([
-                ft.Icon(ft.icons.WARNING, color=ft.colors.RED_700, size=50),
+                ft.Icon(ft.icons.WARNING, color=ft.Colors.RED_700, size=50),
                 ft.Text(f"{_('Are you sure you want to delete')} \"{cust.get('name', '')}\"?"),
-                ft.Text(_("This action cannot be undone."), color=ft.colors.RED_700, size=12),
+                ft.Text(_("This action cannot be undone."), color=ft.Colors.RED_700, size=12),
             ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=10),
             actions=[
                 ft.TextButton(_("Cancel"), on_click=lambda e: setattr(dialog, "open", False) or page.update()),
                 ft.ElevatedButton(
                     _("Delete"),
-                    bgcolor=ft.colors.RED_700,
-                    color=ft.colors.WHITE,
+                    bgcolor=ft.Colors.RED_700,
+                    color=ft.Colors.WHITE,
                     on_click=do_delete
                 ),
             ]
@@ -173,8 +173,8 @@ def CustomersView(page: ft.Page, repo):
         [
             ft.AppBar(
                 title=ft.Text(_("Customer Management")),
-                bgcolor=ft.colors.BLUE_700,
-                color=ft.colors.WHITE,
+                bgcolor=ft.Colors.BLUE_700,
+                color=ft.Colors.WHITE,
                 leading=ft.IconButton(ft.icons.ARROW_BACK, on_click=lambda _: page.go("/"))
             ),
             ft.Container(

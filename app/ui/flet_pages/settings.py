@@ -56,7 +56,7 @@ def SettingsView(page: ft.Page, repo):
                 content=ft.Text(_("This will delete ALL data. Are you sure?")),
                 actions=[
                     ft.TextButton(_("Cancel"), on_click=lambda e: setattr(confirm_dialog, "open", False) or page.update()),
-                    ft.ElevatedButton(_("Reset"), bgcolor=ft.colors.RED_700, color=ft.colors.WHITE, on_click=confirm_reset)
+                    ft.ElevatedButton(_("Reset"), bgcolor=ft.Colors.RED_700, color=ft.Colors.WHITE, on_click=confirm_reset)
                 ]
             )
             page.dialog = confirm_dialog
@@ -68,12 +68,12 @@ def SettingsView(page: ft.Page, repo):
             ft.Divider(),
             ft.ElevatedButton(_("Export Data (JSON)"), icon=ft.icons.DOWNLOAD, on_click=export_data),
             ft.Divider(height=30),
-            ft.Text(_("Danger Zone"), color=ft.colors.RED_700, weight=ft.FontWeight.BOLD),
+            ft.Text(_("Danger Zone"), color=ft.Colors.RED_700, weight=ft.FontWeight.BOLD),
             ft.ElevatedButton(
                 _("Reset All Data"),
                 icon=ft.icons.DELETE_FOREVER,
-                bgcolor=ft.colors.RED_700,
-                color=ft.colors.WHITE,
+                bgcolor=ft.Colors.RED_700,
+                color=ft.Colors.WHITE,
                 on_click=reset_data
             ),
         ], spacing=15)
@@ -92,8 +92,8 @@ def SettingsView(page: ft.Page, repo):
         [
             ft.AppBar(
                 title=ft.Text(_("Settings")),
-                bgcolor=ft.colors.BLUE_700,
-                color=ft.colors.WHITE,
+                bgcolor=ft.Colors.BLUE_700,
+                color=ft.Colors.WHITE,
                 leading=ft.IconButton(ft.icons.ARROW_BACK, on_click=lambda _: page.go("/"))
             ),
             ft.Container(content=tabs, expand=True, padding=10)

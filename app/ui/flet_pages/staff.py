@@ -17,7 +17,7 @@ def StaffView(page: ft.Page, repo):
 
         if not users:
             items_list.controls.append(
-                ft.ListTile(title=ft.Text(_("No staff members found"), italic=True, color=ft.colors.GREY_700))
+                ft.ListTile(title=ft.Text(_("No staff members found"), italic=True, color=ft.Colors.GREY_700))
             )
         else:
             for u in users:
@@ -29,8 +29,8 @@ def StaffView(page: ft.Page, repo):
                         content=ft.Container(
                             content=ft.ListTile(
                                 leading=ft.Container(
-                                    ft.Icon(ft.icons.PERSON, color=ft.colors.WHITE, size=25),
-                                    bgcolor=ft.colors.GREEN_500 if is_active else ft.colors.GREY_500,
+                                    ft.Icon(ft.icons.PERSON, color=ft.Colors.WHITE, size=25),
+                                    bgcolor=ft.Colors.GREEN_500 if is_active else ft.Colors.GREY_500,
                                     border_radius=25,
                                     padding=10,
                                     width=50,
@@ -40,8 +40,8 @@ def StaffView(page: ft.Page, repo):
                                 subtitle=ft.Text(f"{u.get('full_name', 'N/A')} | {_('Role')}: {role_name}"),
                                 trailing=ft.Row([
                                     ft.Container(
-                                        ft.Text(_("Active") if is_active else _("Inactive"), size=12, color=ft.colors.WHITE),
-                                        bgcolor=ft.colors.GREEN_500 if is_active else ft.colors.GREY_500,
+                                        ft.Text(_("Active") if is_active else _("Inactive"), size=12, color=ft.Colors.WHITE),
+                                        bgcolor=ft.Colors.GREEN_500 if is_active else ft.Colors.GREY_500,
                                         padding=ft.padding.symmetric(horizontal=10, vertical=5),
                                         border_radius=15
                                     ),
@@ -195,8 +195,8 @@ def StaffView(page: ft.Page, repo):
         [
             ft.AppBar(
                 title=ft.Text(_("Staff Management")),
-                bgcolor=ft.colors.BLUE_700,
-                color=ft.colors.WHITE,
+                bgcolor=ft.Colors.BLUE_700,
+                color=ft.Colors.WHITE,
                 leading=ft.IconButton(ft.icons.ARROW_BACK, on_click=lambda _: page.go("/"))
             ),
             ft.Container(

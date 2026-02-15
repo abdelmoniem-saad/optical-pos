@@ -71,7 +71,7 @@ def HistoryView(page: ft.Page, repo):
 
         if not filtered_sales:
             items_list.controls.append(
-                ft.ListTile(title=ft.Text(_("No orders found"), italic=True, color=ft.colors.GREY_700))
+                ft.ListTile(title=ft.Text(_("No orders found"), italic=True, color=ft.Colors.GREY_700))
             )
         else:
             for s in sorted(filtered_sales, key=lambda x: x.get("order_date", ""), reverse=True):
@@ -86,14 +86,14 @@ def HistoryView(page: ft.Page, repo):
 
                 # Status colors
                 status = s.get('lab_status', 'N/A')
-                status_color = ft.colors.GREY_500
-                if status == "Ready": status_color = ft.colors.GREEN_500
-                elif status == "In Lab": status_color = ft.colors.ORANGE_500
-                elif status == "Not Started": status_color = ft.colors.RED_500
-                elif status == "Received": status_color = ft.colors.BLUE_500
+                status_color = ft.Colors.GREY_500
+                if status == "Ready": status_color = ft.Colors.GREEN_500
+                elif status == "In Lab": status_color = ft.Colors.ORANGE_500
+                elif status == "Not Started": status_color = ft.Colors.RED_500
+                elif status == "Received": status_color = ft.Colors.BLUE_500
 
                 # Payment indicator
-                payment_color = ft.colors.GREEN_700 if balance <= 0 else ft.colors.RED_700
+                payment_color = ft.Colors.GREEN_700 if balance <= 0 else ft.Colors.RED_700
 
                 items_list.controls.append(
                     ft.Card(
@@ -121,7 +121,7 @@ def HistoryView(page: ft.Page, repo):
                                     ),
                                     ft.Container(
                                         ft.Column([
-                                            ft.Text(f"{paid:.2f}", size=16, weight=ft.FontWeight.BOLD, color=ft.colors.GREEN_700),
+                                            ft.Text(f"{paid:.2f}", size=16, weight=ft.FontWeight.BOLD, color=ft.Colors.GREEN_700),
                                             ft.Text(_("Paid"), size=10)
                                         ], horizontal_alignment=ft.CrossAxisAlignment.CENTER),
                                         expand=True
@@ -136,7 +136,7 @@ def HistoryView(page: ft.Page, repo):
                                     ft.Container(
                                         ft.Column([
                                             ft.Container(
-                                                ft.Text(status, size=12, color=ft.colors.WHITE),
+                                                ft.Text(status, size=12, color=ft.Colors.WHITE),
                                                 bgcolor=status_color,
                                                 padding=ft.padding.symmetric(horizontal=10, vertical=5),
                                                 border_radius=15
@@ -189,7 +189,7 @@ def HistoryView(page: ft.Page, repo):
                     ft.Divider(),
                     ft.Row([ft.Text(_("Total")), ft.Text(f"{sale.get('net_amount', 0):.2f}", weight=ft.FontWeight.BOLD)], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
                     ft.Row([ft.Text(_("Paid")), ft.Text(f"{sale.get('amount_paid', 0):.2f}")], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
-                    ft.Row([ft.Text(_("Balance")), ft.Text(f"{float(sale.get('net_amount', 0)) - float(sale.get('amount_paid', 0)):.2f}", color=ft.colors.RED_700 if float(sale.get('net_amount', 0)) > float(sale.get('amount_paid', 0)) else ft.colors.GREEN_700)], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
+                    ft.Row([ft.Text(_("Balance")), ft.Text(f"{float(sale.get('net_amount', 0)) - float(sale.get('amount_paid', 0)):.2f}", color=ft.Colors.RED_700 if float(sale.get('net_amount', 0)) > float(sale.get('amount_paid', 0)) else ft.Colors.GREEN_700)], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
                 ], spacing=5),
                 width=400
             ),
@@ -236,7 +236,7 @@ def HistoryView(page: ft.Page, repo):
                 ft.Text(f"{_('Invoice')}: #{sale.get('invoice_no', '')}"),
                 ft.Text(f"{_('Total')}: {total:.2f}"),
                 ft.Text(f"{_('Already Paid')}: {current_paid:.2f}"),
-                ft.Text(f"{_('Remaining')}: {remaining:.2f}", color=ft.colors.RED_700 if remaining > 0 else ft.colors.GREEN_700),
+                ft.Text(f"{_('Remaining')}: {remaining:.2f}", color=ft.Colors.RED_700 if remaining > 0 else ft.Colors.GREEN_700),
                 ft.Divider(),
                 payment_field
             ], tight=True, spacing=10),
@@ -291,8 +291,8 @@ def HistoryView(page: ft.Page, repo):
         [
             ft.AppBar(
                 title=ft.Text(_("Sales History")),
-                bgcolor=ft.colors.BLUE_700,
-                color=ft.colors.WHITE,
+                bgcolor=ft.Colors.BLUE_700,
+                color=ft.Colors.WHITE,
                 leading=ft.IconButton(ft.icons.ARROW_BACK, on_click=lambda _: page.go("/"))
             ),
             ft.Container(

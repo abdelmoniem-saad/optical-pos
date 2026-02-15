@@ -25,13 +25,13 @@ class LoginView(ft.View):
             width=300,
             on_submit=self.handle_login
         )
-        self.error_text = ft.Text(color=ft.colors.RED_700)
+        self.error_text = ft.Text(color=ft.Colors.RED_700)
 
         self.controls = [
             ft.Container(
                 content=ft.Column([
                     ft.Text(_("Welcome"), size=40, weight=ft.FontWeight.BOLD, text_align=ft.TextAlign.CENTER),
-                    ft.Divider(height=20, color=ft.colors.TRANSPARENT),
+                    ft.Divider(height=20, color=ft.Colors.TRANSPARENT),
                     self.username_input,
                     self.password_input,
                     self.error_text,
@@ -42,14 +42,14 @@ class LoginView(ft.View):
                         on_click=self.handle_login,
                         style=ft.ButtonStyle(
                             shape=ft.RoundedRectangleBorder(radius=10),
-                            color=ft.colors.WHITE,
-                            bgcolor=ft.colors.BLUE_700
+                            color=ft.Colors.WHITE,
+                            bgcolor=ft.Colors.BLUE_700
                         )
                     ),
                 ], horizontal_alignment=ft.CrossAxisAlignment.CENTER),
                 padding=40,
                 border_radius=20,
-                bgcolor=ft.colors.SURFACE_VARIANT,
+                bgcolor=ft.Colors.SURFACE_VARIANT,
                 width=400,
             )
         ]

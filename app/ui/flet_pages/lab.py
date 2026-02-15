@@ -60,7 +60,7 @@ def LabView(page: ft.Page, repo):
 
         if not lab_sales:
             lab_list.controls.append(
-                ft.ListTile(title=ft.Text(_("No lab orders found"), italic=True, color=ft.colors.GREY_700))
+                ft.ListTile(title=ft.Text(_("No lab orders found"), italic=True, color=ft.Colors.GREY_700))
             )
         else:
             for s in lab_sales:
@@ -73,11 +73,11 @@ def LabView(page: ft.Page, repo):
                         cust_phone = cust.get("phone", "")
 
                 status = s.get("lab_status", "N/A")
-                status_color = ft.colors.GREY_500
-                if status == "Not Started": status_color = ft.colors.RED_500
-                elif status == "In Lab": status_color = ft.colors.ORANGE_500
-                elif status == "Ready": status_color = ft.colors.GREEN_500
-                elif status == "Received": status_color = ft.colors.BLUE_500
+                status_color = ft.Colors.GREY_500
+                if status == "Not Started": status_color = ft.Colors.RED_500
+                elif status == "In Lab": status_color = ft.Colors.ORANGE_500
+                elif status == "Ready": status_color = ft.Colors.GREEN_500
+                elif status == "Received": status_color = ft.Colors.BLUE_500
 
                 # Delivery date
                 delivery = s.get("delivery_date", "N/A")
@@ -90,7 +90,7 @@ def LabView(page: ft.Page, repo):
                             content=ft.Column([
                                 ft.ListTile(
                                     leading=ft.Container(
-                                        ft.Icon(ft.icons.SCIENCE, color=ft.colors.WHITE, size=25),
+                                        ft.Icon(ft.icons.SCIENCE, color=ft.Colors.WHITE, size=25),
                                         bgcolor=status_color,
                                         border_radius=25,
                                         padding=10,
@@ -102,15 +102,15 @@ def LabView(page: ft.Page, repo):
                                 ),
                                 ft.Row([
                                     ft.Column([
-                                        ft.Text(_("Order Date"), size=10, color=ft.colors.GREY_700),
+                                        ft.Text(_("Order Date"), size=10, color=ft.Colors.GREY_700),
                                         ft.Text(s.get("order_date", "")[:10], size=12, weight=ft.FontWeight.BOLD)
                                     ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, expand=True),
                                     ft.Column([
-                                        ft.Text(_("Delivery Date"), size=10, color=ft.colors.GREY_700),
-                                        ft.Text(delivery, size=12, weight=ft.FontWeight.BOLD, color=ft.colors.BLUE_700)
+                                        ft.Text(_("Delivery Date"), size=10, color=ft.Colors.GREY_700),
+                                        ft.Text(delivery, size=12, weight=ft.FontWeight.BOLD, color=ft.Colors.BLUE_700)
                                     ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, expand=True),
                                     ft.Column([
-                                        ft.Text(_("Status"), size=10, color=ft.colors.GREY_700),
+                                        ft.Text(_("Status"), size=10, color=ft.Colors.GREY_700),
                                         ft.Dropdown(
                                             value=status,
                                             options=[
@@ -170,7 +170,7 @@ def LabView(page: ft.Page, repo):
                         ft.Text(f"{_('Lens')}: {exam.get('lens_info', 'N/A')}"),
                         ft.Text(f"{_('Frame')}: {exam.get('frame_info', 'N/A')} ({exam.get('frame_color', '')})"),
                     ]),
-                    border=ft.border.all(1, ft.colors.GREY_300),
+                    border=ft.border.all(1, ft.Colors.GREY_300),
                     border_radius=5,
                     padding=10
                 )
@@ -263,8 +263,8 @@ Exam #{i} - {exam.get('exam_type', 'N/A')}
         [
             ft.AppBar(
                 title=ft.Text(_("Lab Management")),
-                bgcolor=ft.colors.BLUE_700,
-                color=ft.colors.WHITE,
+                bgcolor=ft.Colors.BLUE_700,
+                color=ft.Colors.WHITE,
                 leading=ft.IconButton(ft.icons.ARROW_BACK, on_click=lambda _: page.go("/"))
             ),
             ft.Container(
@@ -274,28 +274,28 @@ Exam #{i} - {exam.get('exam_type', 'N/A')}
                     ft.Row([
                         ft.Container(
                             ft.Row([
-                                ft.Icon(ft.icons.HOURGLASS_EMPTY, color=ft.colors.RED_700, size=20),
+                                ft.Icon(ft.icons.HOURGLASS_EMPTY, color=ft.Colors.RED_700, size=20),
                                 ft.Text(f"{not_started} {_('Not Started')}", weight=ft.FontWeight.BOLD)
                             ]),
-                            bgcolor=ft.colors.RED_100,
+                            bgcolor=ft.Colors.RED_100,
                             padding=ft.padding.symmetric(horizontal=15, vertical=8),
                             border_radius=20
                         ),
                         ft.Container(
                             ft.Row([
-                                ft.Icon(ft.icons.BUILD, color=ft.colors.ORANGE_700, size=20),
+                                ft.Icon(ft.icons.BUILD, color=ft.Colors.ORANGE_700, size=20),
                                 ft.Text(f"{in_lab} {_('In Lab')}", weight=ft.FontWeight.BOLD)
                             ]),
-                            bgcolor=ft.colors.ORANGE_100,
+                            bgcolor=ft.Colors.ORANGE_100,
                             padding=ft.padding.symmetric(horizontal=15, vertical=8),
                             border_radius=20
                         ),
                         ft.Container(
                             ft.Row([
-                                ft.Icon(ft.icons.CHECK_CIRCLE, color=ft.colors.GREEN_700, size=20),
+                                ft.Icon(ft.icons.CHECK_CIRCLE, color=ft.Colors.GREEN_700, size=20),
                                 ft.Text(f"{ready} {_('Ready')}", weight=ft.FontWeight.BOLD)
                             ]),
-                            bgcolor=ft.colors.GREEN_100,
+                            bgcolor=ft.Colors.GREEN_100,
                             padding=ft.padding.symmetric(horizontal=15, vertical=8),
                             border_radius=20
                         ),
