@@ -65,7 +65,7 @@ def ReportsView(page: ft.Page, repo):
 
     data = get_report_data()
 
-    def stat_card(title, value, subtitle="", icon=ft.icons.INFO, color=ft.Colors.BLUE_700):
+    def stat_card(title, value, subtitle="", icon=ft.Icons.INFO, color=ft.Colors.BLUE_700):
         return ft.Card(
             content=ft.Container(
                 ft.Column([
@@ -83,14 +83,14 @@ def ReportsView(page: ft.Page, repo):
 
     # Summary stats row
     summary_cards = ft.ResponsiveRow([
-        stat_card(_("Total Revenue"), f"{data['total_revenue']:.0f}", icon=ft.icons.ATTACH_MONEY, color=ft.Colors.GREEN_700),
-        stat_card(_("Total Paid"), f"{data['total_paid']:.0f}", icon=ft.icons.PAYMENTS, color=ft.Colors.TEAL_700),
-        stat_card(_("Balance Due"), f"{data['remaining_balance']:.0f}", icon=ft.icons.MONEY_OFF, color=ft.Colors.RED_700 if data['remaining_balance'] > 0 else ft.Colors.GREEN_700),
-        stat_card(_("Total Orders"), data['order_count'], icon=ft.icons.SHOPPING_BAG, color=ft.Colors.BLUE_700),
-        stat_card(_("Today's Revenue"), f"{data['today_revenue']:.0f}", f"{data['today_orders']} orders", ft.icons.TODAY, ft.Colors.ORANGE_700),
-        stat_card(_("This Month"), f"{data['month_revenue']:.0f}", f"{data['month_orders']} orders", ft.icons.CALENDAR_MONTH, ft.Colors.PURPLE_700),
-        stat_card(_("Pending Lab"), data['pending_lab'], icon=ft.icons.HOURGLASS_EMPTY, color=ft.Colors.ORANGE_700),
-        stat_card(_("Ready for Pickup"), data['ready_lab'], icon=ft.icons.CHECK_CIRCLE, color=ft.Colors.GREEN_700),
+        stat_card(_("Total Revenue"), f"{data['total_revenue']:.0f}", icon=ft.Icons.ATTACH_MONEY, color=ft.Colors.GREEN_700),
+        stat_card(_("Total Paid"), f"{data['total_paid']:.0f}", icon=ft.Icons.PAYMENTS, color=ft.Colors.TEAL_700),
+        stat_card(_("Balance Due"), f"{data['remaining_balance']:.0f}", icon=ft.Icons.MONEY_OFF, color=ft.Colors.RED_700 if data['remaining_balance'] > 0 else ft.Colors.GREEN_700),
+        stat_card(_("Total Orders"), data['order_count'], icon=ft.Icons.SHOPPING_BAG, color=ft.Colors.BLUE_700),
+        stat_card(_("Today's Revenue"), f"{data['today_revenue']:.0f}", f"{data['today_orders']} orders", ft.Icons.TODAY, ft.Colors.ORANGE_700),
+        stat_card(_("This Month"), f"{data['month_revenue']:.0f}", f"{data['month_orders']} orders", ft.Icons.CALENDAR_MONTH, ft.Colors.PURPLE_700),
+        stat_card(_("Pending Lab"), data['pending_lab'], icon=ft.Icons.HOURGLASS_EMPTY, color=ft.Colors.ORANGE_700),
+        stat_card(_("Ready for Pickup"), data['ready_lab'], icon=ft.Icons.CHECK_CIRCLE, color=ft.Colors.GREEN_700),
     ], spacing=10, run_spacing=10)
 
     # Low stock alert
@@ -99,7 +99,7 @@ def ReportsView(page: ft.Page, repo):
         for p in data['low_stock'][:10]:
             low_stock_list.controls.append(
                 ft.ListTile(
-                    leading=ft.Icon(ft.icons.WARNING, color=ft.Colors.ORANGE_700),
+                    leading=ft.Icon(ft.Icons.WARNING, color=ft.Colors.ORANGE_700),
                     title=ft.Text(p.get("name", ""), size=14),
                     subtitle=ft.Text(f"SKU: {p.get('sku', '')}"),
                     trailing=ft.Text(f"{p.get('stock_qty', 0)} left", color=ft.Colors.RED_700, weight=ft.FontWeight.BOLD),
@@ -138,7 +138,7 @@ def ReportsView(page: ft.Page, repo):
                 title=ft.Text(_("Reports & Analytics")),
                 bgcolor=ft.Colors.BLUE_700,
                 color=ft.Colors.WHITE,
-                leading=ft.IconButton(ft.icons.ARROW_BACK, on_click=lambda _: page.go("/"))
+                leading=ft.IconButton(ft.Icons.ARROW_BACK, on_click=lambda _: page.go("/"))
             ),
             ft.Container(
                 content=ft.Column([
@@ -157,7 +157,7 @@ def ReportsView(page: ft.Page, repo):
                                 ft.Text(_("Low Stock Alert"), size=18, weight=ft.FontWeight.BOLD, color=ft.Colors.ORANGE_700),
                                 ft.Container(
                                     low_stock_list,
-                                    border=ft.border.all(1, ft.Colors.ORANGE_200),
+                                    border=ft.Border.all(1, ft.Colors.ORANGE_200),
                                     border_radius=10,
                                     padding=10,
                                     bgcolor=ft.Colors.ORANGE_50
@@ -170,7 +170,7 @@ def ReportsView(page: ft.Page, repo):
                                 ft.Text(_("Top Customers"), size=18, weight=ft.FontWeight.BOLD, color=ft.Colors.BLUE_700),
                                 ft.Container(
                                     top_customers_list,
-                                    border=ft.border.all(1, ft.Colors.BLUE_200),
+                                    border=ft.Border.all(1, ft.Colors.BLUE_200),
                                     border_radius=10,
                                     padding=10,
                                     bgcolor=ft.Colors.BLUE_50

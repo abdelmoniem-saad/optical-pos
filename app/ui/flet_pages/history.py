@@ -100,14 +100,14 @@ def HistoryView(page: ft.Page, repo):
                         content=ft.Container(
                             content=ft.Column([
                                 ft.ListTile(
-                                    leading=ft.Icon(ft.icons.RECEIPT, color=status_color, size=35),
+                                    leading=ft.Icon(ft.Icons.RECEIPT, color=status_color, size=35),
                                     title=ft.Text(f"#{s['invoice_no']} - {cust_name}", weight=ft.FontWeight.BOLD),
                                     subtitle=ft.Text(f"{s.get('order_date', '')[:16]} | {_('Doctor')}: {s.get('doctor_name', 'N/A')}"),
                                     trailing=ft.PopupMenuButton(
                                         items=[
-                                            ft.PopupMenuItem(text=_("View Details"), icon=ft.icons.VISIBILITY, on_click=lambda e, sale=s: show_sale_details(sale)),
-                                            ft.PopupMenuItem(text=_("Record Payment"), icon=ft.icons.PAYMENT, on_click=lambda e, sale=s: show_payment_dialog(sale)),
-                                            ft.PopupMenuItem(text=_("Print"), icon=ft.icons.PRINT, on_click=lambda e, sale=s: print_receipt(sale)),
+                                            ft.PopupMenuItem(text=_("View Details"), icon=ft.Icons.VISIBILITY, on_click=lambda e, sale=s: show_sale_details(sale)),
+                                            ft.PopupMenuItem(text=_("Record Payment"), icon=ft.Icons.PAYMENT, on_click=lambda e, sale=s: show_payment_dialog(sale)),
+                                            ft.PopupMenuItem(text=_("Print"), icon=ft.Icons.PRINT, on_click=lambda e, sale=s: print_receipt(sale)),
                                         ]
                                     )
                                 ),
@@ -138,7 +138,7 @@ def HistoryView(page: ft.Page, repo):
                                             ft.Container(
                                                 ft.Text(status, size=12, color=ft.Colors.WHITE),
                                                 bgcolor=status_color,
-                                                padding=ft.padding.symmetric(horizontal=10, vertical=5),
+                                                padding=ft.Padding.symmetric(horizontal=10, vertical=5),
                                                 border_radius=15
                                             )
                                         ], horizontal_alignment=ft.CrossAxisAlignment.CENTER),
@@ -279,7 +279,7 @@ def HistoryView(page: ft.Page, repo):
 
     search_input = ft.TextField(
         label=_("Search by Invoice, Customer or Doctor..."),
-        prefix_icon=ft.icons.SEARCH,
+        prefix_icon=ft.Icons.SEARCH,
         expand=True,
         on_change=lambda e: load_history(e.control.value)
     )
@@ -293,7 +293,7 @@ def HistoryView(page: ft.Page, repo):
                 title=ft.Text(_("Sales History")),
                 bgcolor=ft.Colors.BLUE_700,
                 color=ft.Colors.WHITE,
-                leading=ft.IconButton(ft.icons.ARROW_BACK, on_click=lambda _: page.go("/"))
+                leading=ft.IconButton(ft.Icons.ARROW_BACK, on_click=lambda _: page.go("/"))
             ),
             ft.Container(
                 content=ft.Column([

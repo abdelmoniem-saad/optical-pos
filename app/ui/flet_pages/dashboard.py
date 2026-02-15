@@ -81,13 +81,13 @@ def DashboardView(page: ft.Page, repo):
 
         recent_orders_controls.append(
             ft.ListTile(
-                leading=ft.Icon(ft.icons.RECEIPT, color=status_color),
+                leading=ft.Icon(ft.Icons.RECEIPT, color=status_color),
                 title=ft.Text(f"#{s.get('invoice_no', '')} - {cust_name}", size=14),
                 subtitle=ft.Text(f"{s.get('order_date', '')[:10] if s.get('order_date') else ''} | {float(s.get('net_amount', 0)):.2f}", size=12),
                 trailing=ft.Container(
                     ft.Text(status, size=11, color=ft.Colors.WHITE),
                     bgcolor=status_color,
-                    padding=ft.padding.symmetric(horizontal=8, vertical=4),
+                    padding=ft.Padding.symmetric(horizontal=8, vertical=4),
                     border_radius=10
                 ),
                 dense=True,
@@ -97,14 +97,14 @@ def DashboardView(page: ft.Page, repo):
 
     # --- Nav Buttons ---
     nav_items = [
-        (_("POS (Sales)"), ft.icons.SHOPPING_CART, "/pos", ft.Colors.GREEN_700),
-        (_("Inventory"), ft.icons.INVENTORY, "/inventory", ft.Colors.ORANGE_700),
-        (_("Customers"), ft.icons.PEOPLE, "/customers", ft.Colors.PURPLE_700),
-        (_("Lab"), ft.icons.SCIENCE, "/lab", ft.Colors.BLUE_700),
-        (_("History"), ft.icons.HISTORY, "/history", ft.Colors.TEAL_700),
-        (_("Reports"), ft.icons.BAR_CHART, "/reports", ft.Colors.INDIGO_700),
-        (_("Staff"), ft.icons.BADGE, "/staff", ft.Colors.BROWN_700),
-        (_("Settings"), ft.icons.SETTINGS, "/settings", ft.Colors.GREY_700),
+        (_("POS (Sales)"), ft.Icons.SHOPPING_CART, "/pos", ft.Colors.GREEN_700),
+        (_("Inventory"), ft.Icons.INVENTORY, "/inventory", ft.Colors.ORANGE_700),
+        (_("Customers"), ft.Icons.PEOPLE, "/customers", ft.Colors.PURPLE_700),
+        (_("Lab"), ft.Icons.SCIENCE, "/lab", ft.Colors.BLUE_700),
+        (_("History"), ft.Icons.HISTORY, "/history", ft.Colors.TEAL_700),
+        (_("Reports"), ft.Icons.BAR_CHART, "/reports", ft.Colors.INDIGO_700),
+        (_("Staff"), ft.Icons.BADGE, "/staff", ft.Colors.BROWN_700),
+        (_("Settings"), ft.Icons.SETTINGS, "/settings", ft.Colors.GREY_700),
     ]
 
     nav_buttons = ft.ResponsiveRow([
@@ -136,9 +136,9 @@ def DashboardView(page: ft.Page, repo):
                 actions=[
                     ft.Container(
                         ft.Text(f"{_('Welcome')}, {user_name}", color=ft.Colors.WHITE),
-                        padding=ft.padding.only(right=10)
+                        padding=ft.Padding.only(right=10)
                     ),
-                    ft.IconButton(ft.icons.LOGOUT, icon_color=ft.Colors.WHITE, tooltip=_("Logout"), on_click=logout)
+                    ft.IconButton(ft.Icons.LOGOUT, icon_color=ft.Colors.WHITE, tooltip=_("Logout"), on_click=logout)
                 ]
             ),
             ft.Container(
@@ -146,12 +146,12 @@ def DashboardView(page: ft.Page, repo):
                     # Stats Cards Row
                     ft.Text(_("Overview"), size=20, weight=ft.FontWeight.BOLD),
                     ft.ResponsiveRow([
-                        stat_card(_("Revenue"), f"{stats['revenue']:.0f}", ft.icons.ATTACH_MONEY, ft.Colors.GREEN_700, "/reports"),
-                        stat_card(_("Orders"), stats["orders"], ft.icons.SHOPPING_BAG, ft.Colors.BLUE_700, "/history"),
-                        stat_card(_("Customers"), stats["customers"], ft.icons.PEOPLE, ft.Colors.PURPLE_700, "/customers"),
-                        stat_card(_("Products"), stats["products"], ft.icons.INVENTORY_2, ft.Colors.ORANGE_700, "/inventory"),
-                        stat_card(_("Pending Lab"), stats["pending"], ft.icons.HOURGLASS_EMPTY, ft.Colors.RED_700, "/lab"),
-                        stat_card(_("Balance Due"), f"{stats['balance']:.0f}", ft.icons.MONEY_OFF, ft.Colors.AMBER_700, "/history"),
+                        stat_card(_("Revenue"), f"{stats['revenue']:.0f}", ft.Icons.ATTACH_MONEY, ft.Colors.GREEN_700, "/reports"),
+                        stat_card(_("Orders"), stats["orders"], ft.Icons.SHOPPING_BAG, ft.Colors.BLUE_700, "/history"),
+                        stat_card(_("Customers"), stats["customers"], ft.Icons.PEOPLE, ft.Colors.PURPLE_700, "/customers"),
+                        stat_card(_("Products"), stats["products"], ft.Icons.INVENTORY_2, ft.Colors.ORANGE_700, "/inventory"),
+                        stat_card(_("Pending Lab"), stats["pending"], ft.Icons.HOURGLASS_EMPTY, ft.Colors.RED_700, "/lab"),
+                        stat_card(_("Balance Due"), f"{stats['balance']:.0f}", ft.Icons.MONEY_OFF, ft.Colors.AMBER_700, "/history"),
                     ], spacing=10, run_spacing=10),
 
                     ft.Divider(height=20),
@@ -169,7 +169,7 @@ def DashboardView(page: ft.Page, repo):
                             ft.Text(_("No recent orders yet. Start by creating a sale!"), italic=True, color=ft.Colors.GREY_500),
                             padding=20
                         ),
-                        border=ft.border.all(1, ft.Colors.GREY_300),
+                        border=ft.Border.all(1, ft.Colors.GREY_300),
                         border_radius=10,
                         padding=5
                     )

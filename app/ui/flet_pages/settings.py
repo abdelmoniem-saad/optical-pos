@@ -25,7 +25,7 @@ def SettingsView(page: ft.Page, repo):
             shop_name,
             shop_address,
             ft.Row([shop_phone, currency]),
-            ft.ElevatedButton(_("Save Settings"), icon=ft.icons.SAVE, on_click=save_settings),
+            ft.ElevatedButton(_("Save Settings"), icon=ft.Icons.SAVE, on_click=save_settings),
         ], spacing=15, expand=True)
 
     # --- Backup Tab ---
@@ -66,12 +66,12 @@ def SettingsView(page: ft.Page, repo):
         return ft.Column([
             ft.Text(_("Backup & Data"), size=20, weight=ft.FontWeight.BOLD),
             ft.Divider(),
-            ft.ElevatedButton(_("Export Data (JSON)"), icon=ft.icons.DOWNLOAD, on_click=export_data),
+            ft.ElevatedButton(_("Export Data (JSON)"), icon=ft.Icons.DOWNLOAD, on_click=export_data),
             ft.Divider(height=30),
             ft.Text(_("Danger Zone"), color=ft.Colors.RED_700, weight=ft.FontWeight.BOLD),
             ft.ElevatedButton(
                 _("Reset All Data"),
-                icon=ft.icons.DELETE_FOREVER,
+                icon=ft.Icons.DELETE_FOREVER,
                 bgcolor=ft.Colors.RED_700,
                 color=ft.Colors.WHITE,
                 on_click=reset_data
@@ -81,8 +81,8 @@ def SettingsView(page: ft.Page, repo):
     tabs = ft.Tabs(
         selected_index=0,
         tabs=[
-            ft.Tab(text=_("Shop Settings"), icon=ft.icons.STORE, content=ft.Container(create_shop_settings(), padding=20)),
-            ft.Tab(text=_("Backup"), icon=ft.icons.BACKUP, content=ft.Container(create_backup_tab(), padding=20)),
+            ft.Tab(text=_("Shop Settings"), icon=ft.Icons.STORE, content=ft.Container(create_shop_settings(), padding=20)),
+            ft.Tab(text=_("Backup"), icon=ft.Icons.BACKUP, content=ft.Container(create_backup_tab(), padding=20)),
         ],
         expand=True
     )
@@ -94,7 +94,7 @@ def SettingsView(page: ft.Page, repo):
                 title=ft.Text(_("Settings")),
                 bgcolor=ft.Colors.BLUE_700,
                 color=ft.Colors.WHITE,
-                leading=ft.IconButton(ft.icons.ARROW_BACK, on_click=lambda _: page.go("/"))
+                leading=ft.IconButton(ft.Icons.ARROW_BACK, on_click=lambda _: page.go("/"))
             ),
             ft.Container(content=tabs, expand=True, padding=10)
         ]

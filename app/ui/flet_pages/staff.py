@@ -29,7 +29,7 @@ def StaffView(page: ft.Page, repo):
                         content=ft.Container(
                             content=ft.ListTile(
                                 leading=ft.Container(
-                                    ft.Icon(ft.icons.PERSON, color=ft.Colors.WHITE, size=25),
+                                    ft.Icon(ft.Icons.PERSON, color=ft.Colors.WHITE, size=25),
                                     bgcolor=ft.Colors.GREEN_500 if is_active else ft.Colors.GREY_500,
                                     border_radius=25,
                                     padding=10,
@@ -42,16 +42,16 @@ def StaffView(page: ft.Page, repo):
                                     ft.Container(
                                         ft.Text(_("Active") if is_active else _("Inactive"), size=12, color=ft.Colors.WHITE),
                                         bgcolor=ft.Colors.GREEN_500 if is_active else ft.Colors.GREY_500,
-                                        padding=ft.padding.symmetric(horizontal=10, vertical=5),
+                                        padding=ft.Padding.symmetric(horizontal=10, vertical=5),
                                         border_radius=15
                                     ),
                                     ft.PopupMenuButton(
                                         items=[
-                                            ft.PopupMenuItem(text=_("Edit"), icon=ft.icons.EDIT, on_click=lambda e, user=u: show_user_dialog(user)),
-                                            ft.PopupMenuItem(text=_("Change Password"), icon=ft.icons.LOCK, on_click=lambda e, user=u: show_password_dialog(user)),
+                                            ft.PopupMenuItem(text=_("Edit"), icon=ft.Icons.EDIT, on_click=lambda e, user=u: show_user_dialog(user)),
+                                            ft.PopupMenuItem(text=_("Change Password"), icon=ft.Icons.LOCK, on_click=lambda e, user=u: show_password_dialog(user)),
                                             ft.PopupMenuItem(
                                                 text=_("Deactivate") if is_active else _("Activate"),
-                                                icon=ft.icons.BLOCK if is_active else ft.icons.CHECK,
+                                                icon=ft.Icons.BLOCK if is_active else ft.Icons.CHECK,
                                                 on_click=lambda e, user=u, active=is_active: toggle_user_status(user, not active)
                                             ),
                                         ]
@@ -183,7 +183,7 @@ def StaffView(page: ft.Page, repo):
 
     search_input = ft.TextField(
         label=_("Search by username or name..."),
-        prefix_icon=ft.icons.SEARCH,
+        prefix_icon=ft.Icons.SEARCH,
         expand=True,
         on_change=lambda e: load_users(e.control.value)
     )
@@ -197,13 +197,13 @@ def StaffView(page: ft.Page, repo):
                 title=ft.Text(_("Staff Management")),
                 bgcolor=ft.Colors.BLUE_700,
                 color=ft.Colors.WHITE,
-                leading=ft.IconButton(ft.icons.ARROW_BACK, on_click=lambda _: page.go("/"))
+                leading=ft.IconButton(ft.Icons.ARROW_BACK, on_click=lambda _: page.go("/"))
             ),
             ft.Container(
                 content=ft.Column([
                     ft.Row([
                         ft.Text(_("Staff Members"), size=25, weight=ft.FontWeight.BOLD),
-                        ft.ElevatedButton(_("+ Add Staff"), icon=ft.icons.PERSON_ADD, on_click=lambda _: show_user_dialog())
+                        ft.ElevatedButton(_("+ Add Staff"), icon=ft.Icons.PERSON_ADD, on_click=lambda _: show_user_dialog())
                     ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
                     search_input,
                     items_list,

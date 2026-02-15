@@ -69,17 +69,17 @@ def create_top_bar(page: ft.Page, repo, current_route: str = "/"):
             results_content.controls.append(
                 ft.Container(
                     ft.Row([
-                        ft.Icon(ft.icons.PEOPLE, color=ft.Colors.BLUE_700, size=18),
+                        ft.Icon(ft.Icons.PEOPLE, color=ft.Colors.BLUE_700, size=18),
                         ft.Text(_("Customers"), weight=ft.FontWeight.BOLD, color=ft.Colors.BLUE_700)
                     ]),
-                    padding=ft.padding.only(bottom=5)
+                    padding=ft.Padding.only(bottom=5)
                 )
             )
             for c in matching_customers:
                 results_content.controls.append(
                     ft.Container(
                         ft.ListTile(
-                            leading=ft.Icon(ft.icons.PERSON, color=ft.Colors.BLUE_500),
+                            leading=ft.Icon(ft.Icons.PERSON, color=ft.Colors.BLUE_500),
                             title=ft.Text(c.get("name", ""), weight=ft.FontWeight.W_500),
                             subtitle=ft.Text(f"📱 {c.get('phone', 'N/A')} | 📍 {c.get('city', 'N/A')}", size=12),
                             on_click=lambda e, cid=c["id"]: go_to_and_close(f"/prescription/{cid}"),
@@ -95,17 +95,17 @@ def create_top_bar(page: ft.Page, repo, current_route: str = "/"):
             results_content.controls.append(
                 ft.Container(
                     ft.Row([
-                        ft.Icon(ft.icons.INVENTORY_2, color=ft.Colors.GREEN_700, size=18),
+                        ft.Icon(ft.Icons.INVENTORY_2, color=ft.Colors.GREEN_700, size=18),
                         ft.Text(_("Products"), weight=ft.FontWeight.BOLD, color=ft.Colors.GREEN_700)
                     ]),
-                    padding=ft.padding.only(bottom=5)
+                    padding=ft.Padding.only(bottom=5)
                 )
             )
             for p in matching_products:
                 results_content.controls.append(
                     ft.Container(
                         ft.ListTile(
-                            leading=ft.Icon(ft.icons.INVENTORY_2, color=ft.Colors.GREEN_500),
+                            leading=ft.Icon(ft.Icons.INVENTORY_2, color=ft.Colors.GREEN_500),
                             title=ft.Text(p.get("name", ""), weight=ft.FontWeight.W_500),
                             subtitle=ft.Text(f"SKU: {p.get('sku', 'N/A')} | {_('Price')}: {p.get('sale_price', 0):.2f}", size=12),
                             on_click=lambda e: go_to_and_close("/inventory"),
@@ -121,10 +121,10 @@ def create_top_bar(page: ft.Page, repo, current_route: str = "/"):
             results_content.controls.append(
                 ft.Container(
                     ft.Row([
-                        ft.Icon(ft.icons.RECEIPT_LONG, color=ft.Colors.ORANGE_700, size=18),
+                        ft.Icon(ft.Icons.RECEIPT_LONG, color=ft.Colors.ORANGE_700, size=18),
                         ft.Text(_("Invoices"), weight=ft.FontWeight.BOLD, color=ft.Colors.ORANGE_700)
                     ]),
-                    padding=ft.padding.only(bottom=5)
+                    padding=ft.Padding.only(bottom=5)
                 )
             )
             for s in matching_sales:
@@ -136,7 +136,7 @@ def create_top_bar(page: ft.Page, repo, current_route: str = "/"):
                 results_content.controls.append(
                     ft.Container(
                         ft.ListTile(
-                            leading=ft.Icon(ft.icons.RECEIPT, color=ft.Colors.ORANGE_500),
+                            leading=ft.Icon(ft.Icons.RECEIPT, color=ft.Colors.ORANGE_500),
                             title=ft.Text(f"#{s.get('invoice_no', '')} - {cust_name}", weight=ft.FontWeight.W_500),
                             subtitle=ft.Text(f"{s.get('order_date', '')[:10] if s.get('order_date') else ''} | {float(s.get('net_amount', 0)):.2f}", size=12),
                             on_click=lambda e: go_to_and_close("/history"),
@@ -151,7 +151,7 @@ def create_top_bar(page: ft.Page, repo, current_route: str = "/"):
             results_content.controls.append(
                 ft.Container(
                     ft.Column([
-                        ft.Icon(ft.icons.SEARCH_OFF, size=50, color=ft.Colors.GREY_400),
+                        ft.Icon(ft.Icons.SEARCH_OFF, size=50, color=ft.Colors.GREY_400),
                         ft.Text(_("No results found"), size=16, color=ft.Colors.GREY_600),
                         ft.Text(f'"{term}"', italic=True, color=ft.Colors.GREY_500),
                     ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=10),
@@ -161,7 +161,7 @@ def create_top_bar(page: ft.Page, repo, current_route: str = "/"):
 
         search_dialog = ft.AlertDialog(
             title=ft.Row([
-                ft.Icon(ft.icons.SEARCH, color=ft.Colors.BLUE_700),
+                ft.Icon(ft.Icons.SEARCH, color=ft.Colors.BLUE_700),
                 ft.Text(f"{_('Search Results')}: \"{term}\"", weight=ft.FontWeight.BOLD),
             ]),
             content=ft.Container(
@@ -179,11 +179,11 @@ def create_top_bar(page: ft.Page, repo, current_route: str = "/"):
 
     search_field = ft.TextField(
         hint_text=_("Search & Press Enter..."),
-        prefix_icon=ft.icons.SEARCH,
+        prefix_icon=ft.Icons.SEARCH,
         border_radius=20,
         height=40,
         text_size=14,
-        content_padding=ft.padding.only(left=10, right=10),
+        content_padding=ft.Padding.only(left=10, right=10),
         on_submit=show_search_results,
         width=220,
     )
@@ -204,21 +204,21 @@ def create_top_bar(page: ft.Page, repo, current_route: str = "/"):
             # Logo/Home
             ft.Container(
                 ft.Row([
-                    ft.Icon(ft.icons.STORE, color=ft.Colors.WHITE, size=24),
+                    ft.Icon(ft.Icons.STORE, color=ft.Colors.WHITE, size=24),
                     ft.Text("Lensy POS", color=ft.Colors.WHITE, weight=ft.FontWeight.BOLD, size=16),
                 ], spacing=8),
                 on_click=lambda e: page.go("/"),
-                padding=ft.padding.only(right=15),
+                padding=ft.Padding.only(right=15),
             ),
 
             # Quick Nav Buttons
-            nav_btn(ft.icons.DASHBOARD, _("Dashboard"), "/", current_route == "/"),
-            nav_btn(ft.icons.SHOPPING_CART, _("POS"), "/pos", current_route == "/pos"),
-            nav_btn(ft.icons.INVENTORY, _("Inventory"), "/inventory", current_route == "/inventory"),
-            nav_btn(ft.icons.PEOPLE, _("Customers"), "/customers", current_route == "/customers"),
-            nav_btn(ft.icons.SCIENCE, _("Lab"), "/lab", current_route == "/lab"),
-            nav_btn(ft.icons.HISTORY, _("History"), "/history", current_route == "/history"),
-            nav_btn(ft.icons.BAR_CHART, _("Reports"), "/reports", current_route == "/reports"),
+            nav_btn(ft.Icons.DASHBOARD, _("Dashboard"), "/", current_route == "/"),
+            nav_btn(ft.Icons.SHOPPING_CART, _("POS"), "/pos", current_route == "/pos"),
+            nav_btn(ft.Icons.INVENTORY, _("Inventory"), "/inventory", current_route == "/inventory"),
+            nav_btn(ft.Icons.PEOPLE, _("Customers"), "/customers", current_route == "/customers"),
+            nav_btn(ft.Icons.SCIENCE, _("Lab"), "/lab", current_route == "/lab"),
+            nav_btn(ft.Icons.HISTORY, _("History"), "/history", current_route == "/history"),
+            nav_btn(ft.Icons.BAR_CHART, _("Reports"), "/reports", current_route == "/reports"),
 
             # Spacer
             ft.Container(expand=True),
@@ -228,18 +228,18 @@ def create_top_bar(page: ft.Page, repo, current_route: str = "/"):
 
             # Calculator
             ft.IconButton(
-                icon=ft.icons.CALCULATE,
+                icon=ft.Icons.CALCULATE,
                 tooltip=_("Calculator"),
                 icon_color=ft.Colors.WHITE,
                 on_click=open_calculator,
             ),
 
             # Settings
-            nav_btn(ft.icons.SETTINGS, _("Settings"), "/settings", current_route == "/settings"),
+            nav_btn(ft.Icons.SETTINGS, _("Settings"), "/settings", current_route == "/settings"),
 
         ], spacing=2, alignment=ft.MainAxisAlignment.START),
         bgcolor=ft.Colors.BLUE_700,
-        padding=ft.padding.symmetric(horizontal=15, vertical=8),
+        padding=ft.Padding.symmetric(horizontal=15, vertical=8),
     )
 
     return top_bar

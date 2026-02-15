@@ -90,7 +90,7 @@ def LabView(page: ft.Page, repo):
                             content=ft.Column([
                                 ft.ListTile(
                                     leading=ft.Container(
-                                        ft.Icon(ft.icons.SCIENCE, color=ft.Colors.WHITE, size=25),
+                                        ft.Icon(ft.Icons.SCIENCE, color=ft.Colors.WHITE, size=25),
                                         bgcolor=status_color,
                                         border_radius=25,
                                         padding=10,
@@ -126,12 +126,12 @@ def LabView(page: ft.Page, repo):
                                     ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, expand=True),
                                     ft.Column([
                                         ft.IconButton(
-                                            ft.icons.PRINT,
+                                            ft.Icons.PRINT,
                                             tooltip=_("Print Lab Copy"),
                                             on_click=lambda e, sale=s: print_lab_copy(sale)
                                         ),
                                         ft.IconButton(
-                                            ft.icons.VISIBILITY,
+                                            ft.Icons.VISIBILITY,
                                             tooltip=_("View Details"),
                                             on_click=lambda e, sale=s: show_details(sale)
                                         )
@@ -170,7 +170,7 @@ def LabView(page: ft.Page, repo):
                         ft.Text(f"{_('Lens')}: {exam.get('lens_info', 'N/A')}"),
                         ft.Text(f"{_('Frame')}: {exam.get('frame_info', 'N/A')} ({exam.get('frame_color', '')})"),
                     ]),
-                    border=ft.border.all(1, ft.Colors.GREY_300),
+                    border=ft.Border.all(1, ft.Colors.GREY_300),
                     border_radius=5,
                     padding=10
                 )
@@ -244,7 +244,7 @@ Exam #{i} - {exam.get('exam_type', 'N/A')}
 
     search_input = ft.TextField(
         label=_("Search by Invoice, Customer or Doctor..."),
-        prefix_icon=ft.icons.SEARCH,
+        prefix_icon=ft.Icons.SEARCH,
         expand=True,
         on_change=lambda e: load_data(e.control.value)
     )
@@ -265,7 +265,7 @@ Exam #{i} - {exam.get('exam_type', 'N/A')}
                 title=ft.Text(_("Lab Management")),
                 bgcolor=ft.Colors.BLUE_700,
                 color=ft.Colors.WHITE,
-                leading=ft.IconButton(ft.icons.ARROW_BACK, on_click=lambda _: page.go("/"))
+                leading=ft.IconButton(ft.Icons.ARROW_BACK, on_click=lambda _: page.go("/"))
             ),
             ft.Container(
                 content=ft.Column([
@@ -274,29 +274,29 @@ Exam #{i} - {exam.get('exam_type', 'N/A')}
                     ft.Row([
                         ft.Container(
                             ft.Row([
-                                ft.Icon(ft.icons.HOURGLASS_EMPTY, color=ft.Colors.RED_700, size=20),
+                                ft.Icon(ft.Icons.HOURGLASS_EMPTY, color=ft.Colors.RED_700, size=20),
                                 ft.Text(f"{not_started} {_('Not Started')}", weight=ft.FontWeight.BOLD)
                             ]),
                             bgcolor=ft.Colors.RED_100,
-                            padding=ft.padding.symmetric(horizontal=15, vertical=8),
+                            padding=ft.Padding.symmetric(horizontal=15, vertical=8),
                             border_radius=20
                         ),
                         ft.Container(
                             ft.Row([
-                                ft.Icon(ft.icons.BUILD, color=ft.Colors.ORANGE_700, size=20),
+                                ft.Icon(ft.Icons.BUILD, color=ft.Colors.ORANGE_700, size=20),
                                 ft.Text(f"{in_lab} {_('In Lab')}", weight=ft.FontWeight.BOLD)
                             ]),
                             bgcolor=ft.Colors.ORANGE_100,
-                            padding=ft.padding.symmetric(horizontal=15, vertical=8),
+                            padding=ft.Padding.symmetric(horizontal=15, vertical=8),
                             border_radius=20
                         ),
                         ft.Container(
                             ft.Row([
-                                ft.Icon(ft.icons.CHECK_CIRCLE, color=ft.Colors.GREEN_700, size=20),
+                                ft.Icon(ft.Icons.CHECK_CIRCLE, color=ft.Colors.GREEN_700, size=20),
                                 ft.Text(f"{ready} {_('Ready')}", weight=ft.FontWeight.BOLD)
                             ]),
                             bgcolor=ft.Colors.GREEN_100,
-                            padding=ft.padding.symmetric(horizontal=15, vertical=8),
+                            padding=ft.Padding.symmetric(horizontal=15, vertical=8),
                             border_radius=20
                         ),
                     ], spacing=10),

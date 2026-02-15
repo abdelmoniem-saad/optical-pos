@@ -21,7 +21,7 @@ def InventoryView(page: ft.Page, repo):
 
                 items_list.controls.append(
                     ft.ListTile(
-                        leading=ft.Icon(ft.icons.INVENTORY_2),
+                        leading=ft.Icon(ft.Icons.INVENTORY_2),
                         title=ft.Text(item.get("name", "Unknown")),
                         subtitle=ft.Text(
                             f"SKU: {item.get('sku')} | {_('Category')}: {item.get('category', 'N/A')} | "
@@ -31,11 +31,11 @@ def InventoryView(page: ft.Page, repo):
                             ft.Container(
                                 ft.Text(f"{stock}", weight=ft.FontWeight.BOLD, color=stock_color),
                                 bgcolor=ft.Colors.GREY_200,
-                                padding=ft.padding.symmetric(horizontal=10, vertical=5),
+                                padding=ft.Padding.symmetric(horizontal=10, vertical=5),
                                 border_radius=5
                             ),
-                            ft.IconButton(ft.icons.ADD_CIRCLE, tooltip=_("Adjust Stock"), on_click=lambda e, i=item: show_adjust_stock_dialog(i)),
-                            ft.IconButton(ft.icons.EDIT, tooltip=_("Edit"), on_click=lambda e, i=item: show_product_dialog(i)),
+                            ft.IconButton(ft.Icons.ADD_CIRCLE, tooltip=_("Adjust Stock"), on_click=lambda e, i=item: show_adjust_stock_dialog(i)),
+                            ft.IconButton(ft.Icons.EDIT, tooltip=_("Edit"), on_click=lambda e, i=item: show_product_dialog(i)),
                         ], tight=True),
                     )
                 )
@@ -232,7 +232,7 @@ def InventoryView(page: ft.Page, repo):
 
     search_input = ft.TextField(
         label=_("Search by name or SKU..."),
-        prefix_icon=ft.icons.SEARCH,
+        prefix_icon=ft.Icons.SEARCH,
         expand=True,
         on_change=lambda e: load_inventory(e.control.value, get_selected_category())
     )
@@ -258,7 +258,7 @@ def InventoryView(page: ft.Page, repo):
     products_content = ft.Column([
         ft.Row([
             ft.Text(_("Products"), size=22, weight=ft.FontWeight.BOLD),
-            ft.ElevatedButton(_("+ Add New Product"), icon=ft.icons.ADD, on_click=lambda _: show_product_dialog())
+            ft.ElevatedButton(_("+ Add New Product"), icon=ft.Icons.ADD, on_click=lambda _: show_product_dialog())
         ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
         ft.Row([search_input, category_filter]),
         items_list
@@ -279,10 +279,10 @@ def InventoryView(page: ft.Page, repo):
             for s in suppliers:
                 suppliers_list.controls.append(
                     ft.ListTile(
-                        leading=ft.Icon(ft.icons.BUSINESS),
+                        leading=ft.Icon(ft.Icons.BUSINESS),
                         title=ft.Text(s.get("name", "Unknown")),
                         subtitle=ft.Text(f"{_('Phone')}: {s.get('phone', 'N/A')} | {_('Email')}: {s.get('email', 'N/A')}"),
-                        trailing=ft.IconButton(ft.icons.EDIT, on_click=lambda e, sup=s: show_supplier_dialog(sup))
+                        trailing=ft.IconButton(ft.Icons.EDIT, on_click=lambda e, sup=s: show_supplier_dialog(sup))
                     )
                 )
         page.update()
@@ -324,7 +324,7 @@ def InventoryView(page: ft.Page, repo):
     suppliers_content = ft.Column([
         ft.Row([
             ft.Text(_("Suppliers"), size=22, weight=ft.FontWeight.BOLD),
-            ft.ElevatedButton(_("+ Add Supplier"), icon=ft.icons.ADD, on_click=lambda _: show_supplier_dialog())
+            ft.ElevatedButton(_("+ Add Supplier"), icon=ft.Icons.ADD, on_click=lambda _: show_supplier_dialog())
         ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
         suppliers_list
     ], spacing=10, expand=True)
@@ -344,10 +344,10 @@ def InventoryView(page: ft.Page, repo):
                 lens_types_list.controls.append(
                     ft.Container(
                         ft.Row([
-                            ft.Icon(ft.icons.LENS, size=16, color=ft.Colors.BLUE_700),
+                            ft.Icon(ft.Icons.LENS, size=16, color=ft.Colors.BLUE_700),
                             ft.Text(lt.get("name", ""), expand=True),
                         ], spacing=10),
-                        padding=ft.padding.symmetric(horizontal=10, vertical=8),
+                        padding=ft.Padding.symmetric(horizontal=10, vertical=8),
                         border_radius=5,
                         bgcolor=ft.Colors.BLUE_50
                     )
@@ -356,10 +356,10 @@ def InventoryView(page: ft.Page, repo):
                 frame_types_list.controls.append(
                     ft.Container(
                         ft.Row([
-                            ft.Icon(ft.icons.CROP_SQUARE, size=16, color=ft.Colors.GREEN_700),
+                            ft.Icon(ft.Icons.CROP_SQUARE, size=16, color=ft.Colors.GREEN_700),
                             ft.Text(ftype.get("name", ""), expand=True),
                         ], spacing=10),
-                        padding=ft.padding.symmetric(horizontal=10, vertical=8),
+                        padding=ft.Padding.symmetric(horizontal=10, vertical=8),
                         border_radius=5,
                         bgcolor=ft.Colors.GREEN_50
                     )
@@ -368,10 +368,10 @@ def InventoryView(page: ft.Page, repo):
                 frame_colors_list.controls.append(
                     ft.Container(
                         ft.Row([
-                            ft.Icon(ft.icons.COLOR_LENS, size=16, color=ft.Colors.PURPLE_700),
+                            ft.Icon(ft.Icons.COLOR_LENS, size=16, color=ft.Colors.PURPLE_700),
                             ft.Text(fcolor.get("name", ""), expand=True),
                         ], spacing=10),
-                        padding=ft.padding.symmetric(horizontal=10, vertical=8),
+                        padding=ft.Padding.symmetric(horizontal=10, vertical=8),
                         border_radius=5,
                         bgcolor=ft.Colors.PURPLE_50
                     )
@@ -418,14 +418,14 @@ def InventoryView(page: ft.Page, repo):
                     ft.Container(
                         items_list,
                         height=200,
-                        border=ft.border.all(1, ft.Colors.GREY_300),
+                        border=ft.Border.all(1, ft.Colors.GREY_300),
                         border_radius=5,
                         padding=5
                     ),
                     ft.Row([
                         input_field,
                         ft.IconButton(
-                            ft.icons.ADD_CIRCLE,
+                            ft.Icons.ADD_CIRCLE,
                             icon_color=color,
                             icon_size=30,
                             tooltip=_("Add"),
@@ -435,22 +435,22 @@ def InventoryView(page: ft.Page, repo):
                 ], spacing=10),
                 col={"xs": 12, "md": 4},
                 padding=15,
-                border=ft.border.all(1, ft.Colors.GREY_200),
+                border=ft.Border.all(1, ft.Colors.GREY_200),
                 border_radius=10
             )
 
         return ft.Column([
             ft.Row([
-                ft.Icon(ft.icons.SETTINGS, size=28),
+                ft.Icon(ft.Icons.SETTINGS, size=28),
                 ft.Text(_("Optical Settings"), size=22, weight=ft.FontWeight.BOLD),
             ], spacing=10),
             ft.Text(_("Manage lens types, frame types, and colors used in prescriptions and orders."),
                     color=ft.Colors.GREY_700, size=14),
             ft.Divider(height=20),
             ft.ResponsiveRow([
-                create_settings_card(_("Lens Types"), ft.icons.LENS, ft.Colors.BLUE_700, lens_types_list, lens_input, "lens_types"),
-                create_settings_card(_("Frame Types"), ft.icons.CROP_SQUARE, ft.Colors.GREEN_700, frame_types_list, frame_type_input, "frame_types"),
-                create_settings_card(_("Frame Colors"), ft.icons.COLOR_LENS, ft.Colors.PURPLE_700, frame_colors_list, frame_color_input, "frame_colors"),
+                create_settings_card(_("Lens Types"), ft.Icons.LENS, ft.Colors.BLUE_700, lens_types_list, lens_input, "lens_types"),
+                create_settings_card(_("Frame Types"), ft.Icons.CROP_SQUARE, ft.Colors.GREEN_700, frame_types_list, frame_type_input, "frame_types"),
+                create_settings_card(_("Frame Colors"), ft.Icons.COLOR_LENS, ft.Colors.PURPLE_700, frame_colors_list, frame_color_input, "frame_colors"),
             ], spacing=15, run_spacing=15)
         ], expand=True, spacing=10)
 
@@ -476,7 +476,7 @@ def InventoryView(page: ft.Page, repo):
                 title=ft.Text(_("Inventory Management")),
                 bgcolor=ft.Colors.BLUE_700,
                 color=ft.Colors.WHITE,
-                leading=ft.IconButton(ft.icons.ARROW_BACK, on_click=lambda _: page.go("/"))
+                leading=ft.IconButton(ft.Icons.ARROW_BACK, on_click=lambda _: page.go("/"))
             ),
             ft.Container(content=tabs, expand=True, padding=10)
         ],

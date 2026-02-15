@@ -143,7 +143,7 @@ def PrescriptionView(page: ft.Page, repo, customer_id):
             p_list.controls.append(
                 ft.Container(
                     ft.Column([
-                        ft.Icon(ft.icons.ASSIGNMENT, size=50, color=ft.Colors.GREY_400),
+                        ft.Icon(ft.Icons.ASSIGNMENT, size=50, color=ft.Colors.GREY_400),
                         ft.Text(_("No prescriptions or examinations found"), italic=True, color=ft.Colors.GREY_700)
                     ], horizontal_alignment=ft.CrossAxisAlignment.CENTER),
                     padding=40
@@ -157,7 +157,7 @@ def PrescriptionView(page: ft.Page, repo, customer_id):
 
                     action_buttons = ft.Row([
                         ft.IconButton(
-                            ft.icons.PRINT,
+                            ft.Icons.PRINT,
                             tooltip=_("Print"),
                             icon_color=ft.Colors.BLUE_700,
                             on_click=lambda e, r=record: print_prescription(r)
@@ -166,7 +166,7 @@ def PrescriptionView(page: ft.Page, repo, customer_id):
 
                     if image_path:
                         action_buttons.controls.insert(0, ft.IconButton(
-                            ft.icons.IMAGE,
+                            ft.Icons.IMAGE,
                             tooltip=_("View Image"),
                             icon_color=ft.Colors.GREEN_700,
                             on_click=lambda e, path=image_path: preview_image(path)
@@ -177,7 +177,7 @@ def PrescriptionView(page: ft.Page, repo, customer_id):
                             content=ft.Container(
                                 ft.Column([
                                     ft.Row([
-                                        ft.Icon(ft.icons.ASSIGNMENT, color=ft.Colors.BLUE_700),
+                                        ft.Icon(ft.Icons.ASSIGNMENT, color=ft.Colors.BLUE_700),
                                         ft.Column([
                                             ft.Text(f"{_('Prescription')} - {p.get('type', 'N/A')}", weight=ft.FontWeight.BOLD),
                                             ft.Text(f"{_('Doctor')}: {p.get('doctor_name', 'N/A')} | {_('Date')}: {p.get('created_at', '')[:10] if p.get('created_at') else 'N/A'}", size=12, color=ft.Colors.GREY_700),
@@ -224,7 +224,7 @@ def PrescriptionView(page: ft.Page, repo, customer_id):
 
                     action_buttons = ft.Row([
                         ft.IconButton(
-                            ft.icons.PRINT,
+                            ft.Icons.PRINT,
                             tooltip=_("Print"),
                             icon_color=ft.Colors.BLUE_700,
                             on_click=lambda ev, r=record: print_prescription(r)
@@ -233,7 +233,7 @@ def PrescriptionView(page: ft.Page, repo, customer_id):
 
                     if image_path:
                         action_buttons.controls.insert(0, ft.IconButton(
-                            ft.icons.IMAGE,
+                            ft.Icons.IMAGE,
                             tooltip=_("View Image"),
                             icon_color=ft.Colors.GREEN_700,
                             on_click=lambda ev, path=image_path: preview_image(path)
@@ -244,7 +244,7 @@ def PrescriptionView(page: ft.Page, repo, customer_id):
                             content=ft.Container(
                                 ft.Column([
                                     ft.Row([
-                                        ft.Icon(ft.icons.REMOVE_RED_EYE, color=ft.Colors.GREEN_700),
+                                        ft.Icon(ft.Icons.REMOVE_RED_EYE, color=ft.Colors.GREEN_700),
                                         ft.Column([
                                             ft.Text(f"{_('Order Exam')} - {e.get('exam_type', 'N/A')}", weight=ft.FontWeight.BOLD),
                                             ft.Text(f"#{sale.get('invoice_no', 'N/A')} | {sale.get('order_date', '')[:10] if sale.get('order_date') else 'N/A'}", size=12, color=ft.Colors.GREY_700),
@@ -292,7 +292,7 @@ def PrescriptionView(page: ft.Page, repo, customer_id):
                                     ft.Row([
                                         ft.Container(
                                             ft.Row([
-                                                ft.Icon(ft.icons.LENS, size=16, color=ft.Colors.ORANGE_700),
+                                                ft.Icon(ft.Icons.LENS, size=16, color=ft.Colors.ORANGE_700),
                                                 ft.Text(f"{_('Lens')}: {e.get('lens_info', '-')}", size=12),
                                             ]),
                                             bgcolor=ft.Colors.ORANGE_50,
@@ -301,7 +301,7 @@ def PrescriptionView(page: ft.Page, repo, customer_id):
                                         ),
                                         ft.Container(
                                             ft.Row([
-                                                ft.Icon(ft.icons.CROP_SQUARE, size=16, color=ft.Colors.TEAL_700),
+                                                ft.Icon(ft.Icons.CROP_SQUARE, size=16, color=ft.Colors.TEAL_700),
                                                 ft.Text(f"{_('Frame')}: {e.get('frame_info', '-')} ({e.get('frame_color', '-')})", size=12),
                                             ]),
                                             bgcolor=ft.Colors.TEAL_50,
@@ -407,7 +407,7 @@ def PrescriptionView(page: ft.Page, repo, customer_id):
                 title=ft.Text(f"{_('Prescriptions')} - {customer_name}"),
                 bgcolor=ft.Colors.BLUE_700,
                 color=ft.Colors.WHITE,
-                leading=ft.IconButton(ft.icons.ARROW_BACK, on_click=lambda _: page.go("/customers"))
+                leading=ft.IconButton(ft.Icons.ARROW_BACK, on_click=lambda _: page.go("/customers"))
             ),
             ft.Container(
                 content=ft.Column([
@@ -415,10 +415,10 @@ def PrescriptionView(page: ft.Page, repo, customer_id):
                     ft.Card(
                         content=ft.Container(
                             ft.ListTile(
-                                leading=ft.Icon(ft.icons.PERSON, size=40),
+                                leading=ft.Icon(ft.Icons.PERSON, size=40),
                                 title=ft.Text(customer_name, size=20, weight=ft.FontWeight.BOLD),
                                 subtitle=ft.Text(f"📱 {customer_data.get('phone', 'N/A') if customer_data else 'N/A'} | 📍 {customer_data.get('city', 'N/A') if customer_data else 'N/A'}"),
-                                trailing=ft.ElevatedButton(_("+ Add Prescription"), icon=ft.icons.ADD, on_click=add_prescription)
+                                trailing=ft.ElevatedButton(_("+ Add Prescription"), icon=ft.Icons.ADD, on_click=add_prescription)
                             ),
                             padding=10
                         )

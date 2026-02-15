@@ -35,16 +35,16 @@ def CustomersView(page: ft.Page, repo):
                         content=ft.Container(
                             content=ft.Column([
                                 ft.ListTile(
-                                    leading=ft.Icon(ft.icons.PERSON, size=40),
+                                    leading=ft.Icon(ft.Icons.PERSON, size=40),
                                     title=ft.Text(c.get("name", "Unknown"), weight=ft.FontWeight.BOLD),
                                     subtitle=ft.Text(f"📱 {c.get('phone', 'N/A')} | 📍 {c.get('city', 'N/A')}"),
                                     trailing=ft.PopupMenuButton(
                                         items=[
-                                            ft.PopupMenuItem(text=_("View Prescriptions"), icon=ft.icons.ASSIGNMENT, on_click=lambda e, cid=c["id"]: page.go(f"/prescription/{cid}")),
-                                            ft.PopupMenuItem(text=_("Edit"), icon=ft.icons.EDIT, on_click=lambda e, cust=c: show_customer_dialog(cust)),
-                                            ft.PopupMenuItem(text=_("New Order"), icon=ft.icons.SHOPPING_CART, on_click=lambda e: page.go("/pos")),
+                                            ft.PopupMenuItem(text=_("View Prescriptions"), icon=ft.Icons.ASSIGNMENT, on_click=lambda e, cid=c["id"]: page.go(f"/prescription/{cid}")),
+                                            ft.PopupMenuItem(text=_("Edit"), icon=ft.Icons.EDIT, on_click=lambda e, cust=c: show_customer_dialog(cust)),
+                                            ft.PopupMenuItem(text=_("New Order"), icon=ft.Icons.SHOPPING_CART, on_click=lambda e: page.go("/pos")),
                                             ft.PopupMenuItem(),  # Divider
-                                            ft.PopupMenuItem(text=_("Delete"), icon=ft.icons.DELETE, on_click=lambda e, cust=c: confirm_delete_customer(cust)),
+                                            ft.PopupMenuItem(text=_("Delete"), icon=ft.Icons.DELETE, on_click=lambda e, cust=c: confirm_delete_customer(cust)),
                                         ]
                                     )
                                 ),
@@ -141,7 +141,7 @@ def CustomersView(page: ft.Page, repo):
         dialog = ft.AlertDialog(
             title=ft.Text(_("Delete Customer")),
             content=ft.Column([
-                ft.Icon(ft.icons.WARNING, color=ft.Colors.RED_700, size=50),
+                ft.Icon(ft.Icons.WARNING, color=ft.Colors.RED_700, size=50),
                 ft.Text(f"{_('Are you sure you want to delete')} \"{cust.get('name', '')}\"?"),
                 ft.Text(_("This action cannot be undone."), color=ft.Colors.RED_700, size=12),
             ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=10),
@@ -161,7 +161,7 @@ def CustomersView(page: ft.Page, repo):
 
     search_input = ft.TextField(
         label=_("Search by name, phone, city or email..."),
-        prefix_icon=ft.icons.SEARCH,
+        prefix_icon=ft.Icons.SEARCH,
         expand=True,
         on_change=lambda e: load_customers(e.control.value)
     )
@@ -175,13 +175,13 @@ def CustomersView(page: ft.Page, repo):
                 title=ft.Text(_("Customer Management")),
                 bgcolor=ft.Colors.BLUE_700,
                 color=ft.Colors.WHITE,
-                leading=ft.IconButton(ft.icons.ARROW_BACK, on_click=lambda _: page.go("/"))
+                leading=ft.IconButton(ft.Icons.ARROW_BACK, on_click=lambda _: page.go("/"))
             ),
             ft.Container(
                 content=ft.Column([
                     ft.Row([
                         ft.Text(_("Customers"), size=25, weight=ft.FontWeight.BOLD),
-                        ft.ElevatedButton(_("+ Add Customer"), icon=ft.icons.PERSON_ADD, on_click=lambda _: show_customer_dialog()),
+                        ft.ElevatedButton(_("+ Add Customer"), icon=ft.Icons.PERSON_ADD, on_click=lambda _: show_customer_dialog()),
                     ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
                     search_input,
                     cust_list,
