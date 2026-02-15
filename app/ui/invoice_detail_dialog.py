@@ -248,3 +248,4 @@ class InvoiceDetailDialog(QDialog):
             preview.exec()
         finally:
             session.close()
+

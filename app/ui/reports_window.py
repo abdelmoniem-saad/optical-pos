@@ -178,3 +178,4 @@ class ReportsWindow(QWidget):
             'user_id': user_id
         }
         self.nav_to_history_filtered.emit(filters)
+

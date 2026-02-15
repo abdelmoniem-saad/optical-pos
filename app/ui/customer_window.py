@@ -166,3 +166,4 @@ class CustomerWindow(QWidget):
                 self.rx_win.show()
         finally:
             session.close()
+

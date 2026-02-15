@@ -37,3 +37,4 @@ print('After selecting Frame SKU:', d.sku_input.text(), 'Lens visible?', d.lens_
 # close dialog
 d.close()
 app.quit()
+

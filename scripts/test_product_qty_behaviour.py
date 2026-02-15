@@ -30,3 +30,4 @@ print('New product initial qty (should be 0):', d2.initial_qty_input.value())
 d2.close()
 app.quit()
 
+

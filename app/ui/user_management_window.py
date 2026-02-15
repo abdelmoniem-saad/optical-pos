@@ -136,3 +136,4 @@ class UserManagementWindow(QWidget):
                     self.load_data()
         finally:
             session.close()
+

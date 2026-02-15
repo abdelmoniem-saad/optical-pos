@@ -331,3 +331,4 @@ class PrescriptionWindow(QWidget):
             QDesktopServices.openUrl(QUrl.fromLocalFile(self.current_view_image_path))
         elif self.attached_image_path:
             QDesktopServices.openUrl(QUrl.fromLocalFile(self.attached_image_path))
+

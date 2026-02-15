@@ -147,3 +147,4 @@ class UserDialog(QDialog):
             QMessageBox.critical(self, _("Database Error"), str(e))
         finally:
             session.close()
+

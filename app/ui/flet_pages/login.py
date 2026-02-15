@@ -18,20 +18,24 @@ def LoginView(page: ft.Page, repo, on_login_success):
     error_text = ft.Text(color=ft.colors.RED_700)
 
     def handle_login(e):
-        username = username_input.value
-        password = password_input.value
+        try:
+            username = username_input.value
+            password = password_input.value
 
-        if not username or not password:
-            error_text.value = _("Please enter both username and password.")
-            page.update()
-            return
+            if not username or not password:
+                error_text.value = _("Please enter both username and password.")
+                page.update()
+                return
 
-        # Attempt to authenticate
-        user = repo.authenticate(username, password)
-        if user:
-            on_login_success(user)
-        else:
-            error_text.value = _("Invalid username or password.")
+            # Attempt to authenticate
+            user = repo.authenticate(username, password)
+            if user:
+                on_login_success(user)
+            else:
+                error_text.value = _("Invalid username or password.")
+                page.update()
+        except Exception as ex:
+            error_text.value = f"Error: {str(ex)}"
             page.update()
 
     # Set up on_submit after handle_login is defined
@@ -69,6 +73,9 @@ def LoginView(page: ft.Page, repo, on_login_success):
             )
         ]
     )
+
+
+
 
 
 

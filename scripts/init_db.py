@@ -114,3 +114,4 @@ if __name__ == '__main__':
     engine = init_db()
     seed_core(engine)
     print("Database initialization complete.")
+

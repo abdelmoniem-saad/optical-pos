@@ -119,3 +119,4 @@ class CustomerLookupDialog(QDialog):
     def show_invoice_details(self, sale_id):
         dialog = InvoiceDetailDialog(sale_id, self)
         dialog.exec()
+

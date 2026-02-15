@@ -155,3 +155,4 @@ class OpticalSettingsWindow(QWidget):
                 QMessageBox.critical(self, "خطأ", str(e))
             finally:
                 session.close()
+

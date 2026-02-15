@@ -25,3 +25,4 @@ if __name__ == '__main__':
         print(f"FAILED: Logged in with wrong password as {user.username}")
 
     session.close()
+

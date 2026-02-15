@@ -560,3 +560,4 @@ class InventoryWindow(QWidget):
                     pass
         finally:
             session.close()
+

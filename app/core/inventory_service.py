@@ -291,3 +291,4 @@ class InventoryService:
             if close_session:
                 session.close()
 
+

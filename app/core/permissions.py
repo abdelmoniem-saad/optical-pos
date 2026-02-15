@@ -124,3 +124,4 @@ def has_permission(session, user_id, permission_code):
         return True, rp.value
 
     return False, None
+

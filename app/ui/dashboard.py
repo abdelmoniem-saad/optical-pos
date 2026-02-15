@@ -264,3 +264,4 @@ class Dashboard(QWidget):
             if prod:
                 dialog = ProductDialog(self, product=prod)
                 dialog.exec()
+

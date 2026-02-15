@@ -337,3 +337,4 @@ class TopNavigation(QWidget):
             btn.setProperty("active", k == key)
             btn.style().unpolish(btn)
             btn.style().polish(btn)
+

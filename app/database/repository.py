@@ -764,3 +764,4 @@ class POSRepository:
             "stock_qty": 0
         })
 
+

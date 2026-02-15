@@ -217,3 +217,4 @@ class PurchaseDialog(QDialog):
             return False
         finally:
             session.close()
+

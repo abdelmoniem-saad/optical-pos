@@ -48,3 +48,4 @@ class SupabaseRepository:
             self.client.table('sale_items').insert(item).execute()
         
         return sale_response.data
+

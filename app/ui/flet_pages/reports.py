@@ -157,7 +157,7 @@ def ReportsView(page: ft.Page, repo):
                                 ft.Text(_("Low Stock Alert"), size=18, weight=ft.FontWeight.BOLD, color=ft.colors.ORANGE_700),
                                 ft.Container(
                                     low_stock_list,
-                                    border=ft.Border.all(1, ft.colors.ORANGE_200),
+                                    border=ft.border.all(1, ft.colors.ORANGE_200),
                                     border_radius=10,
                                     padding=10,
                                     bgcolor=ft.colors.ORANGE_50
@@ -170,7 +170,7 @@ def ReportsView(page: ft.Page, repo):
                                 ft.Text(_("Top Customers"), size=18, weight=ft.FontWeight.BOLD, color=ft.colors.BLUE_700),
                                 ft.Container(
                                     top_customers_list,
-                                    border=ft.Border.all(1, ft.colors.BLUE_200),
+                                    border=ft.border.all(1, ft.colors.BLUE_200),
                                     border_radius=10,
                                     padding=10,
                                     bgcolor=ft.colors.BLUE_50
@@ -186,6 +186,9 @@ def ReportsView(page: ft.Page, repo):
             )
         ]
     )
+
+
+
 
 
 

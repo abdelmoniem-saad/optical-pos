@@ -29,3 +29,4 @@ class AppState(QObject):
 # Singleton instance
 state = AppState()
 
+

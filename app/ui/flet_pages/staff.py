@@ -42,7 +42,7 @@ def StaffView(page: ft.Page, repo):
                                     ft.Container(
                                         ft.Text(_("Active") if is_active else _("Inactive"), size=12, color=ft.colors.WHITE),
                                         bgcolor=ft.colors.GREEN_500 if is_active else ft.colors.GREY_500,
-                                        padding=ft.Padding.symmetric(horizontal=10, vertical=5),
+                                        padding=ft.padding.symmetric(horizontal=10, vertical=5),
                                         border_radius=15
                                     ),
                                     ft.PopupMenuButton(
@@ -213,6 +213,9 @@ def StaffView(page: ft.Page, repo):
             )
         ]
     )
+
+
+
 
 
 

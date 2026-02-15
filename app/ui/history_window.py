@@ -157,3 +157,4 @@ class SalesHistoryWindow(QWidget):
             QMessageBox.critical(self, _("Error"), str(e))
         finally:
             session.close()
+

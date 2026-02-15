@@ -72,7 +72,7 @@ def create_top_bar(page: ft.Page, repo, current_route: str = "/"):
                         ft.Icon(ft.icons.PEOPLE, color=ft.colors.BLUE_700, size=18),
                         ft.Text(_("Customers"), weight=ft.FontWeight.BOLD, color=ft.colors.BLUE_700)
                     ]),
-                    padding=ft.Padding.only(bottom=5)
+                    padding=ft.padding.only(bottom=5)
                 )
             )
             for c in matching_customers:
@@ -98,7 +98,7 @@ def create_top_bar(page: ft.Page, repo, current_route: str = "/"):
                         ft.Icon(ft.icons.INVENTORY_2, color=ft.colors.GREEN_700, size=18),
                         ft.Text(_("Products"), weight=ft.FontWeight.BOLD, color=ft.colors.GREEN_700)
                     ]),
-                    padding=ft.Padding.only(bottom=5)
+                    padding=ft.padding.only(bottom=5)
                 )
             )
             for p in matching_products:
@@ -124,7 +124,7 @@ def create_top_bar(page: ft.Page, repo, current_route: str = "/"):
                         ft.Icon(ft.icons.RECEIPT_LONG, color=ft.colors.ORANGE_700, size=18),
                         ft.Text(_("Invoices"), weight=ft.FontWeight.BOLD, color=ft.colors.ORANGE_700)
                     ]),
-                    padding=ft.Padding.only(bottom=5)
+                    padding=ft.padding.only(bottom=5)
                 )
             )
             for s in matching_sales:
@@ -183,7 +183,7 @@ def create_top_bar(page: ft.Page, repo, current_route: str = "/"):
         border_radius=20,
         height=40,
         text_size=14,
-        content_padding=ft.Padding.only(left=10, right=10),
+        content_padding=ft.padding.only(left=10, right=10),
         on_submit=show_search_results,
         width=220,
     )
@@ -208,7 +208,7 @@ def create_top_bar(page: ft.Page, repo, current_route: str = "/"):
                     ft.Text("Lensy POS", color=ft.colors.WHITE, weight=ft.FontWeight.BOLD, size=16),
                 ], spacing=8),
                 on_click=lambda e: page.go("/"),
-                padding=ft.Padding.only(right=15),
+                padding=ft.padding.only(right=15),
             ),
 
             # Quick Nav Buttons
@@ -239,9 +239,11 @@ def create_top_bar(page: ft.Page, repo, current_route: str = "/"):
 
         ], spacing=2, alignment=ft.MainAxisAlignment.START),
         bgcolor=ft.colors.BLUE_700,
-        padding=ft.Padding.symmetric(horizontal=15, vertical=8),
+        padding=ft.padding.symmetric(horizontal=15, vertical=8),
     )
 
     return top_bar
+
+
 
 

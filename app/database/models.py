@@ -269,3 +269,4 @@ class Prescription(Base):
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
 
     customer = relationship('Customer')
+

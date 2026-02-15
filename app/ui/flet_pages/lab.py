@@ -170,7 +170,7 @@ def LabView(page: ft.Page, repo):
                         ft.Text(f"{_('Lens')}: {exam.get('lens_info', 'N/A')}"),
                         ft.Text(f"{_('Frame')}: {exam.get('frame_info', 'N/A')} ({exam.get('frame_color', '')})"),
                     ]),
-                    border=ft.Border.all(1, ft.colors.GREY_300),
+                    border=ft.border.all(1, ft.colors.GREY_300),
                     border_radius=5,
                     padding=10
                 )
@@ -278,7 +278,7 @@ Exam #{i} - {exam.get('exam_type', 'N/A')}
                                 ft.Text(f"{not_started} {_('Not Started')}", weight=ft.FontWeight.BOLD)
                             ]),
                             bgcolor=ft.colors.RED_100,
-                            padding=ft.Padding.symmetric(horizontal=15, vertical=8),
+                            padding=ft.padding.symmetric(horizontal=15, vertical=8),
                             border_radius=20
                         ),
                         ft.Container(
@@ -287,7 +287,7 @@ Exam #{i} - {exam.get('exam_type', 'N/A')}
                                 ft.Text(f"{in_lab} {_('In Lab')}", weight=ft.FontWeight.BOLD)
                             ]),
                             bgcolor=ft.colors.ORANGE_100,
-                            padding=ft.Padding.symmetric(horizontal=15, vertical=8),
+                            padding=ft.padding.symmetric(horizontal=15, vertical=8),
                             border_radius=20
                         ),
                         ft.Container(
@@ -296,7 +296,7 @@ Exam #{i} - {exam.get('exam_type', 'N/A')}
                                 ft.Text(f"{ready} {_('Ready')}", weight=ft.FontWeight.BOLD)
                             ]),
                             bgcolor=ft.colors.GREEN_100,
-                            padding=ft.Padding.symmetric(horizontal=15, vertical=8),
+                            padding=ft.padding.symmetric(horizontal=15, vertical=8),
                             border_radius=20
                         ),
                     ], spacing=10),
@@ -309,6 +309,9 @@ Exam #{i} - {exam.get('exam_type', 'N/A')}
             )
         ]
     )
+
+
+
 
 
 

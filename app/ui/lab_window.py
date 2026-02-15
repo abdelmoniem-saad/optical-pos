@@ -198,3 +198,4 @@ class LabWindow(QWidget):
             preview.exec()
         finally:
             session.close()
+

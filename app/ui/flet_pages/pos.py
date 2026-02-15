@@ -154,7 +154,7 @@ class _POSController:
                     on_click=lambda _: self.validate_and_proceed_customer()
                 )
             ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
-            padding=ft.Padding.only(top=10),
+            padding=ft.padding.only(top=10),
             bgcolor=ft.colors.SURFACE_VARIANT,
             border_radius=10
         )
@@ -177,7 +177,7 @@ class _POSController:
             ft.Text(_("Matching Customers:"), size=14, weight=ft.FontWeight.BOLD),
             ft.Container(
                 content=self.customer_results,
-                border=ft.Border.all(1, ft.colors.GREY_300),
+                border=ft.border.all(1, ft.colors.GREY_300),
                 border_radius=10,
                 padding=5,
                 height=200
@@ -403,7 +403,7 @@ class _POSController:
                                 )
                             ], spacing=3),
                             bgcolor=ft.colors.WHITE,
-                            border=ft.Border.all(1, ft.colors.BLUE_200),
+                            border=ft.border.all(1, ft.colors.BLUE_200),
                             border_radius=8,
                             padding=10,
                             margin=ft.Margin.only(bottom=8)
@@ -690,9 +690,9 @@ class _POSController:
                 image_indicator,
                 ft.IconButton(ft.icons.DELETE, icon_color=ft.colors.RED_700, on_click=remove_row, tooltip=_("Remove"))
             ], scroll=ft.ScrollMode.AUTO, spacing=5, vertical_alignment=ft.CrossAxisAlignment.CENTER),
-            border=ft.Border.all(1, ft.colors.BLUE_200),
+            border=ft.border.all(1, ft.colors.BLUE_200),
             border_radius=8,
-            padding=ft.Padding.symmetric(horizontal=10, vertical=5),
+            padding=ft.padding.symmetric(horizontal=10, vertical=5),
             bgcolor=ft.colors.BLUE_50
         )
 
@@ -829,7 +829,7 @@ class _POSController:
             ft.Container(
                 content=self.additional_products_list,
                 height=350,
-                border=ft.Border.all(1, ft.colors.GREY_300),
+                border=ft.border.all(1, ft.colors.GREY_300),
                 border_radius=8,
                 padding=5
             ),
@@ -940,7 +940,7 @@ class _POSController:
                 ft.ElevatedButton(_("Add More Items"), icon=ft.icons.SHOPPING_CART, on_click=lambda _: self.show_step_3())
             ]),
             ft.Text(_("Shopping Cart:"), size=16, weight=ft.FontWeight.BOLD),
-            ft.Container(content=self.cart_table, border=ft.Border.all(1, ft.colors.GREY_300), border_radius=5),
+            ft.Container(content=self.cart_table, border=ft.border.all(1, ft.colors.GREY_300), border_radius=5),
             ft.Divider(),
             ft.ResponsiveRow([
                 ft.Container(
@@ -1288,7 +1288,7 @@ class _POSController:
             bgcolor=ft.colors.WHITE,
             padding=15,
             border_radius=5,
-            border=ft.Border.all(1, ft.colors.GREY_300),
+            border=ft.border.all(1, ft.colors.GREY_300),
             width=420,
             height=400,
         )
@@ -1421,6 +1421,9 @@ class _POSController:
         self.order_date = datetime.date.today()
         self.delivery_date = datetime.date.today() + datetime.timedelta(days=3)
         self.show_step_0()
+
+
+
 
 
 

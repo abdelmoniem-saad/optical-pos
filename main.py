@@ -28,7 +28,7 @@ def main(page: ft.Page):
     # Open in fullscreen/maximized mode (only for desktop)
     if not is_web:
         try:
-            page.window_maximized = True
+            page.window.maximized = True
         except:
             pass
 

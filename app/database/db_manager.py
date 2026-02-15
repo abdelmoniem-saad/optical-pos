@@ -90,3 +90,4 @@ def generate_sku(session, category):
     prefix = prefix_map.get(category, '0')
     count = session.query(Product).filter(Product.sku.ilike(f"{prefix}%")).count()
     return f"{prefix}{count + 1:04d}"
+

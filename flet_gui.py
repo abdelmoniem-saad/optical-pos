@@ -125,7 +125,7 @@ class SplitMatesFletGUI:
             on_change=self.on_group_select,
             controls=[
                 ft.Container(height=12),
-                ft.Container(content=ft.Text("Select Group", size=20, weight=ft.FontWeight.BOLD), padding=ft.Padding.only(left=16, top=10, bottom=10)),
+                ft.Container(content=ft.Text("Select Group", size=20, weight=ft.FontWeight.BOLD), padding=ft.padding.only(left=16, top=10, bottom=10)),
                 ft.Divider(),
             ]
         )
@@ -147,7 +147,7 @@ class SplitMatesFletGUI:
         # Keep the header controls
         header_controls = [
             ft.Container(height=12),
-            ft.Container(content=ft.Text("Select Group", size=20, weight=ft.FontWeight.BOLD), padding=ft.Padding.only(left=16, top=10, bottom=10)),
+            ft.Container(content=ft.Text("Select Group", size=20, weight=ft.FontWeight.BOLD), padding=ft.padding.only(left=16, top=10, bottom=10)),
             ft.Divider(),
         ]
         group_controls = []
@@ -724,5 +724,6 @@ def main(page: ft.Page):
 
 if __name__ == "__main__":
     ft.run(main)
+
 
 

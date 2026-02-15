@@ -21,3 +21,4 @@ state.sale_added.emit(1)
 print('After sale_added rows:', win.table.rowCount())
 app.quit()
 
+

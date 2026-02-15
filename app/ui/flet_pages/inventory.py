@@ -31,7 +31,7 @@ def InventoryView(page: ft.Page, repo):
                             ft.Container(
                                 ft.Text(f"{stock}", weight=ft.FontWeight.BOLD, color=stock_color),
                                 bgcolor=ft.colors.GREY_200,
-                                padding=ft.Padding.symmetric(horizontal=10, vertical=5),
+                                padding=ft.padding.symmetric(horizontal=10, vertical=5),
                                 border_radius=5
                             ),
                             ft.IconButton(ft.icons.ADD_CIRCLE, tooltip=_("Adjust Stock"), on_click=lambda e, i=item: show_adjust_stock_dialog(i)),
@@ -347,7 +347,7 @@ def InventoryView(page: ft.Page, repo):
                             ft.Icon(ft.icons.LENS, size=16, color=ft.colors.BLUE_700),
                             ft.Text(lt.get("name", ""), expand=True),
                         ], spacing=10),
-                        padding=ft.Padding.symmetric(horizontal=10, vertical=8),
+                        padding=ft.padding.symmetric(horizontal=10, vertical=8),
                         border_radius=5,
                         bgcolor=ft.colors.BLUE_50
                     )
@@ -359,7 +359,7 @@ def InventoryView(page: ft.Page, repo):
                             ft.Icon(ft.icons.CROP_SQUARE, size=16, color=ft.colors.GREEN_700),
                             ft.Text(ftype.get("name", ""), expand=True),
                         ], spacing=10),
-                        padding=ft.Padding.symmetric(horizontal=10, vertical=8),
+                        padding=ft.padding.symmetric(horizontal=10, vertical=8),
                         border_radius=5,
                         bgcolor=ft.colors.GREEN_50
                     )
@@ -371,7 +371,7 @@ def InventoryView(page: ft.Page, repo):
                             ft.Icon(ft.icons.COLOR_LENS, size=16, color=ft.colors.PURPLE_700),
                             ft.Text(fcolor.get("name", ""), expand=True),
                         ], spacing=10),
-                        padding=ft.Padding.symmetric(horizontal=10, vertical=8),
+                        padding=ft.padding.symmetric(horizontal=10, vertical=8),
                         border_radius=5,
                         bgcolor=ft.colors.PURPLE_50
                     )
@@ -418,7 +418,7 @@ def InventoryView(page: ft.Page, repo):
                     ft.Container(
                         items_list,
                         height=200,
-                        border=ft.Border.all(1, ft.colors.GREY_300),
+                        border=ft.border.all(1, ft.colors.GREY_300),
                         border_radius=5,
                         padding=5
                     ),
@@ -435,7 +435,7 @@ def InventoryView(page: ft.Page, repo):
                 ], spacing=10),
                 col={"xs": 12, "md": 4},
                 padding=15,
-                border=ft.Border.all(1, ft.colors.GREY_200),
+                border=ft.border.all(1, ft.colors.GREY_200),
                 border_radius=10
             )
 
@@ -481,6 +481,9 @@ def InventoryView(page: ft.Page, repo):
             ft.Container(content=tabs, expand=True, padding=10)
         ],
     )
+
+
+
 
 
 

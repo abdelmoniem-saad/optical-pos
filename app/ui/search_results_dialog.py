@@ -47,3 +47,4 @@ class SearchResultsDialog(QDialog):
     def select_result(self, res):
         self.result_selected.emit(res['type'], res['id'])
         self.accept()
+

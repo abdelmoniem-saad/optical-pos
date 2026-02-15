@@ -134,3 +134,4 @@ class StockAdjustDialog(QDialog):
             QMessageBox.critical(self, _("Error"), str(e))
         finally:
             session.close()
+

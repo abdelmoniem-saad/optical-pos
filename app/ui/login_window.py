@@ -94,3 +94,4 @@ if __name__ == "__main__":
     window.login_success.connect(lambda: window.close())
     window.show()
     sys.exit(app.exec())
+

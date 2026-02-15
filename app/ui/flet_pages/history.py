@@ -138,7 +138,7 @@ def HistoryView(page: ft.Page, repo):
                                             ft.Container(
                                                 ft.Text(status, size=12, color=ft.colors.WHITE),
                                                 bgcolor=status_color,
-                                                padding=ft.Padding.symmetric(horizontal=10, vertical=5),
+                                                padding=ft.padding.symmetric(horizontal=10, vertical=5),
                                                 border_radius=15
                                             )
                                         ], horizontal_alignment=ft.CrossAxisAlignment.CENTER),
@@ -306,6 +306,9 @@ def HistoryView(page: ft.Page, repo):
             )
         ]
     )
+
+
+
 
 
 

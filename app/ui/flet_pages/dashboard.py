@@ -87,7 +87,7 @@ def DashboardView(page: ft.Page, repo):
                 trailing=ft.Container(
                     ft.Text(status, size=11, color=ft.colors.WHITE),
                     bgcolor=status_color,
-                    padding=ft.Padding.symmetric(horizontal=8, vertical=4),
+                    padding=ft.padding.symmetric(horizontal=8, vertical=4),
                     border_radius=10
                 ),
                 dense=True,
@@ -136,7 +136,7 @@ def DashboardView(page: ft.Page, repo):
                 actions=[
                     ft.Container(
                         ft.Text(f"{_('Welcome')}, {user_name}", color=ft.colors.WHITE),
-                        padding=ft.Padding.only(right=10)
+                        padding=ft.padding.only(right=10)
                     ),
                     ft.IconButton(ft.icons.LOGOUT, icon_color=ft.colors.WHITE, tooltip=_("Logout"), on_click=logout)
                 ]
@@ -169,7 +169,7 @@ def DashboardView(page: ft.Page, repo):
                             ft.Text(_("No recent orders yet. Start by creating a sale!"), italic=True, color=ft.colors.GREY_500),
                             padding=20
                         ),
-                        border=ft.Border.all(1, ft.colors.GREY_300),
+                        border=ft.border.all(1, ft.colors.GREY_300),
                         border_radius=10,
                         padding=5
                     )
@@ -180,6 +180,9 @@ def DashboardView(page: ft.Page, repo):
         ],
         scroll=ft.ScrollMode.AUTO
     )
+
+
+
 
 
 

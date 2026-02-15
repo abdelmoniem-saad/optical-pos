@@ -1367,3 +1367,4 @@ class POSWindow(QWidget):
         self.print_btn.setStyleSheet("background-color: #607d8b; color: white; font-size: 22px; font-weight: bold;")
         self.stack.setCurrentIndex(0)
         self.title_label.setText(_("Sales POS"))
+

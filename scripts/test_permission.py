@@ -28,3 +28,4 @@ if __name__ == '__main__':
             print(f"Permission {code}: allowed={allowed}, value={value}")
 
     session.close()
+
