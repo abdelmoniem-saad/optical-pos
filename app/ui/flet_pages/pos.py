@@ -48,9 +48,9 @@ class _POSController:
         # UI Components
         self.app_bar = ft.AppBar(
             title=ft.Text(_("Sales POS")),
-            bgcolor=ft.Colors.BLUE_700,
-            color=ft.Colors.WHITE,
-            leading=ft.IconButton(ft.Icons.ARROW_BACK, on_click=lambda _: self._page.go("/"))
+            bgcolor=ft.colors.BLUE_700,
+            color=ft.colors.WHITE,
+            leading=ft.IconButton(ft.icons.ARROW_BACK, on_click=lambda _: self._page.go("/"))
         )
         
         self.content_area = ft.Container(expand=True, padding=20)
@@ -70,19 +70,19 @@ class _POSController:
         """Step 0: Select transaction category."""
         self.current_step = 0
         categories = [
-            (_("Glasses"), "Frame", ft.Icons.REMOVE_RED_EYE, "#1976d2"),
-            (_("Sunglasses"), "Sunglasses", ft.Icons.WB_SUNNY, "#388e3c"),
-            (_("Contact Lenses"), "ContactLens", ft.Icons.BLUR_ON, "#0288d1"),
-            (_("Accessories"), "Accessory", ft.Icons.DASHBOARD_CUSTOMIZE, "#f57c00"),
-            (_("Others"), "Other", ft.Icons.MORE_HORIZ, "#7b1fa2")
+            (_("Glasses"), "Frame", ft.icons.REMOVE_RED_EYE, "#1976d2"),
+            (_("Sunglasses"), "Sunglasses", ft.icons.WB_SUNNY, "#388e3c"),
+            (_("Contact Lenses"), "ContactLens", ft.icons.BLUR_ON, "#0288d1"),
+            (_("Accessories"), "Accessory", ft.icons.DASHBOARD_CUSTOMIZE, "#f57c00"),
+            (_("Others"), "Other", ft.icons.MORE_HORIZ, "#7b1fa2")
         ]
         
         grid = ft.ResponsiveRow(
             [
                 ft.Container(
                     content=ft.Column([
-                        ft.Icon(icon, size=60, color=ft.Colors.WHITE),
-                        ft.Text(label, size=20, weight=ft.FontWeight.BOLD, color=ft.Colors.WHITE)
+                        ft.Icon(icon, size=60, color=ft.colors.WHITE),
+                        ft.Text(label, size=20, weight=ft.FontWeight.BOLD, color=ft.colors.WHITE)
                     ], alignment=ft.MainAxisAlignment.CENTER, horizontal_alignment=ft.CrossAxisAlignment.CENTER),
                     padding=30,
                     border_radius=15,
@@ -136,33 +136,33 @@ class _POSController:
             content=ft.Row([
                 ft.ElevatedButton(
                     _("← Back"),
-                    icon=ft.Icons.ARROW_BACK,
+                    icon=ft.icons.ARROW_BACK,
                     on_click=lambda _: self.show_step_0()
                 ),
                 ft.ElevatedButton(
                     _("Walk-in (No Customer) →"),
-                    icon=ft.Icons.PERSON_OFF,
-                    bgcolor=ft.Colors.ORANGE_700,
-                    color=ft.Colors.WHITE,
+                    icon=ft.icons.PERSON_OFF,
+                    bgcolor=ft.colors.ORANGE_700,
+                    color=ft.colors.WHITE,
                     on_click=lambda _: self.go_to_next_step(None)
                 ),
                 ft.ElevatedButton(
                     _("Continue with Customer →"),
-                    icon=ft.Icons.ARROW_FORWARD,
-                    bgcolor=ft.Colors.GREEN_700,
-                    color=ft.Colors.WHITE,
+                    icon=ft.icons.ARROW_FORWARD,
+                    bgcolor=ft.colors.GREEN_700,
+                    color=ft.colors.WHITE,
                     on_click=lambda _: self.validate_and_proceed_customer()
                 )
             ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
             padding=ft.Padding.only(top=10),
-            bgcolor=ft.Colors.SURFACE_VARIANT,
+            bgcolor=ft.colors.SURFACE_VARIANT,
             border_radius=10
         )
 
         self.content_area.content = ft.Column([
             # Header
             ft.Text(_("Step 1: Customer Selection"), size=24, weight=ft.FontWeight.BOLD),
-            ft.Text(_("Enter customer information or select from search results below."), color=ft.Colors.GREY_700),
+            ft.Text(_("Enter customer information or select from search results below."), color=ft.colors.GREY_700),
             ft.Divider(height=10),
 
             # Customer Form
@@ -177,7 +177,7 @@ class _POSController:
             ft.Text(_("Matching Customers:"), size=14, weight=ft.FontWeight.BOLD),
             ft.Container(
                 content=self.customer_results,
-                border=ft.Border.all(1, ft.Colors.GREY_300),
+                border=ft.Border.all(1, ft.colors.GREY_300),
                 border_radius=10,
                 padding=5,
                 height=200
@@ -190,7 +190,7 @@ class _POSController:
         # Don't load customers initially - wait for user to type
         self.customer_results.controls.append(
             ft.Container(
-                ft.Text(_("Start typing to search for existing customers..."), italic=True, color=ft.Colors.GREY_500),
+                ft.Text(_("Start typing to search for existing customers..."), italic=True, color=ft.colors.GREY_500),
                 padding=20
             )
         )
@@ -213,7 +213,7 @@ class _POSController:
         if not terms:
             self.customer_results.controls.append(
                 ft.Container(
-                    ft.Text(_("Start typing to search for existing customers..."), italic=True, color=ft.Colors.GREY_500),
+                    ft.Text(_("Start typing to search for existing customers..."), italic=True, color=ft.colors.GREY_500),
                     padding=20
                 )
             )
@@ -238,9 +238,9 @@ class _POSController:
             self.customer_results.controls.append(
                 ft.Container(
                     ft.Column([
-                        ft.Icon(ft.Icons.PERSON_ADD, size=40, color=ft.Colors.GREY_400),
-                        ft.Text(_("No matching customers found."), color=ft.Colors.GREY_700),
-                        ft.Text(_("A new customer will be created when you continue."), italic=True, size=12, color=ft.Colors.GREY_500),
+                        ft.Icon(ft.icons.PERSON_ADD, size=40, color=ft.colors.GREY_400),
+                        ft.Text(_("No matching customers found."), color=ft.colors.GREY_700),
+                        ft.Text(_("A new customer will be created when you continue."), italic=True, size=12, color=ft.colors.GREY_500),
                     ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=5),
                     padding=20
                 )
@@ -249,12 +249,12 @@ class _POSController:
             for c in customers:
                 self.customer_results.controls.append(
                     ft.ListTile(
-                        leading=ft.Icon(ft.Icons.PERSON, color=ft.Colors.BLUE_700),
+                        leading=ft.Icon(ft.icons.PERSON, color=ft.colors.BLUE_700),
                         title=ft.Text(c.get("name", _("Unknown")), weight=ft.FontWeight.BOLD),
                         subtitle=ft.Text(f"📱 {c.get('phone', 'N/A')} | 📍 {c.get('city', 'N/A')}"),
-                        trailing=ft.Icon(ft.Icons.TOUCH_APP, color=ft.Colors.GREEN_700),
+                        trailing=ft.Icon(ft.icons.TOUCH_APP, color=ft.colors.GREEN_700),
                         on_click=lambda e, cust=c: self.select_existing_customer(cust),
-                        bgcolor=ft.Colors.BLUE_50
+                        bgcolor=ft.colors.BLUE_50
                     )
                 )
         self._page.update()
@@ -360,8 +360,8 @@ class _POSController:
                 panel_content.append(
                     ft.Container(
                         ft.Column([
-                            ft.Icon(ft.Icons.HISTORY, size=40, color=ft.Colors.GREY_400),
-                            ft.Text(_("No previous prescriptions"), color=ft.Colors.GREY_500)
+                            ft.Icon(ft.icons.HISTORY, size=40, color=ft.colors.GREY_400),
+                            ft.Text(_("No previous prescriptions"), color=ft.colors.GREY_500)
                         ], horizontal_alignment=ft.CrossAxisAlignment.CENTER),
                         padding=30
                     )
@@ -379,31 +379,31 @@ class _POSController:
                         ft.Container(
                             ft.Column([
                                 ft.Row([
-                                    ft.Icon(ft.Icons.CALENDAR_TODAY, size=14, color=ft.Colors.BLUE_700),
+                                    ft.Icon(ft.icons.CALENDAR_TODAY, size=14, color=ft.colors.BLUE_700),
                                     ft.Text(exam_date, weight=ft.FontWeight.BOLD, size=13),
                                     ft.Container(expand=True),
-                                    ft.Text(f"#{invoice_no}", size=11, color=ft.Colors.GREY_600) if invoice_no else ft.Container(),
+                                    ft.Text(f"#{invoice_no}", size=11, color=ft.colors.GREY_600) if invoice_no else ft.Container(),
                                 ]),
-                                ft.Text(f"{exam.get('exam_type', 'N/A')}", size=12, color=ft.Colors.BLUE_700, weight=ft.FontWeight.W_500),
+                                ft.Text(f"{exam.get('exam_type', 'N/A')}", size=12, color=ft.colors.BLUE_700, weight=ft.FontWeight.W_500),
                                 ft.Text(od_info, size=11),
                                 ft.Text(os_info, size=11),
                                 ft.Text(f"IPD: {exam.get('ipd', '-')}", size=11),
                                 ft.Divider(height=5),
-                                ft.Text(f"🔍 {exam.get('lens_info', '-')}", size=11, color=ft.Colors.GREY_700),
-                                ft.Text(f"🖼️ {exam.get('frame_info', '-')} ({exam.get('frame_color', '-')})", size=11, color=ft.Colors.GREY_700),
+                                ft.Text(f"🔍 {exam.get('lens_info', '-')}", size=11, color=ft.colors.GREY_700),
+                                ft.Text(f"🖼️ {exam.get('frame_info', '-')} ({exam.get('frame_color', '-')})", size=11, color=ft.colors.GREY_700),
                                 ft.ElevatedButton(
                                     _("Use this"),
-                                    icon=ft.Icons.COPY,
+                                    icon=ft.icons.COPY,
                                     on_click=lambda e, ex=exam: use_past_exam(ex),
                                     style=ft.ButtonStyle(
-                                        bgcolor=ft.Colors.BLUE_700,
-                                        color=ft.Colors.WHITE,
+                                        bgcolor=ft.colors.BLUE_700,
+                                        color=ft.colors.WHITE,
                                     ),
                                     height=30
                                 )
                             ], spacing=3),
-                            bgcolor=ft.Colors.WHITE,
-                            border=ft.Border.all(1, ft.Colors.BLUE_200),
+                            bgcolor=ft.colors.WHITE,
+                            border=ft.Border.all(1, ft.colors.BLUE_200),
                             border_radius=8,
                             padding=10,
                             margin=ft.Margin.only(bottom=8)
@@ -427,12 +427,12 @@ class _POSController:
                 content=ft.Container(
                     ft.Column([
                         ft.Row([
-                            ft.Icon(ft.Icons.HISTORY, color=ft.Colors.BLUE_700),
+                            ft.Icon(ft.icons.HISTORY, color=ft.colors.BLUE_700),
                             ft.Text(_("Previous Prescriptions"), size=18, weight=ft.FontWeight.BOLD),
                             ft.Container(expand=True),
-                            ft.IconButton(ft.Icons.CLOSE, on_click=lambda e: close_drawer())
+                            ft.IconButton(ft.icons.CLOSE, on_click=lambda e: close_drawer())
                         ]),
-                        ft.Text(f"{customer_name}", size=14, color=ft.Colors.GREY_700),
+                        ft.Text(f"{customer_name}", size=14, color=ft.colors.GREY_700),
                         ft.Divider(),
                         ft.Column(
                             build_past_exams_panel(),
@@ -458,11 +458,11 @@ class _POSController:
         # Button to show past prescriptions
         past_rx_button = ft.ElevatedButton(
             f"{_('Previous Prescriptions')} ({past_exams_count})" if past_exams_count > 0 else _("No Previous Prescriptions"),
-            icon=ft.Icons.HISTORY,
+            icon=ft.icons.HISTORY,
             on_click=show_past_prescriptions if past_exams_count > 0 else None,
             disabled=past_exams_count == 0,
-            bgcolor=ft.Colors.BLUE_100 if past_exams_count > 0 else ft.Colors.GREY_200,
-            color=ft.Colors.BLUE_900 if past_exams_count > 0 else ft.Colors.GREY_500,
+            bgcolor=ft.colors.BLUE_100 if past_exams_count > 0 else ft.colors.GREY_200,
+            color=ft.colors.BLUE_900 if past_exams_count > 0 else ft.colors.GREY_500,
         )
 
         # Main content
@@ -472,11 +472,11 @@ class _POSController:
                 ft.Column([
                     ft.Text(_("Step 2: Order & Examination"), size=22, weight=ft.FontWeight.BOLD),
                     ft.Row([
-                        ft.Icon(ft.Icons.PERSON, size=16, color=ft.Colors.BLUE_700),
+                        ft.Icon(ft.icons.PERSON, size=16, color=ft.colors.BLUE_700),
                         ft.Text(customer_name, size=14, weight=ft.FontWeight.W_500),
                         ft.Container(width=20),
-                        ft.Icon(ft.Icons.RECEIPT, size=16, color=ft.Colors.GREEN_700),
-                        ft.Text(f"#{self.invoice_no}", size=14, color=ft.Colors.GREEN_700),
+                        ft.Icon(ft.icons.RECEIPT, size=16, color=ft.colors.GREEN_700),
+                        ft.Text(f"#{self.invoice_no}", size=14, color=ft.colors.GREEN_700),
                     ])
                 ], expand=True),
                 past_rx_button,
@@ -500,10 +500,10 @@ class _POSController:
             ft.Row([
                 ft.ElevatedButton(
                     _("+ Add Another Exam"),
-                    icon=ft.Icons.ADD,
+                    icon=ft.icons.ADD,
                     on_click=lambda _: self.add_exam_row(),
-                    bgcolor=ft.Colors.BLUE_50,
-                    color=ft.Colors.BLUE_900
+                    bgcolor=ft.colors.BLUE_50,
+                    color=ft.colors.BLUE_900
                 ),
             ]),
 
@@ -511,19 +511,19 @@ class _POSController:
 
             # Navigation buttons
             ft.Row([
-                ft.ElevatedButton(_("← Back"), icon=ft.Icons.ARROW_BACK, on_click=lambda _: self.show_step_1()),
+                ft.ElevatedButton(_("← Back"), icon=ft.icons.ARROW_BACK, on_click=lambda _: self.show_step_1()),
                 ft.ElevatedButton(
                     _("Add More Items"),
-                    icon=ft.Icons.SHOPPING_CART,
-                    bgcolor=ft.Colors.ORANGE_700,
-                    color=ft.Colors.WHITE,
+                    icon=ft.icons.SHOPPING_CART,
+                    bgcolor=ft.colors.ORANGE_700,
+                    color=ft.colors.WHITE,
                     on_click=lambda _: self.show_step_3()
                 ),
                 ft.ElevatedButton(
                     _("Next: Payment →"),
-                    icon=ft.Icons.ARROW_FORWARD,
-                    bgcolor=ft.Colors.GREEN_700,
-                    color=ft.Colors.WHITE,
+                    icon=ft.icons.ARROW_FORWARD,
+                    bgcolor=ft.colors.GREEN_700,
+                    color=ft.colors.WHITE,
                     on_click=lambda _: self.save_exams_and_proceed()
                 )
             ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN)
@@ -636,8 +636,8 @@ class _POSController:
         # Image attachment
         image_path_ref = {"path": data.get("image_path", "") if data else ""}
         image_indicator = ft.Icon(
-            ft.Icons.IMAGE if not image_path_ref["path"] else ft.Icons.CHECK_CIRCLE,
-            color=ft.Colors.GREY_500 if not image_path_ref["path"] else ft.Colors.GREEN_700,
+            ft.icons.IMAGE if not image_path_ref["path"] else ft.icons.CHECK_CIRCLE,
+            color=ft.colors.GREY_500 if not image_path_ref["path"] else ft.colors.GREEN_700,
             size=20
         )
 
@@ -645,8 +645,8 @@ class _POSController:
             def on_result(result: ft.FilePickerResultEvent):
                 if result.files and len(result.files) > 0:
                     image_path_ref["path"] = result.files[0].path
-                    image_indicator.name = ft.Icons.CHECK_CIRCLE
-                    image_indicator.color = ft.Colors.GREEN_700
+                    image_indicator.name = ft.icons.CHECK_CIRCLE
+                    image_indicator.color = ft.colors.GREEN_700
                     self._page.snack_bar = ft.SnackBar(ft.Text(f"✓ {_('Image attached')}: {result.files[0].name}"))
                     self._page.snack_bar.open = True
                     self._page.update()
@@ -660,8 +660,8 @@ class _POSController:
             )
 
         attach_btn = ft.IconButton(
-            ft.Icons.ATTACH_FILE,
-            icon_color=ft.Colors.BLUE_700,
+            ft.icons.ATTACH_FILE,
+            icon_color=ft.colors.BLUE_700,
             tooltip=_("Attach Image"),
             on_click=pick_image
         )
@@ -688,12 +688,12 @@ class _POSController:
                 ft.VerticalDivider(width=1),
                 attach_btn,
                 image_indicator,
-                ft.IconButton(ft.Icons.DELETE, icon_color=ft.Colors.RED_700, on_click=remove_row, tooltip=_("Remove"))
+                ft.IconButton(ft.icons.DELETE, icon_color=ft.colors.RED_700, on_click=remove_row, tooltip=_("Remove"))
             ], scroll=ft.ScrollMode.AUTO, spacing=5, vertical_alignment=ft.CrossAxisAlignment.CENTER),
-            border=ft.Border.all(1, ft.Colors.BLUE_200),
+            border=ft.Border.all(1, ft.colors.BLUE_200),
             border_radius=8,
             padding=ft.Padding.symmetric(horizontal=10, vertical=5),
-            bgcolor=ft.Colors.BLUE_50
+            bgcolor=ft.colors.BLUE_50
         )
 
         # Store references for later retrieval
@@ -792,7 +792,7 @@ class _POSController:
 
         self.add_item_search = ft.TextField(
             label=_("Search products..."),
-            prefix_icon=ft.Icons.SEARCH,
+            prefix_icon=ft.icons.SEARCH,
             expand=True,
             on_change=lambda e: self.load_additional_products()
         )
@@ -804,32 +804,32 @@ class _POSController:
             content=ft.Row([
                 ft.ElevatedButton(
                     _("← Back to Examination"),
-                    icon=ft.Icons.ARROW_BACK,
+                    icon=ft.icons.ARROW_BACK,
                     on_click=lambda _: self.show_step_2()
                 ),
                 ft.ElevatedButton(
                     _("Continue to Payment →"),
-                    icon=ft.Icons.PAYMENT,
-                    bgcolor=ft.Colors.GREEN_700,
-                    color=ft.Colors.WHITE,
+                    icon=ft.icons.PAYMENT,
+                    bgcolor=ft.colors.GREEN_700,
+                    color=ft.colors.WHITE,
                     on_click=lambda _: self.save_exams_and_proceed()
                 )
             ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
-            bgcolor=ft.Colors.GREY_100,
+            bgcolor=ft.colors.GREY_100,
             padding=15,
             border_radius=10
         )
 
         self.content_area.content = ft.Column([
             ft.Text(_("Step 3: Add More Items"), size=24, weight=ft.FontWeight.BOLD),
-            ft.Text(_("Add accessories or other products to this order"), color=ft.Colors.GREY_700),
+            ft.Text(_("Add accessories or other products to this order"), color=ft.colors.GREY_700),
             ft.Divider(height=10),
             ft.Row([self.add_item_category, self.add_item_search]),
             ft.Text(_("Available Products:"), size=14, weight=ft.FontWeight.BOLD),
             ft.Container(
                 content=self.additional_products_list,
                 height=350,
-                border=ft.Border.all(1, ft.Colors.GREY_300),
+                border=ft.Border.all(1, ft.colors.GREY_300),
                 border_radius=8,
                 padding=5
             ),
@@ -853,11 +853,11 @@ class _POSController:
             stock = p.get("stock_qty", 0)
             self.additional_products_list.controls.append(
                 ft.ListTile(
-                    leading=ft.Icon(ft.Icons.INVENTORY_2),
+                    leading=ft.Icon(ft.icons.INVENTORY_2),
                     title=ft.Text(f"{p.get('name', 'Unknown')} ({p.get('sku', '')})"),
                     subtitle=ft.Text(f"{_('Price')}: {p.get('sale_price', 0):.2f} | {_('Stock')}: {stock}"),
                     trailing=ft.IconButton(
-                        ft.Icons.ADD_SHOPPING_CART,
+                        ft.icons.ADD_SHOPPING_CART,
                         tooltip=_("Add to Cart"),
                         on_click=lambda e, prod=p: self.add_product_to_cart_from_list(prod)
                     ),
@@ -892,7 +892,7 @@ class _POSController:
 
         product_search = ft.TextField(
             label=_("Quick add by SKU or name..."),
-            prefix_icon=ft.Icons.SEARCH,
+            prefix_icon=ft.icons.SEARCH,
             expand=True,
             on_submit=lambda e: self.add_product_to_cart(e.control.value)
         )
@@ -932,15 +932,15 @@ class _POSController:
             ft.Row([
                 ft.Text(f"{_('Step 4: Cart & Payment')} - {customer_name}", size=28, weight=ft.FontWeight.BOLD)
             ]),
-            ft.Text(f"{_('Invoice')}: {self.invoice_no}", size=14, color=ft.Colors.BLUE_700, weight=ft.FontWeight.BOLD),
+            ft.Text(f"{_('Invoice')}: {self.invoice_no}", size=14, color=ft.colors.BLUE_700, weight=ft.FontWeight.BOLD),
             ft.Divider(),
             ft.Row([
                 product_search,
-                ft.IconButton(ft.Icons.ADD, on_click=lambda e: self.add_product_to_cart(product_search.value), tooltip=_("Add")),
-                ft.ElevatedButton(_("Add More Items"), icon=ft.Icons.SHOPPING_CART, on_click=lambda _: self.show_step_3())
+                ft.IconButton(ft.icons.ADD, on_click=lambda e: self.add_product_to_cart(product_search.value), tooltip=_("Add")),
+                ft.ElevatedButton(_("Add More Items"), icon=ft.icons.SHOPPING_CART, on_click=lambda _: self.show_step_3())
             ]),
             ft.Text(_("Shopping Cart:"), size=16, weight=ft.FontWeight.BOLD),
-            ft.Container(content=self.cart_table, border=ft.Border.all(1, ft.Colors.GREY_300), border_radius=5),
+            ft.Container(content=self.cart_table, border=ft.Border.all(1, ft.colors.GREY_300), border_radius=5),
             ft.Divider(),
             ft.ResponsiveRow([
                 ft.Container(
@@ -957,15 +957,15 @@ class _POSController:
             ft.Row([
                 ft.ElevatedButton(
                     _("← Back"),
-                    icon=ft.Icons.ARROW_BACK,
+                    icon=ft.icons.ARROW_BACK,
                     on_click=lambda _: self.show_step_2() if self.selected_category in ["Frame", "ContactLens"] else self.show_step_1()
                 ),
-                ft.ElevatedButton(_("Clear Cart"), icon=ft.Icons.DELETE_SWEEP, on_click=lambda _: self.clear_cart()),
+                ft.ElevatedButton(_("Clear Cart"), icon=ft.icons.DELETE_SWEEP, on_click=lambda _: self.clear_cart()),
                 ft.ElevatedButton(
                     _("Finish Checkout →"),
-                    icon=ft.Icons.CHECK_CIRCLE,
-                    bgcolor=ft.Colors.GREEN_700,
-                    color=ft.Colors.WHITE,
+                    icon=ft.icons.CHECK_CIRCLE,
+                    bgcolor=ft.colors.GREEN_700,
+                    color=ft.colors.WHITE,
                     on_click=lambda _: self.finish_order()
                 )
             ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN)
@@ -1025,9 +1025,9 @@ class _POSController:
                 return change_qty
 
             qty_control = ft.Row([
-                ft.IconButton(ft.Icons.REMOVE, on_click=lambda e, i=item: make_qty_change_callback(i)(e, -1)),
+                ft.IconButton(ft.icons.REMOVE, on_click=lambda e, i=item: make_qty_change_callback(i)(e, -1)),
                 ft.Text(str(item["qty"]), weight=ft.FontWeight.BOLD),
-                ft.IconButton(ft.Icons.ADD, on_click=lambda e, i=item: make_qty_change_callback(i)(e, 1))
+                ft.IconButton(ft.icons.ADD, on_click=lambda e, i=item: make_qty_change_callback(i)(e, 1))
             ], tight=True)
 
             self.cart_table.rows.append(
@@ -1037,7 +1037,7 @@ class _POSController:
                         ft.DataCell(qty_control),
                         ft.DataCell(ft.Text(f"{item['unit_price']:.2f}")),
                         ft.DataCell(ft.Text(f"{item['total_price']:.2f}")),
-                        ft.DataCell(ft.IconButton(ft.Icons.DELETE, icon_color=ft.Colors.RED_700, on_click=make_remove_callback(item))),
+                        ft.DataCell(ft.IconButton(ft.icons.DELETE, icon_color=ft.colors.RED_700, on_click=make_remove_callback(item))),
                     ]
                 )
             )
@@ -1065,7 +1065,7 @@ class _POSController:
             ft.Divider(height=10),
             ft.Row([
                 ft.Text(_("Net Amount"), size=18, weight=ft.FontWeight.BOLD),
-                ft.Text(f"{self.totals['net_amount']:.2f}", size=18, weight=ft.FontWeight.BOLD, color=ft.Colors.GREEN_700)
+                ft.Text(f"{self.totals['net_amount']:.2f}", size=18, weight=ft.FontWeight.BOLD, color=ft.colors.GREEN_700)
             ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
             ft.Row([ft.Text(_("Amount Paid"), weight=ft.FontWeight.BOLD), ft.Text(f"{self.totals['amount_paid']:.2f}")], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
             ft.Divider(height=10),
@@ -1075,7 +1075,7 @@ class _POSController:
                     f"{self.totals['balance']:.2f}",
                     size=18,
                     weight=ft.FontWeight.BOLD,
-                    color=ft.Colors.RED_700 if self.totals['balance'] > 0 else ft.Colors.GREEN_700
+                    color=ft.colors.RED_700 if self.totals['balance'] > 0 else ft.colors.GREEN_700
                 )
             ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
         ])
@@ -1285,10 +1285,10 @@ class _POSController:
         preview_text = ft.Text("", font_family="Courier New", size=11)
         preview_container = ft.Container(
             content=preview_text,
-            bgcolor=ft.Colors.WHITE,
+            bgcolor=ft.colors.WHITE,
             padding=15,
             border_radius=5,
-            border=ft.Border.all(1, ft.Colors.GREY_300),
+            border=ft.Border.all(1, ft.colors.GREY_300),
             width=420,
             height=400,
         )
@@ -1336,37 +1336,37 @@ class _POSController:
         copy_tabs = ft.Row([
             ft.ElevatedButton(
                 _("Shop Copy"),
-                icon=ft.Icons.STORE,
+                icon=ft.icons.STORE,
                 on_click=lambda e: show_preview("shop"),
-                bgcolor=ft.Colors.BLUE_700,
-                color=ft.Colors.WHITE,
+                bgcolor=ft.colors.BLUE_700,
+                color=ft.colors.WHITE,
             ),
             ft.ElevatedButton(
                 _("Customer Copy"),
-                icon=ft.Icons.PERSON,
+                icon=ft.icons.PERSON,
                 on_click=lambda e: show_preview("customer"),
-                bgcolor=ft.Colors.GREEN_700,
-                color=ft.Colors.WHITE,
+                bgcolor=ft.colors.GREEN_700,
+                color=ft.colors.WHITE,
             ),
             ft.ElevatedButton(
                 _("Lab Copy"),
-                icon=ft.Icons.SCIENCE,
+                icon=ft.icons.SCIENCE,
                 on_click=lambda e: show_preview("lab"),
-                bgcolor=ft.Colors.ORANGE_700,
-                color=ft.Colors.WHITE,
+                bgcolor=ft.colors.ORANGE_700,
+                color=ft.colors.WHITE,
             ),
         ], alignment=ft.MainAxisAlignment.CENTER, spacing=10)
 
         # Print buttons
         print_buttons = ft.Row([
-            ft.OutlinedButton(_("Print Shop"), icon=ft.Icons.PRINT, on_click=lambda e: print_copy("shop")),
-            ft.OutlinedButton(_("Print Customer"), icon=ft.Icons.PRINT, on_click=lambda e: print_copy("customer")),
-            ft.OutlinedButton(_("Print Lab"), icon=ft.Icons.PRINT, on_click=lambda e: print_copy("lab")),
+            ft.OutlinedButton(_("Print Shop"), icon=ft.icons.PRINT, on_click=lambda e: print_copy("shop")),
+            ft.OutlinedButton(_("Print Customer"), icon=ft.icons.PRINT, on_click=lambda e: print_copy("customer")),
+            ft.OutlinedButton(_("Print Lab"), icon=ft.icons.PRINT, on_click=lambda e: print_copy("lab")),
         ], alignment=ft.MainAxisAlignment.CENTER, spacing=10)
 
         dlg = ft.AlertDialog(
             title=ft.Row([
-                ft.Icon(ft.Icons.CHECK_CIRCLE, color=ft.Colors.GREEN_700, size=30),
+                ft.Icon(ft.icons.CHECK_CIRCLE, color=ft.colors.GREEN_700, size=30),
                 ft.Text(_("Order Saved Successfully!"), weight=ft.FontWeight.BOLD),
             ]),
             content=ft.Container(
@@ -1382,16 +1382,16 @@ class _POSController:
             actions=[
                 ft.ElevatedButton(
                     _("Print All 3 Copies"),
-                    icon=ft.Icons.PRINT,
-                    bgcolor=ft.Colors.PURPLE_700,
-                    color=ft.Colors.WHITE,
+                    icon=ft.icons.PRINT,
+                    bgcolor=ft.colors.PURPLE_700,
+                    color=ft.colors.WHITE,
                     on_click=print_all
                 ),
                 ft.ElevatedButton(
                     _("Done"),
-                    icon=ft.Icons.CHECK,
-                    bgcolor=ft.Colors.GREEN_700,
-                    color=ft.Colors.WHITE,
+                    icon=ft.icons.CHECK,
+                    bgcolor=ft.colors.GREEN_700,
+                    color=ft.colors.WHITE,
                     on_click=close_and_reset
                 )
             ],
@@ -1421,5 +1421,7 @@ class _POSController:
         self.order_date = datetime.date.today()
         self.delivery_date = datetime.date.today() + datetime.timedelta(days=3)
         self.show_step_0()
+
+
 
 

@@ -17,7 +17,7 @@ class SplitMatesFletGUI:
         self.page.padding = 0
         self.page.window_width = 400
         self.page.window_height = 800
-        self.page.theme = ft.Theme(color_scheme_seed=ft.Colors.GREEN)
+        self.page.theme = ft.Theme(color_scheme_seed=ft.colors.GREEN)
 
         try:
             print("Initializing Data Repository...")
@@ -62,16 +62,16 @@ class SplitMatesFletGUI:
             ft.Container(
                 content=ft.Column(
                     [
-                        ft.Icon(ft.Icons.ERROR_OUTLINE, color=ft.Colors.RED, size=50),
+                        ft.Icon(ft.icons.ERROR_OUTLINE, color=ft.colors.RED, size=50),
                         ft.Text("SplitMates failed to start", size=20, weight=ft.FontWeight.BOLD),
-                        ft.Text(f"Error: {str(e)}", color=ft.Colors.RED),
+                        ft.Text(f"Error: {str(e)}", color=ft.colors.RED),
                         ft.ExpansionTile(
                             title=ft.Text("View Error Details"),
                             controls=[
                                 ft.Container(
                                     content=ft.Text(error_details, font_family="monospace", size=10),
                                     padding=10,
-                                    bgcolor=ft.Colors.SURFACE_CONTAINER,
+                                    bgcolor=ft.colors.SURFACE_CONTAINER,
                                     border_radius=5
                                 )
                             ]
@@ -91,10 +91,10 @@ class SplitMatesFletGUI:
         # Navigation Bar
         self.nav_bar = ft.NavigationBar(
             destinations=[
-                ft.NavigationBarDestination(icon=ft.Icons.DASHBOARD_ROUNDED, label="Summary"),
-                ft.NavigationBarDestination(icon=ft.Icons.RECEIPT_LONG_ROUNDED, label="Expenses"),
-                ft.NavigationBarDestination(icon=ft.Icons.PEOPLE_ROUNDED, label="Members"),
-                ft.NavigationBarDestination(icon=ft.Icons.ANALYTICS_ROUNDED, label="Analytics"),
+                ft.NavigationBarDestination(icon=ft.icons.DASHBOARD_ROUNDED, label="Summary"),
+                ft.NavigationBarDestination(icon=ft.icons.RECEIPT_LONG_ROUNDED, label="Expenses"),
+                ft.NavigationBarDestination(icon=ft.icons.PEOPLE_ROUNDED, label="Members"),
+                ft.NavigationBarDestination(icon=ft.icons.ANALYTICS_ROUNDED, label="Analytics"),
             ],
             on_change=self.on_nav_change,
             selected_index=0,
@@ -104,14 +104,14 @@ class SplitMatesFletGUI:
         self.app_bar = ft.AppBar(
             title=ft.Text("SplitMates", weight=ft.FontWeight.BOLD),
             center_title=False,
-            bgcolor=ft.Colors.SURFACE_CONTAINER,
-            leading=ft.IconButton(ft.Icons.MENU, on_click=lambda _: self.open_drawer()),
+            bgcolor=ft.colors.SURFACE_CONTAINER,
+            leading=ft.IconButton(ft.icons.MENU, on_click=lambda _: self.open_drawer()),
             actions=[
-                ft.IconButton(ft.Icons.EDIT, tooltip="Rename Group", on_click=self.show_rename_group_dialog),
-                ft.IconButton(ft.Icons.GROUP_ADD, on_click=self.show_new_group_dialog),
+                ft.IconButton(ft.icons.EDIT, tooltip="Rename Group", on_click=self.show_rename_group_dialog),
+                ft.IconButton(ft.icons.GROUP_ADD, on_click=self.show_new_group_dialog),
                 ft.PopupMenuButton(
                     items=[
-                        ft.PopupMenuItem(content=ft.Text("Change Theme"), icon=ft.Icons.PALETTE, on_click=self.toggle_theme),
+                        ft.PopupMenuItem(content=ft.Text("Change Theme"), icon=ft.icons.PALETTE, on_click=self.toggle_theme),
                     ]
                 ),
             ],
@@ -155,8 +155,8 @@ class SplitMatesFletGUI:
             group_controls.append(
                 ft.NavigationDrawerDestination(
                     label=g.name,
-                    icon=ft.Icons.GROUP_OUTLINED,
-                    selected_icon=ft.Icons.GROUP,
+                    icon=ft.icons.GROUP_OUTLINED,
+                    selected_icon=ft.icons.GROUP,
                 )
             )
         
@@ -165,7 +165,7 @@ class SplitMatesFletGUI:
             ft.Divider(),
             ft.NavigationDrawerDestination(
                 label="Delete Current Group",
-                icon=ft.Icons.DELETE_OUTLINE,
+                icon=ft.icons.DELETE_OUTLINE,
             )
         ]
         
@@ -219,7 +219,7 @@ class SplitMatesFletGUI:
         elif self.active_index == 1:
             self.main_container.content = self.get_expenses_view()
             self.page.floating_action_button = ft.FloatingActionButton(
-                icon=ft.Icons.ADD, on_click=self.show_add_expense_dialog, bgcolor=ft.Colors.GREEN
+                icon=ft.icons.ADD, on_click=self.show_add_expense_dialog, bgcolor=ft.colors.GREEN
             )
         elif self.active_index == 2:
             self.main_container.content = self.get_members_view()
@@ -251,13 +251,13 @@ class SplitMatesFletGUI:
         else:
             for user, balance in sorted(balances.items(), key=lambda x: x[1], reverse=True):
                 initials = "".join([n[0] for n in user.name.split()])[:2].upper()
-                color = ft.Colors.GREEN if balance >= 0 else ft.Colors.RED
+                color = ft.colors.GREEN if balance >= 0 else ft.colors.RED
                 status = "is owed" if balance >= 0 else "owes"
                 
                 balance_controls.append(
                     ft.Card(
                         content=ft.ListTile(
-                            leading=ft.CircleAvatar(content=ft.Text(initials), bgcolor=ft.Colors.GREEN if balance >= 0 else ft.Colors.BLUE_GREY),
+                            leading=ft.CircleAvatar(content=ft.Text(initials), bgcolor=ft.colors.GREEN if balance >= 0 else ft.colors.BLUE_GREY),
                             title=ft.Text(user.name, weight=ft.FontWeight.BOLD),
                             subtitle=ft.Text(f"{status} ${abs(balance):.2f}", color=color),
                         )
@@ -286,7 +286,7 @@ class SplitMatesFletGUI:
             settlement_controls.append(
                 ft.Row(
                     [
-                        ft.ElevatedButton("Mark as Paid", icon=ft.Icons.CHECK, on_click=self.settle_selected),
+                        ft.ElevatedButton("Mark as Paid", icon=ft.icons.CHECK, on_click=self.settle_selected),
                         ft.TextButton("Custom Payment", on_click=self.show_manual_settlement_dialog)
                     ],
                     alignment=ft.MainAxisAlignment.CENTER
@@ -299,14 +299,14 @@ class SplitMatesFletGUI:
                 ft.Container(
                     content=ft.Column(
                         [
-                            ft.Text("Total Group Spending", size=14, color=ft.Colors.ON_SURFACE_VARIANT),
+                            ft.Text("Total Group Spending", size=14, color=ft.colors.ON_SURFACE_VARIANT),
                             ft.Text(f"${total_spent:,.2f}", size=32, weight=ft.FontWeight.BOLD),
                         ],
                         horizontal_alignment=ft.CrossAxisAlignment.CENTER,
                     ),
                     alignment=ft.Alignment.CENTER,
                     padding=20,
-                    bgcolor=ft.Colors.SURFACE_CONTAINER,
+                    bgcolor=ft.colors.SURFACE_CONTAINER,
                     border_radius=10,
                 ),
                 stats_row,
@@ -322,7 +322,7 @@ class SplitMatesFletGUI:
         
         self.search_field = ft.TextField(
             hint_text="Search expenses...",
-            prefix_icon=ft.Icons.SEARCH,
+            prefix_icon=ft.icons.SEARCH,
             on_change=self.on_expense_search,
             border_radius=10,
             expand=True,
@@ -337,8 +337,8 @@ class SplitMatesFletGUI:
                 ft.Row(
                     [
                         self.search_field,
-                        ft.IconButton(ft.Icons.CLEAR, tooltip="Clear Search", on_click=self.clear_search),
-                        ft.IconButton(ft.Icons.FILE_DOWNLOAD, tooltip="Export CSV", on_click=self.export_expenses_csv)
+                        ft.IconButton(ft.icons.CLEAR, tooltip="Clear Search", on_click=self.clear_search),
+                        ft.IconButton(ft.icons.FILE_DOWNLOAD, tooltip="Export CSV", on_click=self.export_expenses_csv)
                     ], 
                     alignment=ft.MainAxisAlignment.SPACE_BETWEEN
                 ),
@@ -358,13 +358,13 @@ class SplitMatesFletGUI:
             for e in expenses:
                 date_str = datetime.datetime.fromtimestamp(e.date).strftime("%b %d")
                 cat_icons = {
-                    Category.GROCERIES: ft.Icons.SHOPPING_CART,
-                    Category.UTILITIES: ft.Icons.LIGHTBULB,
-                    Category.HOUSEHOLD: ft.Icons.HOME,
-                    Category.FOOD_DELIVERY: ft.Icons.PEDAL_BIKE,
-                    Category.OTHER: ft.Icons.INBOX,
+                    Category.GROCERIES: ft.icons.SHOPPING_CART,
+                    Category.UTILITIES: ft.icons.LIGHTBULB,
+                    Category.HOUSEHOLD: ft.icons.HOME,
+                    Category.FOOD_DELIVERY: ft.icons.PEDAL_BIKE,
+                    Category.OTHER: ft.icons.INBOX,
                 }
-                icon = cat_icons.get(e.category, ft.Icons.INBOX)
+                icon = cat_icons.get(e.category, ft.icons.INBOX)
                 
                 self.expense_list.controls.append(
                     ft.Card(
@@ -375,7 +375,7 @@ class SplitMatesFletGUI:
                             trailing=ft.Row(
                                 [
                                     ft.Text(f"${e.amount:.2f}", weight=ft.FontWeight.BOLD),
-                                    ft.IconButton(ft.Icons.DELETE_OUTLINE, icon_color=ft.Colors.RED, on_click=lambda _, eid=e.id: self.delete_expense_event(eid))
+                                    ft.IconButton(ft.icons.DELETE_OUTLINE, icon_color=ft.colors.RED, on_click=lambda _, eid=e.id: self.delete_expense_event(eid))
                                 ],
                                 tight=True
                             ),
@@ -407,8 +407,8 @@ class SplitMatesFletGUI:
                         title=ft.Text(m.name, weight=ft.FontWeight.BOLD),
                         subtitle=ft.Text(f"Total Paid: ${spent:.2f}"),
                         trailing=ft.IconButton(
-                            ft.Icons.DELETE_OUTLINE, 
-                            icon_color=ft.Colors.RED if can_delete else ft.Colors.GREY_400,
+                            ft.icons.DELETE_OUTLINE, 
+                            icon_color=ft.colors.RED if can_delete else ft.colors.GREY_400,
                             tooltip="Remove Member" if can_delete else "Cannot remove (has transactions)",
                             on_click=lambda _, mid=m.id: self.delete_member(mid) if can_delete else None,
                             disabled=not can_delete
@@ -419,7 +419,7 @@ class SplitMatesFletGUI:
 
         return ft.Column(
             controls=[
-                ft.Row([self.member_name_field, ft.ElevatedButton("Add", icon=ft.Icons.ADD, on_click=self.add_member)]),
+                ft.Row([self.member_name_field, ft.ElevatedButton("Add", icon=ft.icons.ADD, on_click=self.add_member)]),
                 ft.Divider(),
                 ft.Column(scroll=ft.ScrollMode.AUTO, controls=member_cards, expand=True)
             ]
@@ -449,17 +449,17 @@ class SplitMatesFletGUI:
 
         category_progress = []
         cat_icons = {
-            Category.GROCERIES: ft.Icons.SHOPPING_CART,
-            Category.UTILITIES: ft.Icons.LIGHTBULB,
-            Category.HOUSEHOLD: ft.Icons.HOME,
-            Category.FOOD_DELIVERY: ft.Icons.PEDAL_BIKE,
-            Category.OTHER: ft.Icons.INBOX,
+            Category.GROCERIES: ft.icons.SHOPPING_CART,
+            Category.UTILITIES: ft.icons.LIGHTBULB,
+            Category.HOUSEHOLD: ft.icons.HOME,
+            Category.FOOD_DELIVERY: ft.icons.PEDAL_BIKE,
+            Category.OTHER: ft.icons.INBOX,
         }
 
         for cat, amount in sorted(spending.items(), key=lambda x: x[1], reverse=True):
             if amount == 0: continue
             percentage = amount / total
-            icon = cat_icons.get(cat, ft.Icons.INBOX)
+            icon = cat_icons.get(cat, ft.icons.INBOX)
             category_progress.append(
                 ft.Column(
                     [
@@ -470,7 +470,7 @@ class SplitMatesFletGUI:
                             ], 
                             alignment=ft.MainAxisAlignment.SPACE_BETWEEN
                         ),
-                        ft.ProgressBar(value=percentage, color=ft.Colors.GREEN, bgcolor=ft.Colors.SURFACE_CONTAINER, height=8, border_radius=4),
+                        ft.ProgressBar(value=percentage, color=ft.colors.GREEN, bgcolor=ft.colors.SURFACE_CONTAINER, height=8, border_radius=4),
                         ft.Container(height=5),
                     ]
                 )
@@ -695,7 +695,7 @@ class SplitMatesFletGUI:
         dialog = ft.AlertDialog(
             title=ft.Text("Delete Group?"),
             content=ft.Text(f"Are you sure you want to delete '{self.group.name}'?"),
-            actions=[ft.TextButton("Cancel", on_click=lambda _: self.page.pop_dialog()), ft.ElevatedButton("Delete", bgcolor=ft.Colors.RED, color=ft.Colors.WHITE, on_click=delete)]
+            actions=[ft.TextButton("Cancel", on_click=lambda _: self.page.pop_dialog()), ft.ElevatedButton("Delete", bgcolor=ft.colors.RED, color=ft.colors.WHITE, on_click=delete)]
         )
         self.page.show_dialog(dialog)
 
@@ -724,3 +724,4 @@ def main(page: ft.Page):
 
 if __name__ == "__main__":
     ft.run(main)
+
