@@ -22,8 +22,15 @@ def main(page: ft.Page):
     page.padding = 0
     page.spacing = 0
     
-    # Open in fullscreen/maximized mode
-    page.window_maximized = True
+    # Check if running on server/web
+    is_web = os.environ.get("RENDER") or os.environ.get("RAILWAY_ENVIRONMENT") or os.environ.get("FLY_APP_NAME")
+
+    # Open in fullscreen/maximized mode (only for desktop)
+    if not is_web:
+        try:
+            page.window_maximized = True
+        except:
+            pass
 
     # Session State - use page.data dict for session storage
     if not hasattr(page, 'data') or page.data is None:
@@ -104,8 +111,8 @@ def main(page: ft.Page):
     page.on_route_change = route_change
     page.on_view_pop = view_pop
     
-    # Initial Navigation
-    page.go(page.route if page.route != "" else "/")
+    # Initial Navigation - always start with login check
+    page.go("/login")
 
 # This is the entry point for `flet build web`
 def web_main(page: ft.Page):
