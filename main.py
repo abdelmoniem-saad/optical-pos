@@ -117,8 +117,8 @@ if __name__ == "__main__":
     is_server = os.environ.get("RENDER") or os.environ.get("RAILWAY_ENVIRONMENT") or os.environ.get("FLY_APP_NAME")
 
     if is_server:
-        # Run as web app on server
-        ft.app(target=main, view=ft.AppView.WEB_BROWSER, port=port, host="0.0.0.0")
+        # Run as web app on server using ft.run() (new API)
+        ft.run(target=main, view=ft.AppView.WEB_BROWSER, port=port, host="0.0.0.0")
     else:
         # Run locally as desktop app
         ft.app(target=main, assets_dir="assets")
