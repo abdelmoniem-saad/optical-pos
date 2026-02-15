@@ -36,7 +36,7 @@ class LoginView(ft.View):
                     self.password_input,
                     self.error_text,
                     ft.ElevatedButton(
-                        text=_("Login"),
+                        _("Login"),
                         width=300,
                         height=50,
                         on_click=self.handle_login,
