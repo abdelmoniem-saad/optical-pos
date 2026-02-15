@@ -1,0 +1,87 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<div class="d-flex align-items-center mb-4">
+    <a href="{{ url_for('dashboard') }}" class="btn btn-light rounded-circle me-3"><i class="fas fa-arrow-left"></i></a>
+    <h3 class="fw-bold mb-0">إدارة المعمل</h3>
+</div>
+
+<form action="{{ url_for('lab') }}" method="get" class="mb-4">
+    <div class="input-group mb-2">
+        <input type="text" name="q" class="form-control" placeholder="بحث برقم الفاتورة أو اسم العميل..." value="{{ query }}">
+        <button class="btn btn-primary" type="submit"><i class="fas fa-search"></i></button>
+    </div>
+    <div class="d-flex gap-2 overflow-auto pb-2">
+        <a href="{{ url_for('lab', status='', q=query) }}" class="btn btn-sm {{ 'btn-dark' if not status_filter else 'btn-outline-dark' }} rounded-pill px-3">الكل</a>
+        <a href="{{ url_for('lab', status='Not Started', q=query) }}" class="btn btn-sm {{ 'btn-danger' if status_filter == 'Not Started' else 'btn-outline-danger' }} rounded-pill px-3">لم يبدأ</a>
+        <a href="{{ url_for('lab', status='In Lab', q=query) }}" class="btn btn-sm {{ 'btn-warning' if status_filter == 'In Lab' else 'btn-outline-warning' }} rounded-pill px-3">قيد العمل</a>
+        <a href="{{ url_for('lab', status='Ready', q=query) }}" class="btn btn-sm {{ 'btn-primary' if status_filter == 'Ready' else 'btn-outline-primary' }} rounded-pill px-3">جاهز</a>
+        <a href="{{ url_for('lab', status='Received', q=query) }}" class="btn btn-sm {{ 'btn-success' if status_filter == 'Received' else 'btn-outline-success' }} rounded-pill px-3">استلم</a>
+    </div>
+</form>
+
+{% if not orders %}
+<div class="text-center py-5">
+    <i class="fas fa-flask fa-3x text-muted mb-3"></i>
+    <p class="text-muted">لا توجد طلبات معمل حالياً.</p>
+</div>
+{% else %}
+    {% for s in orders %}
+    <div class="card mb-3 p-3 shadow-sm border-0">
+        <div class="d-flex justify-content-between align-items-start mb-2">
+            <div>
+                <h6 class="fw-bold mb-0">فاتورة رقم {{ s.invoice_no }}</h6>
+                <small class="text-muted">{{ s.order_date.strftime('%d/%m/%Y م %H:%M') }}</small>
+            </div>
+            <div>
+                {% set status_map = {'Not Started': ('bg-danger', 'لم يبدأ'), 'In Lab': ('bg-warning', 'قيد العمل'), 'Ready': ('bg-primary', 'جاهز'), 'Received': ('bg-success', 'استلم')} %}
+                {% if s.lab_status in status_map %}
+                    {% set b_cls, b_lbl = status_map[s.lab_status] %}
+                {% else %}
+                    {% set b_cls, b_lbl = 'bg-secondary', s.lab_status or 'لم يبدأ' %}
+                {% endif %}
+                <span class="badge {{ b_cls }} rounded-pill">{{ b_lbl }}</span>
+            </div>
+        </div>
+        
+        <div class="small mb-3">
+            <i class="fas fa-user text-muted me-1"></i> {{ s.customer.name if s.customer else 'ID: ' ~ s.customer_id }}
+            {% if s.delivery_date %}
+            <span class="ms-3 text-primary"><i class="fas fa-calendar-check me-1"></i> {{ s.delivery_date.strftime('%d/%m/%Y') }}</span>
+            {% endif %}
+        </div>
+
+        <div class="bg-light p-2 rounded mb-3 small">
+            {% if s.examinations %}
+                {% for ex in s.examinations %}
+                <div class="{{ 'border-bottom mb-2 pb-2' if not loop.last else '' }}">
+                    <div class="fw-bold text-dark">{{ ex.exam_type }}</div>
+                    <div class="row g-1 text-center">
+                        <div class="col-6 border-end">L: {{ex.sphere_os}}/{{ex.cylinder_os}}x{{ex.axis_os}}</div>
+                        <div class="col-6">R: {{ex.sphere_od}}/{{ex.cylinder_od}}x{{ex.axis_od}}</div>
+                    </div>
+                    <div class="mt-1 text-muted">{{ ex.lens_info }} | {{ ex.frame_info }} ({{ ex.frame_color }})</div>
+                </div>
+                {% endfor %}
+            {% else %}
+                <div class="text-center text-muted py-2">لا توجد نظارات طبية في هذه الفاتورة.</div>
+            {% endif %}
+        </div>
+
+        {% if can_edit %}
+        <form action="{{ url_for('update_lab_status') }}" method="post">
+            <input type="hidden" name="sale_id" value="{{ s.id }}">
+            <div class="d-flex gap-2">
+                <select name="status" class="form-select form-select-sm" onchange="this.form.submit()">
+                    <option value="Not Started" {{ 'selected' if s.lab_status == 'Not Started' else '' }}>لم يبدأ</option>
+                    <option value="In Lab" {{ 'selected' if s.lab_status == 'In Lab' else '' }}>قيد العمل</option>
+                    <option value="Ready" {{ 'selected' if s.lab_status == 'Ready' else '' }}>جاهز</option>
+                    <option value="Received" {{ 'selected' if s.lab_status == 'Received' else '' }}>استلم</option>
+                </select>
+            </div>
+        </form>
+        {% endif %}
+    </div>
+    {% endfor %}
+{% endif %}
+{% endblock %}

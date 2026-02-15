@@ -1,0 +1,98 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<div class="d-flex align-items-center mb-4">
+    <a href="{{ url_for('dashboard') }}" class="btn btn-light rounded-circle me-3"><i class="fas fa-arrow-left"></i></a>
+    <h3 class="fw-bold mb-0">المبيعات</h3>
+</div>
+
+<form action="{{ url_for('sales') }}" method="get" class="mb-4">
+    <div class="input-group">
+        <input type="text" name="q" class="form-control" placeholder="بحث برقم الفاتورة أو اسم العميل..." value="{{ query }}">
+        <button class="btn btn-primary" type="submit"><i class="fas fa-search"></i></button>
+    </div>
+</form>
+
+{% if not sales %}
+<div class="text-center py-5">
+    <i class="fas fa-receipt fa-3x text-muted mb-3"></i>
+    <p class="text-muted">لا توجد مبيعات حتى الآن.</p>
+</div>
+{% else %}
+    {% for s in sales %}
+    <div class="card mb-3 p-3 shadow-sm border-0">
+        <div class="d-flex justify-content-between align-items-start mb-2">
+            <div>
+                <h6 class="fw-bold mb-0">فاتورة رقم {{ s.invoice_no }}</h6>
+                <small class="text-muted">{{ s.order_date.strftime('%d/%m/%Y م %H:%M') }}</small>
+            </div>
+            <div class="text-end">
+                <span class="h5 fw-bold text-primary mb-0">{{ "%.2f"|format(s.net_amount) }}</span>
+                <div>
+                    {% if s.is_received %}
+                    <span class="badge bg-success-subtle text-success border border-success border-opacity-25 rounded-pill">تم الاستلام</span>
+                    {% else %}
+                    {% set status_labels = {'Not Started': 'لم يبدأ', 'In Lab': 'قيد العمل', 'Ready': 'جاهز', 'Received': 'استلم'} %}
+                    <span class="badge bg-warning-subtle text-warning border border-warning border-opacity-25 rounded-pill">قيد الانتظار ({{ status_labels.get(s.lab_status, s.lab_status or 'لم يبدأ') }})</span>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        <hr class="my-2 opacity-25">
+        <div class="d-flex justify-content-between align-items-center">
+            <div class="small">
+                <i class="fas fa-user text-muted me-1"></i> {{ s.customer.name if s.customer else 'زائر' }}
+            </div>
+            <div class="small text-muted">
+                المدفوع: <span class="text-dark fw-bold">{{ "%.2f"|format(s.amount_paid) }}</span>
+            </div>
+        </div>
+        {% if s.delivery_date %}
+        <div class="small text-primary mt-1">
+            <i class="fas fa-truck me-1"></i> التسليم: {{ s.delivery_date.strftime('%d/%m/%Y') }}
+        </div>
+        {% endif %}
+        {% if s.doctor_name %}
+        <div class="small text-muted mt-1">
+            <i class="fas fa-user-md me-1"></i> الطبيب: {{ s.doctor_name }}
+        </div>
+        {% endif %}
+        <div class="mt-2 small text-muted border-top pt-2">
+            {% if s.examinations %}
+                {% for ex in s.examinations %}
+                <div class="mb-2 p-2 bg-light rounded">
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                        <span class="fw-bold text-dark">{{ ex.exam_type }}</span>
+                        {% if ex.image_path %}
+                        <a href="{{ url_for('uploaded_file', filename=ex.image_path|replace('uploads/', '')) }}" target="_blank" class="btn btn-sm btn-outline-primary py-0">عرض الصورة</a>
+                        {% endif %}
+                    </div>
+                    <div class="row g-1 text-center mb-1">
+                        <div class="col-6 border-end"><strong>L (يسار)</strong><br>S:{{ex.sphere_os}} C:{{ex.cylinder_os}} A:{{ex.axis_os}}</div>
+                        <div class="col-6"><strong>R (يمين)</strong><br>S:{{ex.sphere_od}} C:{{ex.cylinder_od}} A:{{ex.axis_od}}</div>
+                    </div>
+                    <div>IPD: {{ ex.ipd }}</div>
+                    <div class="mt-1">
+                        {{ ex.lens_info }} | {{ ex.frame_info }} ({{ ex.frame_color }})
+                    </div>
+                </div>
+                {% endfor %}
+            {% endif %}
+            
+            {% if s.items %}
+                <div class="mt-2">
+                    <h6 class="fw-bold small mb-1">أصناف أخرى:</h6>
+                    {% for item in s.items %}
+                    <div class="d-flex justify-content-between small">
+                        <span>{{ item.product.name }} × {{ item.qty }}</span>
+                        <span>{{ "%.2f"|format(item.total_price) }}</span>
+                    </div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        </div>
+    </div>
+    {% endfor %}
+{% endif %}
+
+{% endblock %}

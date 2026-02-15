@@ -1,0 +1,127 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<div class="d-flex align-items-center mb-4">
+    <a href="{{ url_for('customers') }}" class="btn btn-light rounded-circle me-3"><i class="fas fa-arrow-left"></i></a>
+    <h3 class="fw-bold mb-0">تفاصيل العميل</h3>
+</div>
+
+<div class="card mb-4 p-3 shadow-sm border-0">
+    <div class="row align-items-center">
+        <div class="col-auto">
+            <div class="bg-primary bg-opacity-10 p-4 rounded-circle">
+                <i class="fas fa-user fa-2x text-primary"></i>
+            </div>
+        </div>
+        <div class="col">
+            <h4 class="fw-bold mb-1">{{ customer.name }}</h4>
+            <div class="text-muted">
+                <span class="me-3"><i class="fas fa-phone me-1"></i> {{ customer.phone }}</span>
+                {% if customer.phone2 %}<span><i class="fas fa-phone me-1"></i> {{ customer.phone2 }}</span>{% endif %}
+            </div>
+            <div class="text-muted small">
+                <span class="me-3"><i class="fas fa-map-marker-alt me-1"></i> {{ customer.city or 'N/A' }}</span>
+                <span>ID: {{ customer.id }}</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<ul class="nav nav-pills mb-3 bg-white p-2 rounded shadow-sm" id="customerTab" role="tablist">
+    <li class="nav-item flex-fill" role="presentation">
+        <button class="nav-link active w-100 fw-bold" id="sales-tab" data-bs-toggle="pill" data-bs-target="#sales" type="button" role="tab">الطلبات</button>
+    </li>
+    <li class="nav-item flex-fill" role="presentation">
+        <button class="nav-link w-100 fw-bold" id="rx-tab" data-bs-toggle="pill" data-bs-target="#rx" type="button" role="tab">الفحوصات اليدوية</button>
+    </li>
+</ul>
+
+<div class="tab-content" id="customerTabContent">
+    <!-- Sales History -->
+    <div class="tab-pane fade show active" id="sales" role="tabpanel">
+        {% if not sales %}
+            <p class="text-center text-muted py-4">لا توجد طلبات سابقة.</p>
+        {% else %}
+            {% for s in sales %}
+            <div class="card mb-3 p-3 shadow-sm border-0">
+                <div class="d-flex justify-content-between mb-2">
+                    <div>
+                        <span class="fw-bold">فاتورة {{ s.invoice_no }}</span>
+                        <br><small class="text-muted">{{ s.order_date.strftime('%d/%m/%Y م %H:%M') }}</small>
+                    </div>
+                    <div class="text-end">
+                        <div class="fw-bold text-primary">{{ "%.2f"|format(s.net_amount) }}</div>
+                        {% if s.is_received %}
+                        <span class="badge bg-success-subtle text-success small">تم الاستلام</span>
+                        {% else %}
+                        <span class="badge bg-warning-subtle text-warning small">{{ s.lab_status }}</span>
+                        {% endif %}
+                    </div>
+                </div>
+                <div class="border-top pt-2">
+                    {% if s.examinations %}
+                        {% for ex in s.examinations %}
+                        <div class="mb-2 p-2 bg-light rounded small">
+                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                <span class="fw-bold">{{ ex.exam_type }}</span>
+                                {% if ex.image_path %}
+                                <a href="{{ url_for('uploaded_file', filename=ex.image_path|replace('uploads/', '')) }}" target="_blank" class="btn btn-sm btn-outline-primary py-0">عرض الصورة</a>
+                                {% endif %}
+                            </div>
+                            <div class="row g-1 text-center mb-1">
+                                <div class="col-6 border-end"><strong>L (يسار)</strong><br>S:{{ex.sphere_os}} C:{{ex.cylinder_os}} A:{{ex.axis_os}}</div>
+                                <div class="col-6"><strong>R (يمين)</strong><br>S:{{ex.sphere_od}} C:{{ex.cylinder_od}} A:{{ex.axis_od}}</div>
+                            </div>
+                            <div>IPD: {{ ex.ipd }} | {{ ex.lens_info }} | {{ ex.frame_info }}</div>
+                        </div>
+                        {% endfor %}
+                    {% endif %}
+                    
+                    {% if s.items %}
+                        <div class="mt-2 small">
+                            <h6 class="fw-bold small mb-1">أصناف أخرى:</h6>
+                            {% for item in s.items %}
+                            <div class="d-flex justify-content-between border-bottom border-light pb-1 mb-1">
+                                <span>{{ item.product.name }} × {{ item.qty }}</span>
+                                <span>{{ "%.2f"|format(item.total_price) }}</span>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+            {% endfor %}
+        {% endif %}
+    </div>
+
+    <!-- Manual Prescriptions -->
+    <div class="tab-pane fade" id="rx" role="tabpanel">
+        {% if not prescriptions %}
+            <p class="text-center text-muted py-4">لا توجد فحوصات يدوية مسجلة.</p>
+        {% else %}
+            {% for rx in prescriptions %}
+            <div class="card mb-3 p-3 shadow-sm border-0">
+                <div class="d-flex justify-content-between mb-2">
+                    <span class="fw-bold">{{ rx.type }}</span>
+                    <small class="text-muted">{{ rx.created_at.strftime('%d/%m/%Y') }}</small>
+                </div>
+                <div class="p-2 bg-light rounded small mb-2">
+                    <div class="row g-1 text-center mb-1">
+                        <div class="col-6 border-end"><strong>L (يسار)</strong><br>S:{{rx.sphere_os}} C:{{rx.cylinder_os}} A:{{rx.axis_os}}</div>
+                        <div class="col-6"><strong>R (يمين)</strong><br>S:{{rx.sphere_od}} C:{{rx.cylinder_od}} A:{{rx.axis_od}}</div>
+                    </div>
+                    <div>IPD L:{{ rx.ipd_os }} R:{{ rx.ipd_od }}</div>
+                </div>
+                {% if rx.doctor_name %}<div class="small"><strong>الطبيب:</strong> {{ rx.doctor_name }}</div>{% endif %}
+                {% if rx.notes %}<div class="small text-muted"><strong>ملاحظات:</strong> {{ rx.notes }}</div>{% endif %}
+                {% if rx.image_path %}
+                <div class="mt-2">
+                    <a href="{{ url_for('uploaded_file', filename=rx.image_path|replace('uploads/', '')) }}" target="_blank" class="btn btn-sm btn-primary w-100">عرض صورة الفحص</a>
+                </div>
+                {% endif %}
+            </div>
+            {% endfor %}
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

@@ -205,3 +205,52 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+# ============================================
+# Project-Specific Ignores (Lensy POS)
+# ============================================
+
+# Local database file (contains sensitive customer data)
+pos_data.json
+lensy_pos.db
+
+# Uploaded files (prescriptions, images)
+uploads/
+
+# Logs
+logs/
+*.log
+
+# Build artifacts
+build/
+dist/
+*.spec
+
+# Delivery packages
+LensyPOS_Delivery_*/
+*.zip
+
+# Old architecture backup (remove from version control)
+POSbeforeSwitchingOnline/
+
+# IDE settings
+.idea/
+.vscode/
+*.code-workspace
+
+# OS generated files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
+*~
+
+# Ngrok and tunnel binaries
+ngrok.exe
+cloudflared*.exe
+
+

@@ -1,0 +1,122 @@
+{% extends "layout.html" %}
+
+{% block content %}
+{% if no_permission %}
+<div class="alert alert-warning">
+    <h4 class="alert-heading">عرض محدود</h4>
+    <p>ليس لديك صلاحية لعرض التقارير المالية. لا يزال بإمكانك استخدام الروابط السريعة أدناه إذا كان مسموحًا بذلك.</p>
+</div>
+{% endif %}
+<div class="row mb-4">
+    <div class="col">
+        <h3 class="fw-bold mb-0">مرحباً، {{ session.full_name }}</h3>
+        <p class="text-muted">إليك ما يحدث اليوم.</p>
+    </div>
+</div>
+
+<!-- Stats Row -->
+<div class="row">
+    <div class="col-6 mb-3">
+        <div class="card p-3 border-start border-primary border-4 shadow-sm h-100">
+            <p class="text-muted small mb-1 fw-bold">إجمالي الإيرادات</p>
+            <h4 class="mb-0 fw-bold">{{ "%.2f"|format(revenue) }}</h4>
+        </div>
+    </div>
+    <div class="col-6 mb-3">
+        <div class="card p-3 border-start border-success border-4 shadow-sm h-100">
+            <p class="text-muted small mb-1 fw-bold">المبلغ المدفوع</p>
+            <h4 class="mb-0 fw-bold text-success">{{ "%.2f"|format(paid) }}</h4>
+        </div>
+    </div>
+    <div class="col-6 mb-3">
+        <div class="card p-3 border-start border-info border-4 shadow-sm h-100">
+            <p class="text-muted small mb-1 fw-bold">الطلبات</p>
+            <h4 class="mb-0 fw-bold text-info">{{ count }}</h4>
+        </div>
+    </div>
+    <div class="col-6 mb-3">
+        {% if low_stock == 0 %}
+        <div class="card p-3 border-start border-success border-4 shadow-sm h-100">
+            <p class="text-muted small mb-1 fw-bold">مخزون منخفض</p>
+            <h4 class="mb-0 fw-bold text-success">{{ low_stock }}</h4>
+        </div>
+        {% else %}
+        <div class="card p-3 border-start border-danger border-4 shadow-sm h-100">
+            <p class="text-muted small mb-1 fw-bold">مخزون منخفض</p>
+            <h4 class="mb-0 fw-bold text-danger">{{ low_stock }}</h4>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Quick Links -->
+<div class="row mt-3">
+    <div class="col-12">
+        <h5 class="fw-bold mb-3">إجراءات سريعة</h5>
+    </div>
+    {% if has_perm('VIEW_PRODUCTS') %}
+    <div class="col-12 mb-2">
+        <a href="{{ url_for('inventory') }}" class="btn btn-white w-100 text-start p-3 card shadow-sm text-decoration-none">
+            <div class="d-flex align-items-center">
+                <div class="bg-primary bg-opacity-10 p-3 rounded-circle me-3">
+                    <i class="fas fa-boxes text-primary"></i>
+                </div>
+                <div>
+                    <h6 class="mb-0 fw-bold">إدارة المخزون</h6>
+                    <small class="text-muted">تحقق من مستويات المخزون والأسعار</small>
+                </div>
+                <i class="fas fa-chevron-right ms-auto text-muted"></i>
+            </div>
+        </a>
+    </div>
+    {% endif %}
+    {% if has_perm('VIEW_LAB') %}
+    <div class="col-12 mb-2">
+        <a href="{{ url_for('lab') }}" class="btn btn-white w-100 text-start p-3 card shadow-sm text-decoration-none">
+            <div class="d-flex align-items-center">
+                <div class="bg-warning bg-opacity-10 p-3 rounded-circle me-3">
+                    <i class="fas fa-flask text-warning"></i>
+                </div>
+                <div>
+                    <h6 class="mb-0 fw-bold">إدارة المعمل (Lab)</h6>
+                    <small class="text-muted">تتبع حالة تجهيز النظارات</small>
+                </div>
+                <i class="fas fa-chevron-right ms-auto text-muted"></i>
+            </div>
+        </a>
+    </div>
+    {% endif %}
+    {% if has_perm('VIEW_PRESCRIPTIONS') %}
+    <div class="col-12 mb-2">
+        <a href="{{ url_for('customers') }}" class="btn btn-white w-100 text-start p-3 card shadow-sm text-decoration-none">
+            <div class="d-flex align-items-center">
+                <div class="bg-info bg-opacity-10 p-3 rounded-circle me-3">
+                    <i class="fas fa-users text-info"></i>
+                </div>
+                <div>
+                    <h6 class="mb-0 fw-bold">العملاء (CRM)</h6>
+                    <small class="text-muted">بيانات العملاء وفحوصات سابقة</small>
+                </div>
+                <i class="fas fa-chevron-right ms-auto text-muted"></i>
+            </div>
+        </a>
+    </div>
+    {% endif %}
+    {% if has_perm('REPORT_DAILY_SALES') %}
+    <div class="col-12 mb-2">
+        <a href="{{ url_for('sales') }}" class="btn btn-white w-100 text-start p-3 card shadow-sm text-decoration-none">
+            <div class="d-flex align-items-center">
+                <div class="bg-success bg-opacity-10 p-3 rounded-circle me-3">
+                    <i class="fas fa-history text-success"></i>
+                </div>
+                <div>
+                    <h6 class="mb-0 fw-bold">المبيعات</h6>
+                    <small class="text-muted">مراجعة الفواتير والحالة</small>
+                </div>
+                <i class="fas fa-chevron-right ms-auto text-muted"></i>
+            </div>
+        </a>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

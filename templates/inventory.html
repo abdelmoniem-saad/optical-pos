@@ -1,0 +1,63 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<div class="d-flex align-items-center mb-4">
+    <a href="{{ url_for('dashboard') }}" class="btn btn-light rounded-circle me-3"><i class="fas fa-arrow-left"></i></a>
+    <h3 class="fw-bold mb-0">المخزن</h3>
+</div>
+
+<form action="{{ url_for('inventory') }}" method="get" class="mb-4">
+    <div class="input-group">
+        <input type="text" name="q" class="form-control" placeholder="بحث باسم المنتج أو الرمز..." value="{{ query or '' }}">
+        <button class="btn btn-primary" type="submit"><i class="fas fa-search"></i></button>
+    </div>
+</form>
+
+<div class="card overflow-hidden">
+    <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th>المنتج</th>
+                    <th class="text-end">السعر</th>
+                    <th class="text-center">المخزون</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for p in products %}
+                <tr>
+                    <td>
+                        <div class="fw-bold">{{ p.name }}</div>
+                        <div class="small text-muted">
+                            SKU: {{ p.sku or 'N/A' }} | BC: {{ p.barcode or 'N/A' }}
+                        </div>
+                        {% if p.category == 'Lens' %}
+                            <div class="badge bg-primary-subtle text-primary small">{{ p.lens_type }}</div>
+                        {% elif p.category == 'Frame' %}
+                            <div class="badge bg-info-subtle text-info small">{{ p.frame_type }} | {{ p.frame_color }}</div>
+                        {% endif %}
+                    </td>
+                    <td class="text-end fw-bold text-primary">{{ "%.2f"|format(p.sale_price) }}</td>
+                    <td class="text-center">
+                        {% if p.stock <= 0 %}
+                            <span class="badge bg-danger rounded-pill">{{ p.stock }}</span>
+                        {% elif p.stock <= 5 %}
+                            <span class="badge bg-warning text-dark rounded-pill">{{ p.stock }}</span>
+                        {% else %}
+                            <span class="badge bg-success rounded-pill">{{ p.stock }}</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="3" class="text-center py-5 text-muted">
+                        <i class="fas fa-box-open fa-3x mb-3"></i>
+                        <p>لا توجد منتجات مطابقة للبحث.</p>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
