@@ -6,12 +6,11 @@ services:
     name: lensy-pos
     env: python
     buildCommand: pip install -r requirements.txt
-    startCommand: flet run main.py --web --port $PORT
+    startCommand: python main.py
     envVars:
       - key: SUPABASE_URL
         sync: false
       - key: SUPABASE_KEY
         sync: false
-      - key: PYTHON_VERSION
-        value: 3.12.0
-
+      - key: RENDER
+        value: "true"

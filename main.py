@@ -1,4 +1,5 @@
 import flet as ft
+import os
 from app.database.repository import POSRepository
 from app.ui.flet_pages.dashboard import DashboardView
 from app.ui.flet_pages.inventory import InventoryView
@@ -109,5 +110,15 @@ def web_main(page: ft.Page):
     main(page)
 
 if __name__ == "__main__":
-    # This runs the app locally
-    ft.app(target=main, assets_dir="assets")
+    # Get port from environment variable (for Render/Railway/etc.)
+    port = int(os.environ.get("PORT", 8550))
+
+    # Check if running on a server
+    is_server = os.environ.get("RENDER") or os.environ.get("RAILWAY_ENVIRONMENT") or os.environ.get("FLY_APP_NAME")
+
+    if is_server:
+        # Run as web app on server
+        ft.app(target=main, view=ft.AppView.WEB_BROWSER, port=port, host="0.0.0.0")
+    else:
+        # Run locally as desktop app
+        ft.app(target=main, assets_dir="assets")
