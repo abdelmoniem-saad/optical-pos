@@ -3,7 +3,13 @@ from app.core.i18n import _
 import datetime
 
 
-class POSView(ft.View):
+def POSView(page: ft.Page, repo):
+    """POS View factory function that returns a ft.View"""
+    pos = _POSController(page, repo)
+    return pos.view
+
+
+class _POSController:
     """
     Point of Sale (POS) System for Optical Shop.
 
@@ -17,11 +23,6 @@ class POSView(ft.View):
     """
 
     def __init__(self, page: ft.Page, repo):
-        super().__init__(
-            route="/pos",
-            padding=0,
-            spacing=0,
-        )
         self._page = page
         self.repo = repo
         
@@ -53,8 +54,15 @@ class POSView(ft.View):
         )
         
         self.content_area = ft.Container(expand=True, padding=20)
-        self.controls = [self.app_bar, self.content_area]
-        
+
+        # Create the view
+        self.view = ft.View(
+            route="/pos",
+            padding=0,
+            spacing=0,
+            controls=[self.app_bar, self.content_area]
+        )
+
         self.show_step_0()
 
     # ==================== STEP 0: CATEGORY SELECTION ====================
