@@ -181,3 +181,5 @@ def DashboardView(page: ft.Page, repo):
         scroll=ft.ScrollMode.AUTO
     )
 
+
+

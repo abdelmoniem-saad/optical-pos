@@ -131,3 +131,4 @@ if __name__ == "__main__":
     else:
         # Run locally as desktop app
         ft.app(main, assets_dir="assets")
+

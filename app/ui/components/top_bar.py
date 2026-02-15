@@ -244,3 +244,4 @@ def create_top_bar(page: ft.Page, repo, current_route: str = "/"):
 
     return top_bar
 
+

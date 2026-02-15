@@ -482,3 +482,5 @@ def InventoryView(page: ft.Page, repo):
         ],
     )
 
+
+
