@@ -539,12 +539,16 @@ class POSRepository:
     def get_customer_past_examinations(self, customer_id: str) -> list:
         """Get past examinations for a customer with sale info."""
         if self.supabase:
-            return self.supabase.table("order_examinations")\
-                .select("*, sales(id, order_date, invoice_no, doctor_name)")\
-                .eq("sales.customer_id", customer_id)\
-                .order_by("sales.order_date", desc=True)\
-                .limit(10)\
-                .execute().data
+            try:
+                return self.supabase.table("order_examinations")\
+                    .select("*, sales(id, order_date, invoice_no, doctor_name)")\
+                    .eq("sales.customer_id", customer_id)\
+                    .order("created_at", desc=True)\
+                    .limit(10)\
+                    .execute().data
+            except Exception as e:
+                print(f"[REPO] get_customer_past_examinations error: {e}")
+                return []
 
         data = self._read_local()
         exams = data.get("order_examinations", [])
