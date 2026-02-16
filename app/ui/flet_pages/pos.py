@@ -908,6 +908,24 @@ class _POSController:
             rows=[]
         )
 
+        # Custom price checkbox and input
+        self.use_custom_price = ft.Checkbox(
+            label=_("Use Custom Price"),
+            value=False,
+            on_change=lambda e: self.on_custom_price_toggle(e)
+        )
+
+        # Calculate initial gross from cart items
+        initial_gross = sum(item["total_price"] for item in self.cart_items)
+
+        self.custom_price_input = ft.TextField(
+            label=_("Custom Gross Total"),
+            value=str(initial_gross),
+            width=150,
+            disabled=True,
+            on_change=lambda e: self.on_totals_change()
+        )
+
         # Totals inputs
         self.discount_input = ft.TextField(
             label=_("Discount"),
@@ -945,7 +963,10 @@ class _POSController:
             ft.ResponsiveRow([
                 ft.Container(
                     ft.Column([
-                        ft.Text(_("Order Details"), size=16, weight=ft.FontWeight.BOLD),
+                        ft.Text(_("Pricing"), size=16, weight=ft.FontWeight.BOLD),
+                        ft.Row([self.use_custom_price, self.custom_price_input]),
+                        ft.Text(_("Use custom price for special deals or negotiations"), size=11, color=ft.colors.GREY_500, italic=True),
+                        ft.Divider(height=10),
                         self.discount_input,
                         self.paid_input
                     ]),
@@ -1042,6 +1063,16 @@ class _POSController:
                 )
             )
 
+    def on_custom_price_toggle(self, e):
+        """Handle custom price checkbox toggle."""
+        self.custom_price_input.disabled = not e.control.value
+        if e.control.value:
+            # When enabling custom price, set it to current calculated gross
+            gross = sum(item["total_price"] for item in self.cart_items)
+            self.custom_price_input.value = str(gross)
+        self.update_totals_display()
+        self._page.update()
+
     def on_totals_change(self):
         """Handle totals input changes."""
         try:
@@ -1053,12 +1084,34 @@ class _POSController:
 
     def update_totals_display(self):
         """Update totals calculation and display."""
-        gross = sum(item["total_price"] for item in self.cart_items)
+        # Calculate gross - use custom price if enabled, otherwise sum of items
+        if hasattr(self, 'use_custom_price') and self.use_custom_price.value:
+            try:
+                gross = float(self.custom_price_input.value or 0)
+            except ValueError:
+                gross = sum(item["total_price"] for item in self.cart_items)
+        else:
+            gross = sum(item["total_price"] for item in self.cart_items)
+            # Update custom price input to show calculated value
+            if hasattr(self, 'custom_price_input'):
+                self.custom_price_input.value = str(gross)
+
         self.totals["gross_total"] = gross
         self.totals["net_amount"] = gross - self.totals["discount"]
         self.totals["balance"] = self.totals["net_amount"] - self.totals["amount_paid"]
 
         self.totals_display.controls.clear()
+
+        # Show items total if using custom price (for reference)
+        items_total = sum(item["total_price"] for item in self.cart_items)
+        if hasattr(self, 'use_custom_price') and self.use_custom_price.value and items_total != gross:
+            self.totals_display.controls.append(
+                ft.Row([
+                    ft.Text(_("Items Total"), color=ft.colors.GREY_500),
+                    ft.Text(f"{items_total:.2f}", color=ft.colors.GREY_500, style=ft.TextStyle(decoration=ft.TextDecoration.LINE_THROUGH))
+                ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN)
+            )
+
         self.totals_display.controls.extend([
             ft.Row([ft.Text(_("Gross Total"), weight=ft.FontWeight.BOLD), ft.Text(f"{self.totals['gross_total']:.2f}")], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
             ft.Row([ft.Text(_("Discount"), weight=ft.FontWeight.BOLD), ft.Text(f"- {self.totals['discount']:.2f}")], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
