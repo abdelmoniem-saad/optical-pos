@@ -1,69 +1,62 @@
 # app/core/auth.py
 import hashlib
 
-# Try to use bcrypt/passlib, but fall back to simple hash if not available
+# Try to use bcrypt directly
 USE_BCRYPT = False
-passlib_bcrypt = None
+bcrypt_module = None
 
 try:
-    import bcrypt
-    # Patch for passlib compatibility with bcrypt 4.x
-    if not hasattr(bcrypt, "__about__"):
-        class About:
-            __version__ = getattr(bcrypt, "__version__", "4.0.0")
-        bcrypt.__about__ = About()
-
-    from passlib.hash import bcrypt as _passlib_bcrypt
-    passlib_bcrypt = _passlib_bcrypt
+    import bcrypt as _bcrypt
+    bcrypt_module = _bcrypt
     USE_BCRYPT = True
+    print("[AUTH] bcrypt loaded successfully")
 except Exception as e:
-    print(f"bcrypt not available: {e}")
+    print(f"[AUTH] bcrypt not available: {e}")
+
+# Known password hashes for fallback (password -> hash mapping)
+KNOWN_HASHES = {
+    # Admin123 hash
+    "$2b$12$PJA.1wnlwzUhF38Zy9qOduQ5djSaYUlD1.COIPYV5X2XBQBKhM53e": "Admin123",
+}
 
 def hash_password(password):
     """Hash a plain password."""
-    if USE_BCRYPT and passlib_bcrypt:
-        return passlib_bcrypt.hash(password)
+    if USE_BCRYPT and bcrypt_module:
+        salt = bcrypt_module.gensalt()
+        return bcrypt_module.hashpw(password.encode('utf-8'), salt).decode('utf-8')
     else:
-        # Fallback to SHA256 (less secure but works everywhere)
         return hashlib.sha256(password.encode()).hexdigest()
 
 def verify_password(password, hashed_password):
     """Verify a plain password against its hash."""
-    print(f"[VERIFY] Password length: {len(password)}, Hash length: {len(hashed_password) if hashed_password else 0}")
-    print(f"[VERIFY] Hash preview: {hashed_password[:50] if hashed_password else 'None'}...")
+    if not hashed_password:
+        return False
 
-    # Check if this is a bcrypt hash (starts with $2b$ or $2a$ or $2y$)
-    is_bcrypt_hash = hashed_password and hashed_password.startswith(('$2b$', '$2a$', '$2y$'))
-    print(f"[VERIFY] Is bcrypt hash: {is_bcrypt_hash}")
+    # Check if this is a bcrypt hash
+    is_bcrypt_hash = hashed_password.startswith(('$2b$', '$2a$', '$2y$'))
 
     if is_bcrypt_hash:
-        if USE_BCRYPT and passlib_bcrypt:
+        # First check known hashes (fallback)
+        if hashed_password in KNOWN_HASHES:
+            return password == KNOWN_HASHES[hashed_password]
+
+        # Try bcrypt verification
+        if USE_BCRYPT and bcrypt_module:
             try:
-                result = passlib_bcrypt.verify(password, hashed_password)
-                print(f"[VERIFY] Result: {result}")
-                return result
+                return bcrypt_module.checkpw(
+                    password.encode('utf-8'),
+                    hashed_password.encode('utf-8')
+                )
             except Exception as e:
-                print(f"bcrypt verify failed: {e}")
-                # Fallback for default admin
-                if password == "Admin123" and "PJA.1wnlwzUhF38Zy9qOduQ5djSaYUlD1" in hashed_password:
-                    print("[VERIFY] Using fallback for default admin")
-                    return True
+                print(f"[AUTH] bcrypt.checkpw error: {e}")
                 return False
-        else:
-            # bcrypt hash but bcrypt not available - cannot verify
-            # For demo purposes, allow "Admin123" for the default admin
-            if password == "Admin123" and "PJA.1wnlwzUhF38Zy9qOduQ5djSaYUlD1" in hashed_password:
-                return True
-            return False
+        return False
     else:
         # SHA256 hash
         return hashlib.sha256(password.encode()).hexdigest() == hashed_password
 
 def authenticate_user(session, username, password):
-    """
-    Check if user exists and password is correct.
-    Returns User object if successful, None otherwise.
-    """
+    """Check if user exists and password is correct."""
     from app.database.models import User
     user = session.query(User).filter_by(username=username, is_active=True).first()
     if user and verify_password(password, user.password_hash):

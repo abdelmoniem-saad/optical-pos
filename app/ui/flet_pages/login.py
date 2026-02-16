@@ -5,14 +5,9 @@ from app.core.i18n import _
 def LoginView(page: ft.Page, repo, on_login_success):
     """Login view - returns a ft.View"""
 
-    # Debug: Check if bcrypt is available
-    from app.core.auth import USE_BCRYPT
-    debug_info = f"(bcrypt: {'yes' if USE_BCRYPT else 'no'})"
-
     username_input = ft.TextField(
         label=_("Username"),
         width=300,
-        value="admin",
         autofocus=True,
     )
     password_input = ft.TextField(
@@ -20,7 +15,6 @@ def LoginView(page: ft.Page, repo, on_login_success):
         password=True,
         can_reveal_password=True,
         width=300,
-        value="Admin123",  # Pre-fill for testing
     )
     error_text = ft.Text(color=ft.colors.RED_700, size=14)
 
@@ -36,8 +30,7 @@ def LoginView(page: ft.Page, repo, on_login_success):
     )
 
     def handle_login(e):
-        print("[LOGIN] Button clicked!")  # Debug log
-        error_text.value = "Logging in..."
+        error_text.value = _("Logging in...")
         error_text.color = ft.colors.BLUE_700
         login_button.disabled = True
         page.update()
@@ -46,8 +39,6 @@ def LoginView(page: ft.Page, repo, on_login_success):
             username = username_input.value.strip() if username_input.value else ""
             password = password_input.value if password_input.value else ""
 
-            print(f"[LOGIN] Username: {username}, Password length: {len(password)}")
-
             if not username or not password:
                 error_text.value = _("Please enter both username and password.")
                 error_text.color = ft.colors.RED_700
@@ -55,13 +46,10 @@ def LoginView(page: ft.Page, repo, on_login_success):
                 page.update()
                 return
 
-            # Attempt to authenticate
-            print("[LOGIN] Calling repo.authenticate...")
             user = repo.authenticate(username, password)
-            print(f"[LOGIN] Auth result: {user is not None}")
 
             if user:
-                error_text.value = "Success! Redirecting..."
+                error_text.value = _("Success! Redirecting...")
                 error_text.color = ft.colors.GREEN_700
                 page.update()
                 on_login_success(user)
@@ -71,17 +59,12 @@ def LoginView(page: ft.Page, repo, on_login_success):
                 login_button.disabled = False
                 page.update()
         except Exception as ex:
-            print(f"[LOGIN] Exception: {ex}")
-            import traceback
-            traceback.print_exc()
-            error_text.value = f"Error: {str(ex)}"
+            error_text.value = f"{_('Error')}: {str(ex)}"
             error_text.color = ft.colors.RED_700
             login_button.disabled = False
             page.update()
 
     login_button.on_click = handle_login
-
-    # Set up on_submit after handle_login is defined
     username_input.on_submit = lambda _: password_input.focus()
     password_input.on_submit = handle_login
 
@@ -93,13 +76,12 @@ def LoginView(page: ft.Page, repo, on_login_success):
             ft.Container(
                 content=ft.Column([
                     ft.Text(_("Welcome"), size=40, weight=ft.FontWeight.BOLD, text_align=ft.TextAlign.CENTER),
-                    ft.Text(debug_info, size=10, color=ft.colors.GREY_500),
+                    ft.Text(_("Lensy POS"), size=14, color=ft.colors.GREY_500),
                     ft.Divider(height=20, color=ft.colors.TRANSPARENT),
                     username_input,
                     password_input,
                     error_text,
                     login_button,
-                    ft.Text("Default: admin / Admin123", size=11, color=ft.colors.GREY_500),
                 ], horizontal_alignment=ft.CrossAxisAlignment.CENTER),
                 padding=40,
                 border_radius=20,

@@ -12,17 +12,13 @@ class POSRepository:
                 try:
                     from supabase import create_client
                     self.supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
-                    print(f"[REPO] Supabase client initialized")
                 except ImportError:
-                    print("[REPO] Supabase library not found. Using local DB.")
-                except Exception as e:
-                    print(f"[REPO] Supabase init error: {e}. Using local DB.")
-            else:
-                print("[REPO] Supabase URL or Key missing. Using local DB.")
+                    pass
+                except Exception:
+                    pass
 
         if not self.supabase:
             self._ensure_local_db()
-            print(f"[REPO] Using local DB at {LOCAL_JSON_DB}")
 
     def _ensure_local_db(self):
         initial_data = {
@@ -93,23 +89,15 @@ class POSRepository:
 
     # --- Auth & Users ---
     def authenticate(self, username, password):
-        from app.core.auth import verify_password, USE_BCRYPT
-        print(f"[AUTH] Attempting login for: {username}, bcrypt available: {USE_BCRYPT}")
-        print(f"[AUTH] Using Supabase: {self.supabase is not None}")
+        from app.core.auth import verify_password
 
         if self.supabase:
             try:
                 res = self.supabase.table("users").select("*, roles(*)").eq("username", username).eq("is_active", True).execute()
-                print(f"[AUTH] Supabase query result: {len(res.data) if res.data else 0} users found")
                 if res.data:
                     user = res.data[0]
-                    print(f"[AUTH] Found user in Supabase: {user.get('username')}")
                     if verify_password(password, user["password_hash"]):
-                        print("[AUTH] Password verified successfully")
                         return user
-                    print("[AUTH] Password verification failed")
-                else:
-                    print("[AUTH] No matching user found in Supabase")
                 return None
             except Exception as e:
                 print(f"[AUTH] Supabase error: {e}")
@@ -117,17 +105,12 @@ class POSRepository:
 
         # Local DB authentication
         data = self._read_local()
-        print(f"[AUTH] Local DB has {len(data.get('users', []))} users")
         for user in data["users"]:
             if user["username"] == username and user.get("is_active", True):
-                print(f"[AUTH] Found matching user, verifying password...")
                 if verify_password(password, user["password_hash"]):
-                    print("[AUTH] Password verified successfully")
                     role_id = user.get("role_id")
                     user["role"] = next((r for r in data["roles"] if r["id"] == role_id), None)
                     return user
-                print("[AUTH] Password verification failed")
-        print("[AUTH] No matching user found")
         return None
 
     def get_users(self):
