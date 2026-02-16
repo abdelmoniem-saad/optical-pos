@@ -119,16 +119,26 @@ def web_main(page: ft.Page):
     main(page)
 
 if __name__ == "__main__":
+    import sys
+
     # Get port from environment variable (for Render/Railway/etc.)
-    port = int(os.environ.get("PORT", 8550))
+    port = int(os.environ.get("PORT", 10000))
 
     # Check if running on a server
     is_server = os.environ.get("RENDER") or os.environ.get("RAILWAY_ENVIRONMENT") or os.environ.get("FLY_APP_NAME")
 
     if is_server:
+        print(f"Starting Flet web server on 0.0.0.0:{port}...", flush=True)
+        sys.stdout.flush()
         # Run as web app on server
-        ft.app(main, view=ft.AppView.WEB_BROWSER, port=port, host="0.0.0.0")
+        ft.app(
+            target=main,
+            view=ft.AppView.WEB_BROWSER,
+            port=port,
+            host="0.0.0.0",
+            upload_dir="uploads"
+        )
     else:
         # Run locally as desktop app
-        ft.app(main, assets_dir="assets")
+        ft.app(target=main, assets_dir="assets")
 
