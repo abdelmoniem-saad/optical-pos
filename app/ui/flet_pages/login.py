@@ -12,36 +12,74 @@ def LoginView(page: ft.Page, repo, on_login_success):
     username_input = ft.TextField(
         label=_("Username"),
         width=300,
-        value="admin",  # Pre-fill for convenience
+        value="admin",
+        autofocus=True,
     )
     password_input = ft.TextField(
         label=_("Password"),
         password=True,
         can_reveal_password=True,
         width=300,
+        value="Admin123",  # Pre-fill for testing
     )
-    error_text = ft.Text(color=ft.colors.RED_700)
+    error_text = ft.Text(color=ft.colors.RED_700, size=14)
+
+    login_button = ft.ElevatedButton(
+        _("Login"),
+        width=300,
+        height=50,
+        style=ft.ButtonStyle(
+            shape=ft.RoundedRectangleBorder(radius=10),
+            color=ft.colors.WHITE,
+            bgcolor=ft.colors.BLUE_700
+        )
+    )
 
     def handle_login(e):
+        print("[LOGIN] Button clicked!")  # Debug log
+        error_text.value = "Logging in..."
+        error_text.color = ft.colors.BLUE_700
+        login_button.disabled = True
+        page.update()
+
         try:
-            username = username_input.value
-            password = password_input.value
+            username = username_input.value.strip() if username_input.value else ""
+            password = password_input.value if password_input.value else ""
+
+            print(f"[LOGIN] Username: {username}, Password length: {len(password)}")
 
             if not username or not password:
                 error_text.value = _("Please enter both username and password.")
+                error_text.color = ft.colors.RED_700
+                login_button.disabled = False
                 page.update()
                 return
 
             # Attempt to authenticate
+            print("[LOGIN] Calling repo.authenticate...")
             user = repo.authenticate(username, password)
+            print(f"[LOGIN] Auth result: {user is not None}")
+
             if user:
+                error_text.value = "Success! Redirecting..."
+                error_text.color = ft.colors.GREEN_700
+                page.update()
                 on_login_success(user)
             else:
                 error_text.value = _("Invalid username or password.")
+                error_text.color = ft.colors.RED_700
+                login_button.disabled = False
                 page.update()
         except Exception as ex:
+            print(f"[LOGIN] Exception: {ex}")
+            import traceback
+            traceback.print_exc()
             error_text.value = f"Error: {str(ex)}"
+            error_text.color = ft.colors.RED_700
+            login_button.disabled = False
             page.update()
+
+    login_button.on_click = handle_login
 
     # Set up on_submit after handle_login is defined
     username_input.on_submit = lambda _: password_input.focus()
@@ -60,17 +98,7 @@ def LoginView(page: ft.Page, repo, on_login_success):
                     username_input,
                     password_input,
                     error_text,
-                    ft.ElevatedButton(
-                        _("Login"),
-                        width=300,
-                        height=50,
-                        on_click=handle_login,
-                        style=ft.ButtonStyle(
-                            shape=ft.RoundedRectangleBorder(radius=10),
-                            color=ft.colors.WHITE,
-                            bgcolor=ft.colors.BLUE_700
-                        )
-                    ),
+                    login_button,
                     ft.Text("Default: admin / Admin123", size=11, color=ft.colors.GREY_500),
                 ], horizontal_alignment=ft.CrossAxisAlignment.CENTER),
                 padding=40,

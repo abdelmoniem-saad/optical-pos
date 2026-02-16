@@ -89,25 +89,37 @@ class POSRepository:
 
     # --- Auth & Users ---
     def authenticate(self, username, password):
-        from app.core.auth import verify_password
+        from app.core.auth import verify_password, USE_BCRYPT
+        print(f"[AUTH] Attempting login for: {username}, bcrypt available: {USE_BCRYPT}")
+
         if self.supabase:
             # Note: For real app, use Supabase Auth. 
             # For simplicity, we query users table if we want custom auth.
             res = self.supabase.table("users").select("*, roles(*)").eq("username", username).eq("is_active", True).execute()
             if res.data:
                 user = res.data[0]
+                print(f"[AUTH] Found user in Supabase: {user.get('username')}")
                 if verify_password(password, user["password_hash"]):
+                    print("[AUTH] Password verified successfully")
                     return user
+                print("[AUTH] Password verification failed")
             return None
         
         data = self._read_local()
+        print(f"[AUTH] Local DB has {len(data.get('users', []))} users")
         for user in data["users"]:
-            if user["username"] == username and user["is_active"]:
+            print(f"[AUTH] Checking user: {user.get('username')}, active: {user.get('is_active')}")
+            if user["username"] == username and user.get("is_active", True):
+                print(f"[AUTH] Found matching user, verifying password...")
                 if verify_password(password, user["password_hash"]):
+                    print("[AUTH] Password verified successfully")
                     # Attach role info
                     role_id = user.get("role_id")
                     user["role"] = next((r for r in data["roles"] if r["id"] == role_id), None)
                     return user
+                print("[AUTH] Password verification failed")
+        print("[AUTH] No matching user found")
+        return None
         return None
 
     def get_users(self):
