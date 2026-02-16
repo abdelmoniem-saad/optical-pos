@@ -5,9 +5,14 @@ from app.core.i18n import _
 def LoginView(page: ft.Page, repo, on_login_success):
     """Login view - returns a ft.View"""
 
+    # Debug: Check if bcrypt is available
+    from app.core.auth import USE_BCRYPT
+    debug_info = f"(bcrypt: {'yes' if USE_BCRYPT else 'no'})"
+
     username_input = ft.TextField(
         label=_("Username"),
         width=300,
+        value="admin",  # Pre-fill for convenience
     )
     password_input = ft.TextField(
         label=_("Password"),
@@ -50,6 +55,7 @@ def LoginView(page: ft.Page, repo, on_login_success):
             ft.Container(
                 content=ft.Column([
                     ft.Text(_("Welcome"), size=40, weight=ft.FontWeight.BOLD, text_align=ft.TextAlign.CENTER),
+                    ft.Text(debug_info, size=10, color=ft.colors.GREY_500),
                     ft.Divider(height=20, color=ft.colors.TRANSPARENT),
                     username_input,
                     password_input,
@@ -65,6 +71,7 @@ def LoginView(page: ft.Page, repo, on_login_success):
                             bgcolor=ft.colors.BLUE_700
                         )
                     ),
+                    ft.Text("Default: admin / Admin123", size=11, color=ft.colors.GREY_500),
                 ], horizontal_alignment=ft.CrossAxisAlignment.CENTER),
                 padding=40,
                 border_radius=20,
