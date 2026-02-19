@@ -1,5 +1,9 @@
+# Apply Flet compatibility patches FIRST before any other imports
+import app.flet_compat  # noqa: F401 - patches ft.colors, ft.icons, etc.
+
 import flet as ft
 import os
+
 from app.database.repository import POSRepository
 from app.ui.flet_pages.dashboard import DashboardView
 from app.ui.flet_pages.inventory import InventoryView
