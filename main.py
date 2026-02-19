@@ -11,9 +11,11 @@ from app.ui.flet_pages.lab import LabView
 from app.ui.flet_pages.staff import StaffView
 from app.ui.flet_pages.settings import SettingsView
 from app.ui.flet_pages.history import HistoryView
-
 from app.ui.flet_pages.reports import ReportsView
 from app.ui.components.top_bar import create_top_bar
+
+# Licensing - can be disabled for development
+ENABLE_LICENSING = os.environ.get("ENABLE_LICENSING", "false").lower() == "true"
 
 def main(page: ft.Page):
     # Base Configuration
@@ -40,9 +42,23 @@ def main(page: ft.Page):
     # Initialize Repository
     repo = POSRepository()
 
+    # Initialize License Manager (for desktop builds)
+    license_manager = None
+    if ENABLE_LICENSING and not is_web:
+        try:
+            from app.core.licensing import LicenseManager
+            license_manager = LicenseManager(repo.supabase)
+            page.data["license_manager"] = license_manager
+        except Exception as e:
+            print(f"[LICENSE] Failed to initialize: {e}")
+
     def on_login_success(user):
         page.data["user"] = user
         page.go("/")
+
+    def on_license_activated():
+        """Called when license is successfully activated."""
+        page.go("/login")
 
     def wrap_with_top_bar(view_content, route):
         """Wrap a view with the top bar."""
@@ -69,14 +85,29 @@ def main(page: ft.Page):
     def route_change(e):
         page.views.clear()
         
+        # License Guard (for desktop builds with licensing enabled)
+        if license_manager and page.route != "/activate":
+            is_licensed, license_msg = license_manager.is_licensed()
+            if not is_licensed:
+                from app.ui.flet_pages.activation import ActivationView
+                page.views.append(ActivationView(page, license_manager, on_license_activated))
+                page.update()
+                return
+
         # Auth Guard
         user = page.data.get("user") if hasattr(page, 'data') and page.data else None
-        if not user and page.route != "/login":
+        if not user and page.route != "/login" and page.route != "/activate":
             page.go("/login")
             return
 
         # Routing Logic
-        if page.route == "/login":
+        if page.route == "/activate":
+            if license_manager:
+                from app.ui.flet_pages.activation import ActivationView
+                page.views.append(ActivationView(page, license_manager, on_license_activated))
+            else:
+                page.go("/login")
+        elif page.route == "/login":
             page.views.append(LoginView(page, repo, on_login_success))
         elif page.route == "/":
             page.views.append(wrap_with_top_bar(DashboardView(page, repo), "/"))
@@ -110,9 +141,16 @@ def main(page: ft.Page):
 
     page.on_route_change = route_change
     page.on_view_pop = view_pop
-    
-    # Initial Navigation - always start with login check
-    page.go("/login")
+
+    # Initial Navigation - check license first (for desktop), then login
+    if license_manager:
+        is_licensed, _ = license_manager.is_licensed()
+        if not is_licensed:
+            page.go("/activate")
+        else:
+            page.go("/login")
+    else:
+        page.go("/login")
 
 # This is the entry point for `flet build web`
 def web_main(page: ft.Page):

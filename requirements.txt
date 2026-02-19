@@ -1,5 +1,6 @@
-flet==0.24.1
+flet>=0.24.1
 supabase>=2.0.0
 bcrypt>=4.0.0
 passlib>=1.7.4
 sqlalchemy>=2.0.0
+httpx>=0.25.0

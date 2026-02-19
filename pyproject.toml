@@ -1,0 +1,72 @@
+[project]
+name = "LensyPOS"
+version = "1.0.0"
+description = "Lensy POS - Point of Sale System for Optical Stores"
+authors = [
+    {name = "Lensy", email = "support@lensy.com"}
+]
+requires-python = ">=3.10"
+dependencies = [
+    "flet>=0.24.1",
+    "supabase>=2.0.0",
+    "bcrypt>=4.0.0",
+    "passlib>=1.7.4",
+    "sqlalchemy>=2.0.0",
+]
+
+[tool.flet]
+# App information
+app_name = "LensyPOS"
+app_short_name = "Lensy"
+app_description = "Point of Sale System for Optical Stores"
+
+# Organization info
+org = "com.lensy"
+company = "Lensy"
+copyright = "© 2026 Lensy"
+
+# Entry point
+module = "main"
+
+# Build settings
+[tool.flet.build]
+# Assets to include
+assets = ["assets", "uploads"]
+
+# Additional Python packages to bundle
+packages = [
+    "app",
+    "scripts",
+]
+
+# Platform-specific settings
+[tool.flet.build.windows]
+product_name = "Lensy POS"
+file_description = "Lensy POS - Optical Store Management"
+icon = "assets/icon.ico"
+
+[tool.flet.build.macos]
+product_name = "Lensy POS"
+bundle_name = "LensyPOS"
+icon = "assets/icon.icns"
+
+[tool.flet.build.linux]
+product_name = "LensyPOS"
+
+[tool.flet.build.android]
+product_name = "Lensy POS"
+adaptive_icon_background = "#2196F3"
+# splash_color = "#2196F3"
+# splash_dark_color = "#1976D2"
+
+[tool.flet.build.ios]
+product_name = "Lensy POS"
+bundle_name = "LensyPOS"
+
+[tool.flet.build.web]
+base_url = "/"
+pwa = true
+app_name = "Lensy POS"
+app_short_name = "Lensy"
+app_description = "Point of Sale System for Optical Stores"
+
