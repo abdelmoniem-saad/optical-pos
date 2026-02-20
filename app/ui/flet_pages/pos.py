@@ -1153,7 +1153,7 @@ class _POSController:
         try:
             # Prepare sale data
             # Get user ID safely
-            user = self._page.data.get("user") if hasattr(self.page, 'data') and self._page.data else None
+            user = self._page.data.get("user") if hasattr(self._page, 'data') and self._page.data else None
             user_id = user.get("id") if user else None
 
             sale_data = {
