@@ -10,7 +10,14 @@ import hashlib
 import platform
 import datetime
 import base64
+import webbrowser
+import subprocess
+import tempfile
 from pathlib import Path
+from packaging import version as pkg_version
+
+# Current app version - UPDATE THIS ON EACH RELEASE
+APP_VERSION = "1.0.0"
 
 
 class LicenseManager:
@@ -294,32 +301,104 @@ class LicenseManager:
 
     def check_for_updates(self) -> dict:
         """Check for software updates."""
-        current_version = "1.0.0"  # Update this with actual version
+        current_version = APP_VERSION
 
         if self.supabase:
             try:
                 result = self.supabase.table("app_updates").select("*").eq(
                     "app_name", "LensyPOS"
-                ).order("version", desc=True).limit(1).execute()
+                ).order("created_at", desc=True).limit(1).execute()
 
                 if result.data:
                     latest = result.data[0]
+                    latest_version = latest.get("version", "0.0.0")
+
+                    # Use proper semantic version comparison
+                    try:
+                        update_available = pkg_version.parse(latest_version) > pkg_version.parse(current_version)
+                    except Exception:
+                        # Fallback to string comparison if parsing fails
+                        update_available = latest_version > current_version
+
                     return {
                         "current_version": current_version,
-                        "latest_version": latest.get("version"),
+                        "latest_version": latest_version,
                         "download_url": latest.get("download_url"),
                         "release_notes": latest.get("release_notes"),
                         "is_mandatory": latest.get("is_mandatory", False),
-                        "update_available": latest.get("version") > current_version,
+                        "min_version": latest.get("min_version"),
+                        "platform": latest.get("platform", "all"),
+                        "update_available": update_available,
                     }
-            except Exception:
-                pass
+            except Exception as e:
+                print(f"[UPDATE] Check failed: {e}")
 
         return {
             "current_version": current_version,
             "latest_version": current_version,
             "update_available": False,
         }
+
+    def download_update(self, download_url: str) -> tuple[bool, str]:
+        """
+        Download and prepare update.
+        Returns (success, message_or_filepath)
+        """
+        if not download_url:
+            return False, "No download URL provided."
+
+        try:
+            # For direct download links, open in browser
+            if download_url.startswith("http"):
+                webbrowser.open(download_url)
+                return True, "Download started in browser. Please install the update after download completes."
+
+            return False, "Invalid download URL."
+        except Exception as e:
+            return False, f"Failed to start download: {str(e)}"
+
+    def install_update(self, installer_path: str) -> tuple[bool, str]:
+        """
+        Install the downloaded update.
+        Returns (success, message)
+        """
+        if not os.path.exists(installer_path):
+            return False, "Installer file not found."
+
+        try:
+            # On Windows, run the installer
+            if platform.system() == "Windows":
+                subprocess.Popen([installer_path], shell=True)
+                return True, "Update installer started. The application will close."
+            elif platform.system() == "Darwin":  # macOS
+                subprocess.Popen(["open", installer_path])
+                return True, "Update started. Please follow the installation prompts."
+            else:  # Linux
+                subprocess.Popen(["xdg-open", installer_path])
+                return True, "Update started. Please follow the installation prompts."
+        except Exception as e:
+            return False, f"Failed to start installer: {str(e)}"
+
+    def get_current_version(self) -> str:
+        """Get the current application version."""
+        return APP_VERSION
+
+    def log_license_event(self, event_type: str, details: dict = None):
+        """Log a license-related event for auditing."""
+        if not self.supabase:
+            return
+
+        try:
+            license_data = self._load_license()
+            log_entry = {
+                "license_key": license_data.get("license_key") if license_data else None,
+                "event_type": event_type,
+                "machine_id": self.machine_id,
+                "details": json.dumps(details) if details else None,
+            }
+            self.supabase.table("license_logs").insert(log_entry).execute()
+        except Exception:
+            pass  # Silent fail for logging
 
 
 def generate_license_key() -> str:
@@ -333,54 +412,6 @@ def generate_license_key() -> str:
     return '-'.join(key_parts)
 
 
-# SQL Schema for licenses table (add to Supabase)
-LICENSES_SCHEMA = """
--- Add this to your Supabase SQL Editor
-
-CREATE TABLE IF NOT EXISTS licenses (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    license_key TEXT NOT NULL UNIQUE,
-    licensee_name TEXT,
-    licensee_email TEXT,
-    license_type TEXT DEFAULT 'standard',  -- 'trial', 'standard', 'professional', 'enterprise'
-    machine_id TEXT,
-    is_active BOOLEAN DEFAULT FALSE,
-    is_revoked BOOLEAN DEFAULT FALSE,
-    allow_transfer BOOLEAN DEFAULT FALSE,
-    max_activations INTEGER DEFAULT 1,
-    current_activations INTEGER DEFAULT 0,
-    features JSONB DEFAULT '{}',
-    expires_at TIMESTAMP WITH TIME ZONE,
-    activated_at TIMESTAMP WITH TIME ZONE,
-    deactivated_at TIMESTAMP WITH TIME ZONE,
-    last_check TIMESTAMP WITH TIME ZONE,
-    notes TEXT,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    created_by UUID REFERENCES users(id)
-);
-
--- App updates table
-CREATE TABLE IF NOT EXISTS app_updates (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    app_name TEXT NOT NULL,
-    version TEXT NOT NULL,
-    download_url TEXT,
-    release_notes TEXT,
-    is_mandatory BOOLEAN DEFAULT FALSE,
-    min_version TEXT,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
-
--- Index for faster lookups
-CREATE INDEX IF NOT EXISTS idx_licenses_key ON licenses(license_key);
-CREATE INDEX IF NOT EXISTS idx_licenses_machine ON licenses(machine_id);
-
--- Enable Row Level Security
-ALTER TABLE licenses ENABLE ROW LEVEL SECURITY;
-ALTER TABLE app_updates ENABLE ROW LEVEL SECURITY;
-
--- Policies (adjust based on your needs)
-CREATE POLICY "Allow read for authenticated" ON licenses FOR SELECT USING (true);
-CREATE POLICY "Allow read updates" ON app_updates FOR SELECT USING (true);
-"""
+# Note: SQL Schema has been moved to supabase_full_schema.sql
+# Run that file in your Supabase SQL Editor to set up all tables including licensing.
 

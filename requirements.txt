@@ -4,3 +4,4 @@ bcrypt>=4.0.0
 passlib>=1.7.4
 sqlalchemy>=2.0.0
 httpx>=0.25.0,<0.28.0
+packaging>=21.0

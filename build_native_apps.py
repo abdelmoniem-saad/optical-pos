@@ -25,10 +25,17 @@ import shutil
 import argparse
 from datetime import datetime
 
+# Add project root to path for imports
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+# Import version from central location
+try:
+    from app.core.licensing import APP_VERSION
+except ImportError:
+    APP_VERSION = "1.0.0"
 
 # App Configuration
 APP_NAME = "LensyPOS"
-APP_VERSION = "1.0.0"
 APP_DESCRIPTION = "Lensy POS - Point of Sale System for Optical Stores"
 APP_ORG = "com.lensy"
 APP_PACKAGE = f"{APP_ORG}.pos"

@@ -3,8 +3,8 @@
 A comprehensive Point of Sale (POS) system designed specifically for optical shops, built with **Flet** (Flutter for Python) for a modern, cross-platform UI experience.
 
 ![Python](https://img.shields.io/badge/Python-3.10+-blue.svg)
-![Flet](https://img.shields.io/badge/Flet-0.27+-green.svg)
-![License](https://img.shields.io/badge/License-MIT-yellow.svg)
+![Flet](https://img.shields.io/badge/Flet-0.24.1-green.svg)
+![License](https://img.shields.io/badge/License-Commercial-yellow.svg)
 
 ## ✨ Features
 
@@ -149,12 +149,16 @@ optical-pos/
 ├── run_web.py              # Flask web bridge
 ├── web_app.py              # Flask routes
 ├── requirements.txt        # Python dependencies
-├── pos_data.json           # Local JSON database
+├── supabase_full_schema.sql # Complete database schema (including licensing)
+├── license_admin.py        # License management CLI tool
+├── build_native_apps.py    # Native app builder script
 ├── app/
 │   ├── config.py           # App configuration
+│   ├── flet_compat.py      # Flet version compatibility
 │   ├── core/
 │   │   ├── auth.py         # Authentication
 │   │   ├── i18n.py         # Internationalization
+│   │   ├── licensing.py    # License management & auto-updates
 │   │   └── state.py        # Application state
 │   ├── database/
 │   │   └── repository.py   # Data access layer
@@ -169,11 +173,65 @@ optical-pos/
 │           ├── lab.py
 │           ├── reports.py
 │           ├── staff.py
-│           ├── settings.py
-│           └── login.py
+│           ├── settings.py  # Includes License & Updates tab
+│           ├── login.py
+│           └── activation.py # License activation UI
 ├── static/                 # Static files for PWA
 ├── templates/              # Flask templates
 └── uploads/                # Uploaded files
+```
+
+## 🔐 Software Licensing
+
+The application includes a built-in licensing system for commercial distribution:
+
+### Features
+- **Machine-locked licenses**: Tied to specific hardware
+- **License types**: Trial, Standard, Professional, Enterprise
+- **Expiration support**: Time-limited or perpetual licenses
+- **Offline grace period**: 7 days offline operation
+- **License transfer**: Optional transferability between machines
+- **Revocation**: Remote license invalidation
+
+### Managing Licenses
+
+Generate licenses using the admin CLI:
+```bash
+# Set Supabase credentials
+$env:SUPABASE_URL = "your-supabase-url"
+$env:SUPABASE_KEY = "your-supabase-key"
+
+# Generate a license
+python license_admin.py generate --name "Store Name" --email "email@example.com" --type standard --days 365
+
+# List all licenses
+python license_admin.py list
+
+# Revoke a license
+python license_admin.py revoke LICENSE-KEY
+```
+
+### Enabling Licensing
+Set the environment variable:
+```bash
+ENABLE_LICENSING=true
+```
+
+## 🔄 Automatic Updates
+
+The application supports automatic update checking:
+
+1. **Check for updates**: Settings → License & Updates → Check for Updates
+2. **View release notes**: See what's new in the latest version
+3. **Download updates**: Direct download from configured URL
+4. **Mandatory updates**: Force critical security updates
+
+### Publishing Updates
+
+Add new versions to the `app_updates` table in Supabase:
+```sql
+INSERT INTO app_updates (app_name, version, download_url, release_notes, is_mandatory, platform)
+VALUES ('LensyPOS', '1.1.0', 'https://download.example.com/LensyPOS-1.1.0.exe', 'Bug fixes and improvements', FALSE, 'windows');
 ```
 
 ## 💾 Stock Movement Logic
@@ -193,12 +251,19 @@ Movement types:
 ## ☁️ Cloud Deployment (Supabase)
 
 1. Create a [Supabase](https://supabase.com/) project
-2. Run the schema from `supabase_schema.sql`
+2. Run the schema from `supabase_full_schema.sql` in the SQL Editor
 3. Set environment variables:
-   ```
+   ```bash
    SUPABASE_URL=your_supabase_url
    SUPABASE_KEY=your_supabase_anon_key
    ```
+
+The schema includes:
+- Users, roles, and permissions
+- Customers, inventory, and products
+- Sales and order management
+- Prescriptions and examinations
+- Licensing and app updates tables
 
 ## 📱 PWA Support
 
