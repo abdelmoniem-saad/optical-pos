@@ -2,46 +2,46 @@
 Flet Compatibility Module
 Import this FIRST before any other flet imports to ensure compatibility.
 
-This module patches flet to work across different versions (0.21.x to 0.24.x+).
+This module patches flet to work across different versions (0.24.x to 0.25.x+).
+In Flet 0.25+, colors/icons are uppercase enums (Colors, Icons).
+This module provides backwards compatibility with lowercase access.
 """
 
 import sys
+import warnings
+
+# Suppress deprecation warnings for colors/icons
+warnings.filterwarnings('ignore', message='.*colors enum is deprecated.*')
+warnings.filterwarnings('ignore', message='.*icons enum is deprecated.*')
+
 print("[COMPAT] Loading Flet compatibility module...", file=sys.stderr, flush=True)
 
 import flet as ft
 
-print(f"[COMPAT] Flet module loaded from: {ft.__file__}", file=sys.stderr, flush=True)
+print(f"[COMPAT] Flet module loaded", file=sys.stderr, flush=True)
+
 
 def _patch_flet_colors():
-    """Ensure ft.colors is available across all Flet versions."""
+    """Ensure ft.colors is available (maps to ft.Colors in 0.25+)."""
+    # In Flet 0.25+, Colors is the new enum
+    if hasattr(ft, 'Colors') and ft.Colors is not None:
+        # Create a lowercase alias for backward compatibility
+        if not hasattr(ft, 'colors') or ft.colors is None:
+            ft.colors = ft.Colors
+        print("[COMPAT] Using ft.Colors (0.25+ style)", file=sys.stderr, flush=True)
+        return
+
+    # Older versions have ft.colors directly
     if hasattr(ft, 'colors') and ft.colors is not None:
-        print("[COMPAT] ft.colors already available", file=sys.stderr, flush=True)
-        return  # Already has colors
-
-    print("[COMPAT] ft.colors NOT found, trying alternatives...", file=sys.stderr, flush=True)
-
-    # Try to get from flet_core
-    try:
-        from flet_core import colors
-        ft.colors = colors
-        print("[COMPAT] Got colors from flet_core", file=sys.stderr, flush=True)
+        print("[COMPAT] Using ft.colors (legacy style)", file=sys.stderr, flush=True)
         return
-    except (ImportError, AttributeError) as e:
-        print(f"[COMPAT] flet_core.colors failed: {e}", file=sys.stderr, flush=True)
 
-    # Try flet.colors module
-    try:
-        import flet.colors as colors
-        ft.colors = colors
-        print("[COMPAT] Got colors from flet.colors", file=sys.stderr, flush=True)
-        return
-    except (ImportError, AttributeError) as e:
-        print(f"[COMPAT] flet.colors module failed: {e}", file=sys.stderr, flush=True)
+    # Fallback - create basic color constants
+    print("[COMPAT] Creating fallback colors", file=sys.stderr, flush=True)
 
-    # Create fallback
-    print("[COMPAT] Creating fallback ColorsFallback class", file=sys.stderr, flush=True)
     class ColorsFallback:
-        # Reds
+        """Fallback colors for when Flet colors are not available."""
+        # Basic colors
         RED = "red"
         RED_50 = "red50"
         RED_100 = "red100"
@@ -54,7 +54,6 @@ def _patch_flet_colors():
         RED_800 = "red800"
         RED_900 = "red900"
 
-        # Blues
         BLUE = "blue"
         BLUE_50 = "blue50"
         BLUE_100 = "blue100"
@@ -67,7 +66,6 @@ def _patch_flet_colors():
         BLUE_800 = "blue800"
         BLUE_900 = "blue900"
 
-        # Greens
         GREEN = "green"
         GREEN_50 = "green50"
         GREEN_100 = "green100"
@@ -80,7 +78,6 @@ def _patch_flet_colors():
         GREEN_800 = "green800"
         GREEN_900 = "green900"
 
-        # Oranges
         ORANGE = "orange"
         ORANGE_50 = "orange50"
         ORANGE_100 = "orange100"
@@ -93,20 +90,6 @@ def _patch_flet_colors():
         ORANGE_800 = "orange800"
         ORANGE_900 = "orange900"
 
-        # Greys
-        GREY = "grey"
-        GREY_50 = "grey50"
-        GREY_100 = "grey100"
-        GREY_200 = "grey200"
-        GREY_300 = "grey300"
-        GREY_400 = "grey400"
-        GREY_500 = "grey500"
-        GREY_600 = "grey600"
-        GREY_700 = "grey700"
-        GREY_800 = "grey800"
-        GREY_900 = "grey900"
-
-        # Yellows
         YELLOW = "yellow"
         YELLOW_50 = "yellow50"
         YELLOW_100 = "yellow100"
@@ -119,7 +102,6 @@ def _patch_flet_colors():
         YELLOW_800 = "yellow800"
         YELLOW_900 = "yellow900"
 
-        # Purples
         PURPLE = "purple"
         PURPLE_50 = "purple50"
         PURPLE_100 = "purple100"
@@ -132,7 +114,6 @@ def _patch_flet_colors():
         PURPLE_800 = "purple800"
         PURPLE_900 = "purple900"
 
-        # Pinks
         PINK = "pink"
         PINK_50 = "pink50"
         PINK_100 = "pink100"
@@ -145,27 +126,18 @@ def _patch_flet_colors():
         PINK_800 = "pink800"
         PINK_900 = "pink900"
 
-        # Basic colors
-        WHITE = "white"
-        BLACK = "black"
-        TRANSPARENT = "transparent"
+        GREY = "grey"
+        GREY_50 = "grey50"
+        GREY_100 = "grey100"
+        GREY_200 = "grey200"
+        GREY_300 = "grey300"
+        GREY_400 = "grey400"
+        GREY_500 = "grey500"
+        GREY_600 = "grey600"
+        GREY_700 = "grey700"
+        GREY_800 = "grey800"
+        GREY_900 = "grey900"
 
-        # Surface/Theme colors
-        SURFACE = "surface"
-        SURFACE_VARIANT = "surfacevariant"
-        SURFACE_CONTAINER = "surfacecontainer"
-        ON_SURFACE = "onsurface"
-        ON_SURFACE_VARIANT = "onsurfacevariant"
-        BACKGROUND = "background"
-        ON_BACKGROUND = "onbackground"
-        PRIMARY = "primary"
-        ON_PRIMARY = "onprimary"
-        SECONDARY = "secondary"
-        ON_SECONDARY = "onsecondary"
-        ERROR = "error"
-        ON_ERROR = "onerror"
-
-        # Blue grey
         BLUE_GREY = "bluegrey"
         BLUE_GREY_50 = "bluegrey50"
         BLUE_GREY_100 = "bluegrey100"
@@ -178,36 +150,66 @@ def _patch_flet_colors():
         BLUE_GREY_800 = "bluegrey800"
         BLUE_GREY_900 = "bluegrey900"
 
-    ft.colors = ColorsFallback()
-    print("[COMPAT] Using fallback colors", file=sys.stderr, flush=True)
+        # Basic
+        WHITE = "white"
+        BLACK = "black"
+        TRANSPARENT = "transparent"
+
+        # Theme colors
+        SURFACE = "surface"
+        SURFACE_VARIANT = "surfacevariant"
+        ON_SURFACE = "onsurface"
+        BACKGROUND = "background"
+        PRIMARY = "primary"
+        ON_PRIMARY = "onprimary"
+        SECONDARY = "secondary"
+        ERROR = "error"
+
+    ft.colors = ColorsFallback
+    ft.Colors = ColorsFallback
 
 
 def _patch_flet_icons():
-    """Ensure ft.icons is available."""
-    if hasattr(ft, 'icons') and ft.icons is not None:
+    """Ensure ft.icons is available (maps to ft.Icons in 0.25+)."""
+    # In Flet 0.25+, Icons is the new enum
+    if hasattr(ft, 'Icons') and ft.Icons is not None:
+        if not hasattr(ft, 'icons') or ft.icons is None:
+            ft.icons = ft.Icons
+        print("[COMPAT] Using ft.Icons (0.25+ style)", file=sys.stderr, flush=True)
         return
 
-    try:
-        from flet_core import icons
-        ft.icons = icons
-    except (ImportError, AttributeError):
-        pass
+    if hasattr(ft, 'icons') and ft.icons is not None:
+        print("[COMPAT] Using ft.icons (legacy style)", file=sys.stderr, flush=True)
+        return
+
+    print("[COMPAT] Icons not found - they may need to be accessed differently", file=sys.stderr, flush=True)
 
 
 def _patch_flet_padding():
-    """Patch Padding if symmetric method is missing."""
+    """Ensure padding helpers work across versions."""
+    # In newer Flet, use ft.padding.symmetric() instead of ft.Padding.symmetric()
+    if hasattr(ft, 'padding') and ft.padding is not None:
+        print("[COMPAT] ft.padding available", file=sys.stderr, flush=True)
+
+    # Patch Padding class if it exists but lacks methods
     if hasattr(ft, 'Padding'):
         if not hasattr(ft.Padding, 'symmetric'):
-            # Add symmetric as a static method
-            @staticmethod
-            def symmetric(horizontal=0, vertical=0):
-                return ft.padding.symmetric(horizontal=horizontal, vertical=vertical)
-            ft.Padding.symmetric = symmetric
+            try:
+                ft.Padding.symmetric = staticmethod(lambda horizontal=0, vertical=0: ft.padding.symmetric(horizontal=horizontal, vertical=vertical))
+            except:
+                pass
         if not hasattr(ft.Padding, 'all'):
-            @staticmethod
-            def all(value):
-                return ft.padding.all(value)
-            ft.Padding.all = all
+            try:
+                ft.Padding.all = staticmethod(lambda value: ft.padding.all(value))
+            except:
+                pass
+
+
+def _patch_window_properties():
+    """Handle window property changes in different Flet versions."""
+    # In Flet 0.23+, window properties moved to page.window object
+    # This is handled at runtime, but we note it here
+    print("[COMPAT] Window properties: use page.window.maximized (0.23+ style)", file=sys.stderr, flush=True)
 
 
 # Apply all patches
@@ -215,9 +217,7 @@ print("[COMPAT] Applying patches...", file=sys.stderr, flush=True)
 _patch_flet_colors()
 _patch_flet_icons()
 _patch_flet_padding()
+_patch_window_properties()
 print("[COMPAT] All patches applied successfully", file=sys.stderr, flush=True)
-
-
-
 
 
