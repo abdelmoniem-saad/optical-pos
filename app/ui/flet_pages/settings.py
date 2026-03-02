@@ -218,7 +218,7 @@ def SettingsView(page: ft.Page, repo):
     def create_backup_tab():
         def export_data(e):
             import json
-            data = repo._read_local()
+            data = repo.get_all_data_export()
             # In a real app, you'd save to a file
             page.snack_bar = ft.SnackBar(ft.Text(_("Data exported (check console)")))
             page.snack_bar.open = True

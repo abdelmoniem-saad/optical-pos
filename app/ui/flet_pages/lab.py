@@ -19,6 +19,11 @@ def LabView(page: ft.Page, repo):
         on_change=lambda e: load_data(search_input.value)
     )
 
+    # Dynamic summary badge texts
+    not_started_text = ft.Text("0 " + _("Not Started"), weight=ft.FontWeight.BOLD)
+    in_lab_text = ft.Text("0 " + _("In Lab"), weight=ft.FontWeight.BOLD)
+    ready_text = ft.Text("0 " + _("Ready"), weight=ft.FontWeight.BOLD)
+
     def update_status(sale_id, status):
         repo.update_sale_lab_status(sale_id, status)
         load_data(search_input.value)
@@ -33,7 +38,15 @@ def LabView(page: ft.Page, repo):
 
         # Filter sales that have optical components (lab_status is not None)
         lab_sales = [s for s in sales if s.get("lab_status")]
-        
+
+        # Update summary badges from ALL lab sales (before applying filters)
+        not_started_count = len([s for s in lab_sales if s.get("lab_status") == "Not Started"])
+        in_lab_count = len([s for s in lab_sales if s.get("lab_status") == "In Lab"])
+        ready_count = len([s for s in lab_sales if s.get("lab_status") == "Ready"])
+        not_started_text.value = f"{not_started_count} {_('Not Started')}"
+        in_lab_text.value = f"{in_lab_count} {_('In Lab')}"
+        ready_text.value = f"{ready_count} {_('Ready')}"
+
         # Apply status filter
         if status_filter.value != "All":
             lab_sales = [s for s in lab_sales if s.get("lab_status") == status_filter.value]
@@ -153,8 +166,7 @@ def LabView(page: ft.Page, repo):
             if cust: cust_name = cust.get("name", "")
 
         # Get examinations for this sale
-        data = repo._read_local()
-        exams = [e for e in data.get("order_examinations", []) if e.get("sale_id") == sale.get("id")]
+        exams = repo.get_order_examinations(sale.get("id"))
 
         exam_col = ft.Column([], spacing=10)
         for i, exam in enumerate(exams, 1):
@@ -212,8 +224,7 @@ def LabView(page: ft.Page, repo):
         shop_name = repo.get_setting("shop_name", "Optical Shop")
 
         # Get examinations
-        data = repo._read_local()
-        exams = [e for e in data.get("order_examinations", []) if e.get("sale_id") == sale.get("id")]
+        exams = repo.get_order_examinations(sale.get("id"))
 
         lab_copy = f"""
 {'='*50}
@@ -251,13 +262,6 @@ Exam #{i} - {exam.get('exam_type', 'N/A')}
 
     load_data()
 
-    # Summary stats
-    sales = repo.get_sales()
-    lab_sales = [s for s in sales if s.get("lab_status")]
-    not_started = len([s for s in lab_sales if s.get("lab_status") == "Not Started"])
-    in_lab = len([s for s in lab_sales if s.get("lab_status") == "In Lab"])
-    ready = len([s for s in lab_sales if s.get("lab_status") == "Ready"])
-
     return ft.View(
         "/lab",
         [
@@ -269,13 +273,20 @@ Exam #{i} - {exam.get('exam_type', 'N/A')}
             ),
             ft.Container(
                 content=ft.Column([
-                    ft.Text(_("Lab Orders"), size=28, weight=ft.FontWeight.BOLD),
-                    # Summary badges
+                    ft.Row([
+                        ft.Text(_("Lab Orders"), size=28, weight=ft.FontWeight.BOLD),
+                        ft.IconButton(
+                            ft.icons.REFRESH,
+                            tooltip=_("Refresh"),
+                            on_click=lambda _: load_data(search_input.value)
+                        ),
+                    ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
+                    # Summary badges (dynamic)
                     ft.Row([
                         ft.Container(
                             ft.Row([
                                 ft.Icon(ft.icons.HOURGLASS_EMPTY, color=ft.colors.RED_700, size=20),
-                                ft.Text(f"{not_started} {_('Not Started')}", weight=ft.FontWeight.BOLD)
+                                not_started_text,
                             ]),
                             bgcolor=ft.colors.RED_100,
                             padding=ft.padding.symmetric(horizontal=15, vertical=8),
@@ -284,7 +295,7 @@ Exam #{i} - {exam.get('exam_type', 'N/A')}
                         ft.Container(
                             ft.Row([
                                 ft.Icon(ft.icons.BUILD, color=ft.colors.ORANGE_700, size=20),
-                                ft.Text(f"{in_lab} {_('In Lab')}", weight=ft.FontWeight.BOLD)
+                                in_lab_text,
                             ]),
                             bgcolor=ft.colors.ORANGE_100,
                             padding=ft.padding.symmetric(horizontal=15, vertical=8),
@@ -293,7 +304,7 @@ Exam #{i} - {exam.get('exam_type', 'N/A')}
                         ft.Container(
                             ft.Row([
                                 ft.Icon(ft.icons.CHECK_CIRCLE, color=ft.colors.GREEN_700, size=20),
-                                ft.Text(f"{ready} {_('Ready')}", weight=ft.FontWeight.BOLD)
+                                ready_text,
                             ]),
                             bgcolor=ft.colors.GREEN_100,
                             padding=ft.padding.symmetric(horizontal=15, vertical=8),

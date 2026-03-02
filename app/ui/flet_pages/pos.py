@@ -406,7 +406,7 @@ class _POSController:
                             border=ft.border.all(1, ft.colors.BLUE_200),
                             border_radius=8,
                             padding=10,
-                            margin=ft.Margin.only(bottom=8)
+                            margin=ft.margin.only(bottom=8)
                         )
                     )
             return panel_content
@@ -666,10 +666,12 @@ class _POSController:
             on_click=pick_image
         )
 
-        def remove_row(e, idx=row_index):
+        def remove_row(e):
             if len(self.exam_rows_container.controls) > 1:
-                self.exam_rows_container.controls.pop(idx)
-                self._page.update()
+                # Find and remove this specific row container
+                if row_container in self.exam_rows_container.controls:
+                    self.exam_rows_container.controls.remove(row_container)
+                    self._page.update()
 
         # Single compact row layout
         row_container = ft.Container(
@@ -1151,6 +1153,20 @@ class _POSController:
             return
 
         try:
+            # Validate stock for all cart items before proceeding
+            insufficient_items = []
+            for item in self.cart_items:
+                current_stock = self.repo.get_product_stock(item["product_id"])
+                if current_stock < item["qty"]:
+                    insufficient_items.append(f"{item['name']} (need {item['qty']}, have {current_stock})")
+
+            if insufficient_items:
+                msg = _("Insufficient stock for") + ":\n" + "\n".join(insufficient_items)
+                self._page.snack_bar = ft.SnackBar(ft.Text(msg), duration=5000)
+                self._page.snack_bar.open = True
+                self._page.update()
+                return
+
             # Prepare sale data
             # Get user ID safely
             user = self._page.data.get("user") if hasattr(self._page, 'data') and self._page.data else None

@@ -130,6 +130,27 @@ def CustomersView(page: ft.Page, repo):
 
     def confirm_delete_customer(cust):
         """Show confirmation dialog before deleting a customer."""
+        # Check if customer has orders
+        sales = repo.get_sales()
+        customer_orders = [s for s in sales if s.get("customer_id") == cust.get("id")]
+
+        if customer_orders:
+            dialog = ft.AlertDialog(
+                title=ft.Text(_("Cannot Delete Customer")),
+                content=ft.Column([
+                    ft.Icon(ft.icons.WARNING, color=ft.colors.ORANGE_700, size=50),
+                    ft.Text(f"\"{cust.get('name', '')}\" {_('has')} {len(customer_orders)} {_('order(s)')}."),
+                    ft.Text(_("Delete or reassign the orders first."), color=ft.colors.ORANGE_700, size=12),
+                ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=10),
+                actions=[
+                    ft.TextButton(_("OK"), on_click=lambda e: setattr(dialog, "open", False) or page.update()),
+                ]
+            )
+            page.dialog = dialog
+            dialog.open = True
+            page.update()
+            return
+
         def do_delete(e):
             repo.delete_customer(cust["id"])
             dialog.open = False
@@ -181,7 +202,10 @@ def CustomersView(page: ft.Page, repo):
                 content=ft.Column([
                     ft.Row([
                         ft.Text(_("Customers"), size=25, weight=ft.FontWeight.BOLD),
-                        ft.ElevatedButton(_("+ Add Customer"), icon=ft.icons.PERSON_ADD, on_click=lambda _: show_customer_dialog()),
+                        ft.Row([
+                            ft.IconButton(ft.icons.REFRESH, tooltip=_("Refresh"), on_click=lambda _: load_customers(search_input.value)),
+                            ft.ElevatedButton(_("+ Add Customer"), icon=ft.icons.PERSON_ADD, on_click=lambda _: show_customer_dialog()),
+                        ]),
                     ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
                     search_input,
                     cust_list,

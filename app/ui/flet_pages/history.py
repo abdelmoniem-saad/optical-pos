@@ -63,11 +63,11 @@ def HistoryView(page: ft.Page, repo):
         # Payment filter
         if payment_filter.value != "All":
             if payment_filter.value == "Paid":
-                filtered_sales = [s for s in filtered_sales if float(s.get("amount_paid", 0)) >= float(s.get("net_amount", 0))]
+                filtered_sales = [s for s in filtered_sales if float(s.get("amount_paid", 0) or 0) >= float(s.get("net_amount", 0) or 0)]
             elif payment_filter.value == "Partial":
-                filtered_sales = [s for s in filtered_sales if 0 < float(s.get("amount_paid", 0)) < float(s.get("net_amount", 0))]
+                filtered_sales = [s for s in filtered_sales if 0 < float(s.get("amount_paid", 0) or 0) < float(s.get("net_amount", 0) or 0)]
             elif payment_filter.value == "Unpaid":
-                filtered_sales = [s for s in filtered_sales if float(s.get("amount_paid", 0)) == 0]
+                filtered_sales = [s for s in filtered_sales if float(s.get("amount_paid", 0) or 0) == 0]
 
         if not filtered_sales:
             items_list.controls.append(
@@ -176,22 +176,61 @@ def HistoryView(page: ft.Page, repo):
         if not sale_items:
             items_col.controls.append(ft.Text(_("No items"), italic=True))
 
+        # Get examination data
+        exams = repo.get_order_examinations(sale.get("id"))
+        exam_col = ft.Column([], spacing=5)
+        if exams:
+            for i, exam in enumerate(exams, 1):
+                exam_col.controls.append(
+                    ft.Container(
+                        ft.Column([
+                            ft.Text(f"#{i} - {exam.get('exam_type', 'N/A')}", weight=ft.FontWeight.BOLD, size=12),
+                            ft.Row([
+                                ft.Text(f"OD: {exam.get('sphere_od', '-')}/{exam.get('cylinder_od', '-')}x{exam.get('axis_od', '-')}", size=11),
+                                ft.Text(f"OS: {exam.get('sphere_os', '-')}/{exam.get('cylinder_os', '-')}x{exam.get('axis_os', '-')}", size=11),
+                            ]),
+                            ft.Text(f"{_('Lens')}: {exam.get('lens_info', '-')} | {_('Frame')}: {exam.get('frame_info', '-')}", size=11, color=ft.colors.GREY_700),
+                        ]),
+                        border=ft.border.all(1, ft.colors.BLUE_200),
+                        border_radius=5,
+                        padding=8,
+                        bgcolor=ft.colors.BLUE_50
+                    )
+                )
+
+        net_amount = float(sale.get('net_amount', 0))
+        amount_paid = float(sale.get('amount_paid', 0))
+        balance = net_amount - amount_paid
+
+        content_controls = [
+            ft.Text(f"{_('Customer')}: {cust_name}", weight=ft.FontWeight.BOLD),
+            ft.Text(f"{_('Date')}: {sale.get('order_date', '')[:16]}"),
+            ft.Text(f"{_('Doctor')}: {sale.get('doctor_name', 'N/A')}"),
+            ft.Divider(),
+            ft.Text(_("Items:"), weight=ft.FontWeight.BOLD),
+            items_col,
+        ]
+
+        if exams:
+            content_controls.extend([
+                ft.Divider(),
+                ft.Text(_("Examinations:"), weight=ft.FontWeight.BOLD),
+                exam_col,
+            ])
+
+        content_controls.extend([
+            ft.Divider(),
+            ft.Row([ft.Text(_("Total")), ft.Text(f"{net_amount:.2f}", weight=ft.FontWeight.BOLD)], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
+            ft.Row([ft.Text(_("Paid")), ft.Text(f"{amount_paid:.2f}")], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
+            ft.Row([ft.Text(_("Balance")), ft.Text(f"{balance:.2f}", color=ft.colors.RED_700 if balance > 0 else ft.colors.GREEN_700)], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
+        ])
+
         dialog = ft.AlertDialog(
             title=ft.Text(f"{_('Invoice')} #{sale.get('invoice_no', '')}"),
             content=ft.Container(
-                ft.Column([
-                    ft.Text(f"{_('Customer')}: {cust_name}", weight=ft.FontWeight.BOLD),
-                    ft.Text(f"{_('Date')}: {sale.get('order_date', '')[:16]}"),
-                    ft.Text(f"{_('Doctor')}: {sale.get('doctor_name', 'N/A')}"),
-                    ft.Divider(),
-                    ft.Text(_("Items:"), weight=ft.FontWeight.BOLD),
-                    items_col,
-                    ft.Divider(),
-                    ft.Row([ft.Text(_("Total")), ft.Text(f"{sale.get('net_amount', 0):.2f}", weight=ft.FontWeight.BOLD)], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
-                    ft.Row([ft.Text(_("Paid")), ft.Text(f"{sale.get('amount_paid', 0):.2f}")], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
-                    ft.Row([ft.Text(_("Balance")), ft.Text(f"{float(sale.get('net_amount', 0)) - float(sale.get('amount_paid', 0)):.2f}", color=ft.colors.RED_700 if float(sale.get('net_amount', 0)) > float(sale.get('amount_paid', 0)) else ft.colors.GREEN_700)], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
-                ], spacing=5),
-                width=400
+                ft.Column(content_controls, spacing=5, scroll=ft.ScrollMode.AUTO),
+                width=450,
+                height=450
             ),
             actions=[ft.TextButton(_("Close"), on_click=lambda e: setattr(dialog, "open", False) or page.update())]
         )
@@ -205,14 +244,29 @@ def HistoryView(page: ft.Page, repo):
         total = float(sale.get('net_amount', 0))
         remaining = total - current_paid
 
+        if remaining <= 0:
+            page.snack_bar = ft.SnackBar(ft.Text(_("This order is already fully paid")))
+            page.snack_bar.open = True
+            page.update()
+            return
+
         def record_payment(e):
             try:
                 new_payment = float(payment_field.value or 0)
                 if new_payment <= 0:
+                    page.snack_bar = ft.SnackBar(ft.Text(_("Please enter a valid payment amount")))
+                    page.snack_bar.open = True
+                    page.update()
                     return
 
                 new_total_paid = current_paid + new_payment
+                # Don't allow overpayment
+                if new_total_paid > total:
+                    new_total_paid = total
+
                 repo.update_sale_payment(sale["id"], new_total_paid)
+                # Update the local sale object so the list reflects the change
+                sale["amount_paid"] = new_total_paid
 
                 dialog.open = False
                 page.snack_bar = ft.SnackBar(ft.Text(_("Payment recorded successfully")))
@@ -297,7 +351,10 @@ def HistoryView(page: ft.Page, repo):
             ),
             ft.Container(
                 content=ft.Column([
-                    ft.Text(_("Sales History & Invoices"), size=25, weight=ft.FontWeight.BOLD),
+                    ft.Row([
+                        ft.Text(_("Sales History & Invoices"), size=25, weight=ft.FontWeight.BOLD),
+                        ft.IconButton(ft.icons.REFRESH, tooltip=_("Refresh"), on_click=lambda _: load_history(search_input.value)),
+                    ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
                     ft.Row([search_input, status_filter, payment_filter]),
                     items_list,
                 ], expand=True),

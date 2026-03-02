@@ -258,7 +258,10 @@ def InventoryView(page: ft.Page, repo):
     products_content = ft.Column([
         ft.Row([
             ft.Text(_("Products"), size=22, weight=ft.FontWeight.BOLD),
-            ft.ElevatedButton(_("+ Add New Product"), icon=ft.icons.ADD, on_click=lambda _: show_product_dialog())
+            ft.Row([
+                ft.IconButton(ft.icons.REFRESH, tooltip=_("Refresh"), on_click=lambda _: load_inventory(search_input.value, get_selected_category())),
+                ft.ElevatedButton(_("+ Add New Product"), icon=ft.icons.ADD, on_click=lambda _: show_product_dialog()),
+            ]),
         ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
         ft.Row([search_input, category_filter]),
         items_list

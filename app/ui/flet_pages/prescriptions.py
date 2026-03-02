@@ -108,14 +108,8 @@ def PrescriptionView(page: ft.Page, repo, customer_id):
         # Get prescriptions from prescriptions table
         prescriptions = repo.get_prescriptions(customer_id)
 
-        # Also get order examinations for this customer
-        data = repo._read_local()
-        sales = data.get("sales", [])
-        exams = data.get("order_examinations", [])
-
-        customer_sales = [s for s in sales if str(s.get("customer_id")) == str(customer_id)]
-        customer_sale_ids = [s["id"] for s in customer_sales]
-        customer_exams = [e for e in exams if e.get("sale_id") in customer_sale_ids]
+        # Also get order examinations for this customer using the proper method
+        customer_exams_raw = repo.get_customer_past_examinations(customer_id)
 
         # Combine both sources
         all_records = []
@@ -127,8 +121,8 @@ def PrescriptionView(page: ft.Page, repo, customer_id):
                 "date": p.get("created_at", "")
             })
 
-        for e in customer_exams:
-            sale = next((s for s in customer_sales if s["id"] == e.get("sale_id")), {})
+        for e in customer_exams_raw:
+            sale = e.get("sale", {})
             all_records.append({
                 "type": "examination",
                 "data": e,

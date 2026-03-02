@@ -32,8 +32,6 @@ def DashboardView(page: ft.Page, repo):
                 "pending": 0, "balance": 0, "sales": [], "all_customers": []
             }
 
-    stats = get_stats()
-
     # --- Navigation ---
     def navigate(route):
         page.go(route)
@@ -48,12 +46,78 @@ def DashboardView(page: ft.Page, repo):
     user = page.data.get("user") if hasattr(page, 'data') and page.data else None
     user_name = user.get("full_name") or user.get("username") if user else "User"
 
+    # --- Dynamic stat card values ---
+    stat_values = {
+        "revenue": ft.Text("0", size=24, weight=ft.FontWeight.BOLD),
+        "orders": ft.Text("0", size=24, weight=ft.FontWeight.BOLD),
+        "customers": ft.Text("0", size=24, weight=ft.FontWeight.BOLD),
+        "products": ft.Text("0", size=24, weight=ft.FontWeight.BOLD),
+        "pending": ft.Text("0", size=24, weight=ft.FontWeight.BOLD),
+        "balance": ft.Text("0", size=24, weight=ft.FontWeight.BOLD),
+    }
+
+    recent_orders_container = ft.Column([], spacing=0)
+
+    def refresh_dashboard(e=None):
+        """Refresh all dashboard data."""
+        stats = get_stats()
+
+        stat_values["revenue"].value = f"{stats['revenue']:.0f}"
+        stat_values["orders"].value = str(stats["orders"])
+        stat_values["customers"].value = str(stats["customers"])
+        stat_values["products"].value = str(stats["products"])
+        stat_values["pending"].value = str(stats["pending"])
+        stat_values["balance"].value = f"{stats['balance']:.0f}"
+
+        # Rebuild recent orders
+        recent_orders_container.controls.clear()
+        for s in sorted(stats["sales"], key=lambda x: x.get("order_date", ""), reverse=True)[:5]:
+            cust_name = _("Walk-in")
+            if s.get("customer_id"):
+                cust = next((c for c in stats["all_customers"] if c.get("id") == s.get("customer_id")), None)
+                if cust:
+                    cust_name = cust.get("name", _("Walk-in"))
+
+            status = s.get("lab_status", "N/A")
+            status_color = ft.colors.GREY_500
+            if status == "Ready": status_color = ft.colors.GREEN_500
+            elif status == "In Lab": status_color = ft.colors.ORANGE_500
+            elif status == "Not Started": status_color = ft.colors.RED_500
+
+            recent_orders_container.controls.append(
+                ft.ListTile(
+                    leading=ft.Icon(ft.icons.RECEIPT, color=status_color),
+                    title=ft.Text(f"#{s.get('invoice_no', '')} - {cust_name}", size=14),
+                    subtitle=ft.Text(f"{s.get('order_date', '')[:10] if s.get('order_date') else ''} | {float(s.get('net_amount', 0)):.2f}", size=12),
+                    trailing=ft.Container(
+                        ft.Text(status, size=11, color=ft.colors.WHITE),
+                        bgcolor=status_color,
+                        padding=ft.padding.symmetric(horizontal=8, vertical=4),
+                        border_radius=10
+                    ),
+                    dense=True,
+                    on_click=lambda e: navigate("/history")
+                )
+            )
+
+        if not recent_orders_container.controls:
+            recent_orders_container.controls.append(
+                ft.Container(
+                    ft.Text(_("No recent orders yet. Start by creating a sale!"), italic=True, color=ft.colors.GREY_500),
+                    padding=20
+                )
+            )
+        page.update()
+
+    # Initial load
+    refresh_dashboard()
+
     # --- Stat Card Builder ---
-    def stat_card(title, value, icon, color, route):
+    def stat_card(title, value_text, icon, color, route):
         return ft.Container(
             content=ft.Column([
                 ft.Icon(icon, size=32, color=color),
-                ft.Text(str(value), size=24, weight=ft.FontWeight.BOLD),
+                value_text,
                 ft.Text(title, size=11, color=ft.colors.GREY_700, text_align=ft.TextAlign.CENTER)
             ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=5, alignment=ft.MainAxisAlignment.CENTER),
             padding=15,
@@ -62,37 +126,6 @@ def DashboardView(page: ft.Page, repo):
             on_click=lambda e: navigate(route),
             col={"xs": 6, "sm": 4, "md": 2},
             height=120
-        )
-
-    # --- Recent Orders ---
-    recent_orders_controls = []
-    for s in sorted(stats["sales"], key=lambda x: x.get("order_date", ""), reverse=True)[:5]:
-        cust_name = _("Walk-in")
-        if s.get("customer_id"):
-            cust = next((c for c in stats["all_customers"] if c.get("id") == s.get("customer_id")), None)
-            if cust:
-                cust_name = cust.get("name", _("Walk-in"))
-
-        status = s.get("lab_status", "N/A")
-        status_color = ft.colors.GREY_500
-        if status == "Ready": status_color = ft.colors.GREEN_500
-        elif status == "In Lab": status_color = ft.colors.ORANGE_500
-        elif status == "Not Started": status_color = ft.colors.RED_500
-
-        recent_orders_controls.append(
-            ft.ListTile(
-                leading=ft.Icon(ft.icons.RECEIPT, color=status_color),
-                title=ft.Text(f"#{s.get('invoice_no', '')} - {cust_name}", size=14),
-                subtitle=ft.Text(f"{s.get('order_date', '')[:10] if s.get('order_date') else ''} | {float(s.get('net_amount', 0)):.2f}", size=12),
-                trailing=ft.Container(
-                    ft.Text(status, size=11, color=ft.colors.WHITE),
-                    bgcolor=status_color,
-                    padding=ft.padding.symmetric(horizontal=8, vertical=4),
-                    border_radius=10
-                ),
-                dense=True,
-                on_click=lambda e: navigate("/history")
-            )
         )
 
     # --- Nav Buttons ---
@@ -134,6 +167,7 @@ def DashboardView(page: ft.Page, repo):
                 bgcolor=ft.colors.BLUE_700,
                 color=ft.colors.WHITE,
                 actions=[
+                    ft.IconButton(ft.icons.REFRESH, icon_color=ft.colors.WHITE, tooltip=_("Refresh"), on_click=refresh_dashboard),
                     ft.Container(
                         ft.Text(f"{_('Welcome')}, {user_name}", color=ft.colors.WHITE),
                         padding=ft.padding.only(right=10)
@@ -146,12 +180,12 @@ def DashboardView(page: ft.Page, repo):
                     # Stats Cards Row
                     ft.Text(_("Overview"), size=20, weight=ft.FontWeight.BOLD),
                     ft.ResponsiveRow([
-                        stat_card(_("Revenue"), f"{stats['revenue']:.0f}", ft.icons.ATTACH_MONEY, ft.colors.GREEN_700, "/reports"),
-                        stat_card(_("Orders"), stats["orders"], ft.icons.SHOPPING_BAG, ft.colors.BLUE_700, "/history"),
-                        stat_card(_("Customers"), stats["customers"], ft.icons.PEOPLE, ft.colors.PURPLE_700, "/customers"),
-                        stat_card(_("Products"), stats["products"], ft.icons.INVENTORY_2, ft.colors.ORANGE_700, "/inventory"),
-                        stat_card(_("Pending Lab"), stats["pending"], ft.icons.HOURGLASS_EMPTY, ft.colors.RED_700, "/lab"),
-                        stat_card(_("Balance Due"), f"{stats['balance']:.0f}", ft.icons.MONEY_OFF, ft.colors.AMBER_700, "/history"),
+                        stat_card(_("Revenue"), stat_values["revenue"], ft.icons.ATTACH_MONEY, ft.colors.GREEN_700, "/reports"),
+                        stat_card(_("Orders"), stat_values["orders"], ft.icons.SHOPPING_BAG, ft.colors.BLUE_700, "/history"),
+                        stat_card(_("Customers"), stat_values["customers"], ft.icons.PEOPLE, ft.colors.PURPLE_700, "/customers"),
+                        stat_card(_("Products"), stat_values["products"], ft.icons.INVENTORY_2, ft.colors.ORANGE_700, "/inventory"),
+                        stat_card(_("Pending Lab"), stat_values["pending"], ft.icons.HOURGLASS_EMPTY, ft.colors.RED_700, "/lab"),
+                        stat_card(_("Balance Due"), stat_values["balance"], ft.icons.MONEY_OFF, ft.colors.AMBER_700, "/history"),
                     ], spacing=10, run_spacing=10),
 
                     ft.Divider(height=20),
@@ -165,10 +199,7 @@ def DashboardView(page: ft.Page, repo):
                     # Recent Orders
                     ft.Text(_("Recent Orders"), size=20, weight=ft.FontWeight.BOLD),
                     ft.Container(
-                        content=ft.Column(recent_orders_controls, spacing=0) if recent_orders_controls else ft.Container(
-                            ft.Text(_("No recent orders yet. Start by creating a sale!"), italic=True, color=ft.colors.GREY_500),
-                            padding=20
-                        ),
+                        content=recent_orders_container,
                         border=ft.border.all(1, ft.colors.GREY_300),
                         border_radius=10,
                         padding=5

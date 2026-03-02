@@ -165,6 +165,67 @@ def _patch_flet_colors():
         SECONDARY = "secondary"
         ERROR = "error"
 
+        # Additional colors used in the app
+        AMBER = "amber"
+        AMBER_50 = "amber50"
+        AMBER_100 = "amber100"
+        AMBER_200 = "amber200"
+        AMBER_300 = "amber300"
+        AMBER_400 = "amber400"
+        AMBER_500 = "amber500"
+        AMBER_600 = "amber600"
+        AMBER_700 = "amber700"
+        AMBER_800 = "amber800"
+        AMBER_900 = "amber900"
+
+        TEAL = "teal"
+        TEAL_50 = "teal50"
+        TEAL_100 = "teal100"
+        TEAL_200 = "teal200"
+        TEAL_300 = "teal300"
+        TEAL_400 = "teal400"
+        TEAL_500 = "teal500"
+        TEAL_600 = "teal600"
+        TEAL_700 = "teal700"
+        TEAL_800 = "teal800"
+        TEAL_900 = "teal900"
+
+        INDIGO = "indigo"
+        INDIGO_50 = "indigo50"
+        INDIGO_100 = "indigo100"
+        INDIGO_200 = "indigo200"
+        INDIGO_300 = "indigo300"
+        INDIGO_400 = "indigo400"
+        INDIGO_500 = "indigo500"
+        INDIGO_600 = "indigo600"
+        INDIGO_700 = "indigo700"
+        INDIGO_800 = "indigo800"
+        INDIGO_900 = "indigo900"
+
+        BROWN = "brown"
+        BROWN_50 = "brown50"
+        BROWN_100 = "brown100"
+        BROWN_200 = "brown200"
+        BROWN_300 = "brown300"
+        BROWN_400 = "brown400"
+        BROWN_500 = "brown500"
+        BROWN_600 = "brown600"
+        BROWN_700 = "brown700"
+        BROWN_800 = "brown800"
+        BROWN_900 = "brown900"
+
+        CYAN = "cyan"
+        CYAN_50 = "cyan50"
+        CYAN_100 = "cyan100"
+        CYAN_200 = "cyan200"
+        CYAN_300 = "cyan300"
+        CYAN_400 = "cyan400"
+        CYAN_500 = "cyan500"
+        CYAN_600 = "cyan600"
+        CYAN_700 = "cyan700"
+        CYAN_800 = "cyan800"
+        CYAN_900 = "cyan900"
+
     ft.colors = ColorsFallback
     ft.Colors = ColorsFallback
 
@@ -205,6 +266,26 @@ def _patch_flet_padding():
                 pass
 
 
+def _patch_flet_margin():
+    """Ensure margin helpers work across versions."""
+    # In newer Flet, use ft.margin instead of ft.Margin
+    if hasattr(ft, 'margin') and ft.margin is not None:
+        print("[COMPAT] ft.margin available", file=sys.stderr, flush=True)
+
+    # Patch Margin class if it exists but lacks methods
+    if hasattr(ft, 'Margin'):
+        if not hasattr(ft.Margin, 'only'):
+            try:
+                ft.Margin.only = staticmethod(lambda left=0, top=0, right=0, bottom=0: ft.margin.only(left=left, top=top, right=right, bottom=bottom))
+            except:
+                pass
+        if not hasattr(ft.Margin, 'symmetric'):
+            try:
+                ft.Margin.symmetric = staticmethod(lambda horizontal=0, vertical=0: ft.margin.symmetric(horizontal=horizontal, vertical=vertical))
+            except:
+                pass
+
+
 def _patch_window_properties():
     """Handle window property changes in different Flet versions."""
     # In Flet 0.23+, window properties moved to page.window object
@@ -217,6 +298,7 @@ print("[COMPAT] Applying patches...", file=sys.stderr, flush=True)
 _patch_flet_colors()
 _patch_flet_icons()
 _patch_flet_padding()
+_patch_flet_margin()
 _patch_window_properties()
 print("[COMPAT] All patches applied successfully", file=sys.stderr, flush=True)
 

@@ -63,18 +63,24 @@ def ReportsView(page: ft.Page, repo):
             "top_customers": top_customer_data
         }
 
-    data = get_report_data()
+    # Dynamic stat text references
+    stat_texts = {}
 
-    def stat_card(title, value, subtitle="", icon=ft.icons.INFO, color=ft.colors.BLUE_700):
+    def stat_card(key, title, subtitle="", icon=ft.icons.INFO, color=ft.colors.BLUE_700):
+        value_text = ft.Text("0", size=28, weight=ft.FontWeight.BOLD)
+        stat_texts[key] = {"value": value_text}
+        subtitle_text = ft.Text(subtitle, size=12, color=ft.colors.GREY_700) if subtitle else ft.Container()
+        if subtitle:
+            stat_texts[key]["subtitle"] = subtitle_text
         return ft.Card(
             content=ft.Container(
                 ft.Column([
                     ft.ListTile(
                         leading=ft.Icon(icon, color=color, size=40),
-                        title=ft.Text(str(value), size=28, weight=ft.FontWeight.BOLD),
+                        title=value_text,
                         subtitle=ft.Text(title, size=14),
                     ),
-                    ft.Text(subtitle, size=12, color=ft.colors.GREY_700) if subtitle else ft.Container()
+                    subtitle_text
                 ]),
                 padding=10
             ),
@@ -83,53 +89,81 @@ def ReportsView(page: ft.Page, repo):
 
     # Summary stats row
     summary_cards = ft.ResponsiveRow([
-        stat_card(_("Total Revenue"), f"{data['total_revenue']:.0f}", icon=ft.icons.ATTACH_MONEY, color=ft.colors.GREEN_700),
-        stat_card(_("Total Paid"), f"{data['total_paid']:.0f}", icon=ft.icons.PAYMENTS, color=ft.colors.TEAL_700),
-        stat_card(_("Balance Due"), f"{data['remaining_balance']:.0f}", icon=ft.icons.MONEY_OFF, color=ft.colors.RED_700 if data['remaining_balance'] > 0 else ft.colors.GREEN_700),
-        stat_card(_("Total Orders"), data['order_count'], icon=ft.icons.SHOPPING_BAG, color=ft.colors.BLUE_700),
-        stat_card(_("Today's Revenue"), f"{data['today_revenue']:.0f}", f"{data['today_orders']} orders", ft.icons.TODAY, ft.colors.ORANGE_700),
-        stat_card(_("This Month"), f"{data['month_revenue']:.0f}", f"{data['month_orders']} orders", ft.icons.CALENDAR_MONTH, ft.colors.PURPLE_700),
-        stat_card(_("Pending Lab"), data['pending_lab'], icon=ft.icons.HOURGLASS_EMPTY, color=ft.colors.ORANGE_700),
-        stat_card(_("Ready for Pickup"), data['ready_lab'], icon=ft.icons.CHECK_CIRCLE, color=ft.colors.GREEN_700),
+        stat_card("total_revenue", _("Total Revenue"), icon=ft.icons.ATTACH_MONEY, color=ft.colors.GREEN_700),
+        stat_card("total_paid", _("Total Paid"), icon=ft.icons.PAYMENTS, color=ft.colors.TEAL_700),
+        stat_card("remaining_balance", _("Balance Due"), icon=ft.icons.MONEY_OFF, color=ft.colors.RED_700),
+        stat_card("order_count", _("Total Orders"), icon=ft.icons.SHOPPING_BAG, color=ft.colors.BLUE_700),
+        stat_card("today_revenue", _("Today's Revenue"), subtitle="0 orders", icon=ft.icons.TODAY, color=ft.colors.ORANGE_700),
+        stat_card("month_revenue", _("This Month"), subtitle="0 orders", icon=ft.icons.CALENDAR_MONTH, color=ft.colors.PURPLE_700),
+        stat_card("pending_lab", _("Pending Lab"), icon=ft.icons.HOURGLASS_EMPTY, color=ft.colors.ORANGE_700),
+        stat_card("ready_lab", _("Ready for Pickup"), icon=ft.icons.CHECK_CIRCLE, color=ft.colors.GREEN_700),
     ], spacing=10, run_spacing=10)
 
     # Low stock alert
     low_stock_list = ft.Column([], spacing=5)
-    if data['low_stock']:
-        for p in data['low_stock'][:10]:
-            low_stock_list.controls.append(
-                ft.ListTile(
-                    leading=ft.Icon(ft.icons.WARNING, color=ft.colors.ORANGE_700),
-                    title=ft.Text(p.get("name", ""), size=14),
-                    subtitle=ft.Text(f"SKU: {p.get('sku', '')}"),
-                    trailing=ft.Text(f"{p.get('stock_qty', 0)} left", color=ft.colors.RED_700, weight=ft.FontWeight.BOLD),
-                    dense=True
-                )
-            )
-    else:
-        low_stock_list.controls.append(ft.Text(_("All products in stock"), color=ft.colors.GREEN_700))
 
     # Top customers
     top_customers_list = ft.Column([], spacing=5)
-    if data['top_customers']:
-        for i, c in enumerate(data['top_customers'], 1):
-            top_customers_list.controls.append(
-                ft.ListTile(
-                    leading=ft.Container(
-                        ft.Text(str(i), color=ft.colors.WHITE, weight=ft.FontWeight.BOLD),
-                        bgcolor=ft.colors.BLUE_700,
-                        border_radius=15,
-                        width=30,
-                        height=30,
-                        alignment=ft.alignment.center
-                    ),
-                    title=ft.Text(c["name"], size=14),
-                    trailing=ft.Text(f"{c['total']:.0f}", weight=ft.FontWeight.BOLD, color=ft.colors.GREEN_700),
-                    dense=True
+
+    def refresh_reports(e=None):
+        """Refresh all report data."""
+        data = get_report_data()
+
+        stat_texts["total_revenue"]["value"].value = f"{data['total_revenue']:.0f}"
+        stat_texts["total_paid"]["value"].value = f"{data['total_paid']:.0f}"
+        stat_texts["remaining_balance"]["value"].value = f"{data['remaining_balance']:.0f}"
+        stat_texts["order_count"]["value"].value = str(data['order_count'])
+        stat_texts["today_revenue"]["value"].value = f"{data['today_revenue']:.0f}"
+        if "subtitle" in stat_texts["today_revenue"]:
+            stat_texts["today_revenue"]["subtitle"].value = f"{data['today_orders']} orders"
+        stat_texts["month_revenue"]["value"].value = f"{data['month_revenue']:.0f}"
+        if "subtitle" in stat_texts["month_revenue"]:
+            stat_texts["month_revenue"]["subtitle"].value = f"{data['month_orders']} orders"
+        stat_texts["pending_lab"]["value"].value = str(data['pending_lab'])
+        stat_texts["ready_lab"]["value"].value = str(data['ready_lab'])
+
+        # Update low stock
+        low_stock_list.controls.clear()
+        if data['low_stock']:
+            for p in data['low_stock'][:10]:
+                low_stock_list.controls.append(
+                    ft.ListTile(
+                        leading=ft.Icon(ft.icons.WARNING, color=ft.colors.ORANGE_700),
+                        title=ft.Text(p.get("name", ""), size=14),
+                        subtitle=ft.Text(f"SKU: {p.get('sku', '')}"),
+                        trailing=ft.Text(f"{p.get('stock_qty', 0)} left", color=ft.colors.RED_700, weight=ft.FontWeight.BOLD),
+                        dense=True
+                    )
                 )
-            )
-    else:
-        top_customers_list.controls.append(ft.Text(_("No customer data"), italic=True))
+        else:
+            low_stock_list.controls.append(ft.Text(_("All products in stock"), color=ft.colors.GREEN_700))
+
+        # Update top customers
+        top_customers_list.controls.clear()
+        if data['top_customers']:
+            for i, c in enumerate(data['top_customers'], 1):
+                top_customers_list.controls.append(
+                    ft.ListTile(
+                        leading=ft.Container(
+                            ft.Text(str(i), color=ft.colors.WHITE, weight=ft.FontWeight.BOLD),
+                            bgcolor=ft.colors.BLUE_700,
+                            border_radius=15,
+                            width=30,
+                            height=30,
+                            alignment=ft.alignment.center
+                        ),
+                        title=ft.Text(c["name"], size=14),
+                        trailing=ft.Text(f"{c['total']:.0f}", weight=ft.FontWeight.BOLD, color=ft.colors.GREEN_700),
+                        dense=True
+                    )
+                )
+        else:
+            top_customers_list.controls.append(ft.Text(_("No customer data"), italic=True))
+
+        page.update()
+
+    # Initial load
+    refresh_reports()
 
     return ft.View(
         "/reports",
@@ -138,7 +172,10 @@ def ReportsView(page: ft.Page, repo):
                 title=ft.Text(_("Reports & Analytics")),
                 bgcolor=ft.colors.BLUE_700,
                 color=ft.colors.WHITE,
-                leading=ft.IconButton(ft.icons.ARROW_BACK, on_click=lambda _: page.go("/"))
+                leading=ft.IconButton(ft.icons.ARROW_BACK, on_click=lambda _: page.go("/")),
+                actions=[
+                    ft.IconButton(ft.icons.REFRESH, icon_color=ft.colors.WHITE, tooltip=_("Refresh"), on_click=refresh_reports)
+                ]
             ),
             ft.Container(
                 content=ft.Column([

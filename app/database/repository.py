@@ -192,13 +192,37 @@ class POSRepository:
     # --- Utility ---
     def get_next_invoice_no(self):
         if self.supabase:
-            res = self.supabase.table("sales").select("id", count="exact").execute()
-            count = res.count or 0
-            return f"{count + 1:06d}"
-        
+            try:
+                res = self.supabase.table("sales").select("invoice_no").order("invoice_no", desc=True).limit(1).execute()
+                if res.data and res.data[0].get("invoice_no"):
+                    last_no = res.data[0]["invoice_no"]
+                    try:
+                        return f"{int(last_no) + 1:06d}"
+                    except ValueError:
+                        pass
+                # Fallback to count
+                res = self.supabase.table("sales").select("id", count="exact").execute()
+                count = res.count or 0
+                return f"{count + 1:06d}"
+            except Exception:
+                res = self.supabase.table("sales").select("id", count="exact").execute()
+                count = res.count or 0
+                return f"{count + 1:06d}"
+
         data = self._read_local()
-        count = len(data["sales"])
-        return f"{count + 1:06d}"
+        sales = data.get("sales", [])
+        if sales:
+            # Find the maximum invoice number
+            max_no = 0
+            for s in sales:
+                try:
+                    no = int(s.get("invoice_no", "0"))
+                    if no > max_no:
+                        max_no = no
+                except (ValueError, TypeError):
+                    pass
+            return f"{max_no + 1:06d}"
+        return f"{1:06d}"
 
     def generate_sku(self, category):
         prefix_map = {
@@ -535,17 +559,60 @@ class POSRepository:
         self._write_local(data)
         return p_data
 
+    # --- Order Examinations ---
+    def get_order_examinations(self, sale_id: str = None) -> list:
+        """Get order examinations, optionally filtered by sale_id.
+        Works with both Supabase and local backends."""
+        if self.supabase:
+            try:
+                query = self.supabase.table("order_examinations").select("*")
+                if sale_id:
+                    query = query.eq("sale_id", sale_id)
+                return query.execute().data
+            except Exception as e:
+                print(f"[REPO] get_order_examinations error: {e}")
+                return []
+
+        data = self._read_local()
+        exams = data.get("order_examinations", [])
+        if sale_id:
+            exams = [e for e in exams if e.get("sale_id") == sale_id]
+        return exams
+
     # --- POS-Specific Operations ---
     def get_customer_past_examinations(self, customer_id: str) -> list:
         """Get past examinations for a customer with sale info."""
         if self.supabase:
             try:
-                return self.supabase.table("order_examinations")\
-                    .select("*, sales(id, order_date, invoice_no, doctor_name)")\
-                    .eq("sales.customer_id", customer_id)\
-                    .order("created_at", desc=True)\
-                    .limit(10)\
-                    .execute().data
+                # Two-step query: first get customer sales, then get examinations
+                sales_res = self.supabase.table("sales")\
+                    .select("id, order_date, invoice_no, doctor_name")\
+                    .eq("customer_id", customer_id)\
+                    .order("order_date", desc=True)\
+                    .limit(20)\
+                    .execute()
+                customer_sales = sales_res.data or []
+                if not customer_sales:
+                    return []
+
+                sale_ids = [s["id"] for s in customer_sales]
+                exams_res = self.supabase.table("order_examinations")\
+                    .select("*")\
+                    .in_("sale_id", sale_ids)\
+                    .execute()
+                exams = exams_res.data or []
+
+                # Attach sale info to each exam
+                sale_map = {s["id"]: s for s in customer_sales}
+                for exam in exams:
+                    exam["sale"] = sale_map.get(exam.get("sale_id"), {})
+
+                # Sort by date descending
+                exams.sort(
+                    key=lambda e: e.get("sale", {}).get("order_date", ""),
+                    reverse=True
+                )
+                return exams[:10]
             except Exception as e:
                 print(f"[REPO] get_customer_past_examinations error: {e}")
                 return []
@@ -617,24 +684,11 @@ class POSRepository:
         """
         invoice_no = self.get_next_invoice_no()
 
-        # Deduct stock for each item
+        # Validate stock for each item (don't deduct yet - add_sale handles that)
         for item in items:
             current_stock = self.get_product_stock(item["product_id"])
             if current_stock < item["qty"]:
                 raise ValueError(f"Insufficient stock for product {item['product_id']}")
-
-            # Update stock
-            new_stock = current_stock - item["qty"]
-            self.update_inventory_stock(item["product_id"], new_stock)
-
-            # Record movement
-            self.add_stock_movement(
-                product_id=item["product_id"],
-                qty=-item["qty"],
-                movement_type="sale",
-                ref_no=invoice_no,
-                note=f"POS Sale: {invoice_no}"
-            )
 
         import datetime
         sale_data = {
@@ -651,6 +705,7 @@ class POSRepository:
             "lab_status": "Not Started"
         }
 
+        # add_sale handles stock movements internally
         return self.add_sale(sale_data, items, exam_data)
 
     def get_product_stock(self, product_id: str) -> int:
@@ -749,6 +804,24 @@ class POSRepository:
                 return p
 
         return None
+
+    def get_all_data_export(self):
+        """Get all data for export. Works with both Supabase and local backends."""
+        if self.supabase:
+            try:
+                return {
+                    "users": self.get_users(),
+                    "customers": self.get_customers(),
+                    "inventory": self.get_inventory(),
+                    "sales": self.get_sales(),
+                    "prescriptions": self.get_prescriptions(),
+                    "order_examinations": self.get_order_examinations(),
+                    "settings": self.supabase.table("settings").select("*").execute().data,
+                }
+            except Exception as e:
+                print(f"[REPO] Export error: {e}")
+                return {}
+        return self._read_local()
 
     def create_frame_product_if_needed(self, frame_name):
         """Create a frame product if it doesn't exist."""

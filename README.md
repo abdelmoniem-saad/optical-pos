@@ -3,7 +3,7 @@
 A comprehensive Point of Sale (POS) system designed specifically for optical shops, built with **Flet** (Flutter for Python) for a modern, cross-platform UI experience.
 
 ![Python](https://img.shields.io/badge/Python-3.10+-blue.svg)
-![Flet](https://img.shields.io/badge/Flet-0.24.1-green.svg)
+![Flet](https://img.shields.io/badge/Flet-0.28.3-green.svg)
 ![License](https://img.shields.io/badge/License-Commercial-yellow.svg)
 
 ## ✨ Features
