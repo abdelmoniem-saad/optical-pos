@@ -19,13 +19,22 @@ from app.ui.flet_pages.settings import SettingsView
 from app.ui.flet_pages.history import HistoryView
 from app.ui.flet_pages.reports import ReportsView
 from app.ui.components.top_bar import create_top_bar
-from app.ui.components.ui_tokens import PAGE_TRANSITION_MS
 
 # Licensing - can be disabled for development
 ENABLE_LICENSING = os.environ.get("ENABLE_LICENSING", "false").lower() == "true"
 
 def main(page: ft.Page):
     print("[BOOT] main() started", flush=True)
+
+    no_transition_theme = ft.Theme(
+        page_transitions=ft.PageTransitionsTheme(
+            android=ft.PageTransitionTheme.NONE,
+            ios=ft.PageTransitionTheme.NONE,
+            linux=ft.PageTransitionTheme.NONE,
+            macos=ft.PageTransitionTheme.NONE,
+            windows=ft.PageTransitionTheme.NONE,
+        )
+    )
 
     def on_page_error(e):
         # Surface event-handler errors that would otherwise look like "button does nothing".
@@ -39,6 +48,8 @@ def main(page: ft.Page):
 
     # Base Configuration
     page.title = "Lensy POS"
+    page.theme = no_transition_theme
+    page.dark_theme = no_transition_theme
     page.theme_mode = ft.ThemeMode.LIGHT
     page.padding = 0
     page.spacing = 0
@@ -61,6 +72,8 @@ def main(page: ft.Page):
     # Initialize Repository
     repo = POSRepository()
 
+    section_shell = ft.View(route="/", controls=[], padding=0, spacing=0)
+
     # Initialize License Manager (for desktop builds)
     license_manager = None
     if ENABLE_LICENSING and not is_web:
@@ -79,9 +92,27 @@ def main(page: ft.Page):
         """Called when license is successfully activated."""
         page.go("/login")
 
+    section_builders = {
+        "/": lambda: DashboardView(page, repo),
+        "/inventory": lambda: InventoryView(page, repo),
+        "/customers": lambda: CustomersView(page, repo),
+        "/pos": lambda: POSView(page, repo),
+        "/lab": lambda: LabView(page, repo),
+        "/staff": lambda: StaffView(page, repo),
+        "/settings": lambda: SettingsView(page, repo),
+        "/history": lambda: HistoryView(page, repo),
+        "/reports": lambda: ReportsView(page, repo),
+    }
+
+    def navigate(route: str):
+        if route in section_builders and page.data.get("user"):
+            render_section(route)
+            return
+        page.go(route)
+
     def wrap_with_top_bar(view_content, route):
         """Wrap a view with the top bar."""
-        top_bar = create_top_bar(page, repo, route)
+        top_bar = create_top_bar(page, repo, route, on_navigate=navigate)
 
         # If view_content is a View, extract its controls
         if isinstance(view_content, ft.View):
@@ -92,14 +123,10 @@ def main(page: ft.Page):
                 [
                     top_bar,
                     ft.Container(
-                        content=ft.AnimatedSwitcher(
-                            content=ft.Container(
-                                key=f"route-shell-{route}",
-                                content=ft.Column(controls, expand=True, spacing=0),
-                                expand=True,
-                            ),
-                            duration=max(PAGE_TRANSITION_MS, 340),
-                            transition=ft.AnimatedSwitcherTransition.FADE,
+                        content=ft.Container(
+                            key=f"route-shell-{route}",
+                            content=ft.Column(controls, expand=True, spacing=0),
+                            expand=True,
                         ),
                         expand=True,
                     )
@@ -108,6 +135,25 @@ def main(page: ft.Page):
                 spacing=0,
             )
         return view_content
+
+    def render_section(route: str):
+        builder = section_builders.get(route)
+        if not builder:
+            return False
+
+        wrapped = wrap_with_top_bar(builder(), route)
+        section_shell.route = route
+        section_shell.controls = wrapped.controls
+        section_shell.padding = wrapped.padding
+        section_shell.spacing = wrapped.spacing
+
+        if not page.views or page.views[-1] is not section_shell:
+            page.views.clear()
+            page.views.append(section_shell)
+
+        page.route = route
+        page.update()
+        return True
 
     def route_change(e):
         try:
@@ -139,26 +185,35 @@ def main(page: ft.Page):
             elif page.route == "/login":
                 page.views.append(LoginView(page, repo, on_login_success))
             elif page.route == "/":
-                page.views.append(wrap_with_top_bar(DashboardView(page, repo), "/"))
+                render_section("/")
+                return
             elif page.route == "/inventory":
-                page.views.append(wrap_with_top_bar(InventoryView(page, repo), "/inventory"))
+                render_section("/inventory")
+                return
             elif page.route == "/customers":
-                page.views.append(wrap_with_top_bar(CustomersView(page, repo), "/customers"))
+                render_section("/customers")
+                return
             elif page.route.startswith("/prescription/"):
                 cust_id = page.route.split("/")[-1]
                 page.views.append(wrap_with_top_bar(PrescriptionView(page, repo, cust_id), page.route))
             elif page.route == "/pos":
-                page.views.append(wrap_with_top_bar(POSView(page, repo), "/pos"))
+                render_section("/pos")
+                return
             elif page.route == "/lab":
-                page.views.append(wrap_with_top_bar(LabView(page, repo), "/lab"))
+                render_section("/lab")
+                return
             elif page.route == "/staff":
-                page.views.append(wrap_with_top_bar(StaffView(page, repo), "/staff"))
+                render_section("/staff")
+                return
             elif page.route == "/settings":
-                page.views.append(wrap_with_top_bar(SettingsView(page, repo), "/settings"))
+                render_section("/settings")
+                return
             elif page.route == "/history":
-                page.views.append(wrap_with_top_bar(HistoryView(page, repo), "/history"))
+                render_section("/history")
+                return
             elif page.route == "/reports":
-                page.views.append(wrap_with_top_bar(ReportsView(page, repo), "/reports"))
+                render_section("/reports")
+                return
             else:
                 page.go("/login")
                 return
