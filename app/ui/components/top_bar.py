@@ -2,6 +2,14 @@ import flet as ft
 import subprocess
 import os
 from app.core.i18n import _
+from app.ui.components.ui_tokens import (
+    BODY_SIZE,
+    INPUT_HEIGHT,
+    SPACE_MD,
+    SPACE_SM,
+    TOPBAR_HEIGHT,
+    TOPBAR_ICON_SIZE,
+)
 
 
 def create_top_bar(page: ft.Page, repo, current_route: str = "/"):
@@ -181,11 +189,11 @@ def create_top_bar(page: ft.Page, repo, current_route: str = "/"):
         hint_text=_("Search & Press Enter..."),
         prefix_icon=ft.icons.SEARCH,
         border_radius=20,
-        height=40,
-        text_size=14,
+        height=INPUT_HEIGHT,
+        text_size=BODY_SIZE,
         content_padding=ft.padding.only(left=10, right=10),
         on_submit=show_search_results,
-        width=220,
+        width=280,
     )
 
     # --- Navigation Buttons ---
@@ -193,8 +201,10 @@ def create_top_bar(page: ft.Page, repo, current_route: str = "/"):
         return ft.IconButton(
             icon=icon,
             tooltip=tooltip,
+            icon_size=TOPBAR_ICON_SIZE,
             icon_color=ft.colors.WHITE if is_active else ft.colors.BLUE_200,
             bgcolor=ft.colors.BLUE_900 if is_active else None,
+            style=ft.ButtonStyle(padding=ft.padding.all(10)),
             on_click=lambda e: page.go(route),
         )
 
@@ -205,10 +215,10 @@ def create_top_bar(page: ft.Page, repo, current_route: str = "/"):
             ft.Container(
                 ft.Row([
                     ft.Icon(ft.icons.STORE, color=ft.colors.WHITE, size=24),
-                    ft.Text("Lensy POS", color=ft.colors.WHITE, weight=ft.FontWeight.BOLD, size=16),
+                    ft.Text("Lensy POS", color=ft.colors.WHITE, weight=ft.FontWeight.BOLD, size=18),
                 ], spacing=8),
                 on_click=lambda e: page.go("/"),
-                padding=ft.padding.only(right=15),
+                padding=ft.padding.only(right=SPACE_MD),
             ),
 
             # Quick Nav Buttons
@@ -239,7 +249,8 @@ def create_top_bar(page: ft.Page, repo, current_route: str = "/"):
 
         ], spacing=2, alignment=ft.MainAxisAlignment.START),
         bgcolor=ft.colors.BLUE_700,
-        padding=ft.padding.symmetric(horizontal=15, vertical=8),
+        padding=ft.padding.symmetric(horizontal=SPACE_MD, vertical=SPACE_SM),
+        height=TOPBAR_HEIGHT,
     )
 
     return top_bar

@@ -1,5 +1,7 @@
 import flet as ft
 from app.core.i18n import _
+from app.ui.components.ui_sync import UIEventTopic, subscribe_ui_event
+from app.ui.components.ui_tokens import BODY_SIZE, SPACE_LG, SPACE_MD, TITLE_SIZE
 
 def DashboardView(page: ft.Page, repo):
     """Dashboard view with stats, navigation, and global search."""
@@ -48,12 +50,12 @@ def DashboardView(page: ft.Page, repo):
 
     # --- Dynamic stat card values ---
     stat_values = {
-        "revenue": ft.Text("0", size=24, weight=ft.FontWeight.BOLD),
-        "orders": ft.Text("0", size=24, weight=ft.FontWeight.BOLD),
-        "customers": ft.Text("0", size=24, weight=ft.FontWeight.BOLD),
-        "products": ft.Text("0", size=24, weight=ft.FontWeight.BOLD),
-        "pending": ft.Text("0", size=24, weight=ft.FontWeight.BOLD),
-        "balance": ft.Text("0", size=24, weight=ft.FontWeight.BOLD),
+        "revenue": ft.Text("0", size=28, weight=ft.FontWeight.BOLD),
+        "orders": ft.Text("0", size=28, weight=ft.FontWeight.BOLD),
+        "customers": ft.Text("0", size=28, weight=ft.FontWeight.BOLD),
+        "products": ft.Text("0", size=28, weight=ft.FontWeight.BOLD),
+        "pending": ft.Text("0", size=28, weight=ft.FontWeight.BOLD),
+        "balance": ft.Text("0", size=28, weight=ft.FontWeight.BOLD),
     }
 
     recent_orders_container = ft.Column([], spacing=0)
@@ -88,7 +90,7 @@ def DashboardView(page: ft.Page, repo):
                 ft.ListTile(
                     leading=ft.Icon(ft.icons.RECEIPT, color=status_color),
                     title=ft.Text(f"#{s.get('invoice_no', '')} - {cust_name}", size=14),
-                    subtitle=ft.Text(f"{s.get('order_date', '')[:10] if s.get('order_date') else ''} | {float(s.get('net_amount', 0)):.2f}", size=12),
+                    subtitle=ft.Text(f"{s.get('order_date', '')[:10] if s.get('order_date') else ''} | {float(s.get('net_amount', 0)):.2f}", size=BODY_SIZE),
                     trailing=ft.Container(
                         ft.Text(status, size=11, color=ft.colors.WHITE),
                         bgcolor=status_color,
@@ -111,6 +113,10 @@ def DashboardView(page: ft.Page, repo):
 
     # Initial load
     refresh_dashboard()
+    subscribe_ui_event(page, UIEventTopic.SALES, "dashboard_sales", lambda _: refresh_dashboard())
+    subscribe_ui_event(page, UIEventTopic.CUSTOMERS, "dashboard_customers", lambda _: refresh_dashboard())
+    subscribe_ui_event(page, UIEventTopic.INVENTORY, "dashboard_inventory", lambda _: refresh_dashboard())
+    subscribe_ui_event(page, UIEventTopic.LAB, "dashboard_lab", lambda _: refresh_dashboard())
 
     # --- Stat Card Builder ---
     def stat_card(title, value_text, icon, color, route):
@@ -118,14 +124,14 @@ def DashboardView(page: ft.Page, repo):
             content=ft.Column([
                 ft.Icon(icon, size=32, color=color),
                 value_text,
-                ft.Text(title, size=11, color=ft.colors.GREY_700, text_align=ft.TextAlign.CENTER)
-            ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=5, alignment=ft.MainAxisAlignment.CENTER),
-            padding=15,
-            border_radius=10,
+                ft.Text(title, size=13, color=ft.colors.GREY_700, text_align=ft.TextAlign.CENTER)
+            ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=SPACE_MD, alignment=ft.MainAxisAlignment.CENTER),
+            padding=SPACE_MD,
+            border_radius=14,
             bgcolor=ft.colors.SURFACE_VARIANT,
             on_click=lambda e: navigate(route),
             col={"xs": 6, "sm": 4, "md": 2},
-            height=120
+            height=150
         )
 
     # --- Nav Buttons ---
@@ -146,9 +152,9 @@ def DashboardView(page: ft.Page, repo):
                 text=label,
                 icon=icon,
                 on_click=lambda e, r=route: navigate(r),
-                height=70,
+                height=78,
                 style=ft.ButtonStyle(
-                    shape=ft.RoundedRectangleBorder(radius=10),
+                    shape=ft.RoundedRectangleBorder(radius=12),
                     bgcolor=color,
                     color=ft.colors.WHITE
                 )
@@ -156,7 +162,7 @@ def DashboardView(page: ft.Page, repo):
             col={"xs": 6, "sm": 4, "md": 3}
         )
         for label, icon, route, color in nav_items
-    ], spacing=10, run_spacing=10)
+    ], spacing=SPACE_MD, run_spacing=SPACE_MD)
 
     # --- Build View ---
     return ft.View(
@@ -178,7 +184,7 @@ def DashboardView(page: ft.Page, repo):
             ft.Container(
                 content=ft.Column([
                     # Stats Cards Row
-                    ft.Text(_("Overview"), size=20, weight=ft.FontWeight.BOLD),
+                    ft.Text(_("Overview"), size=TITLE_SIZE, weight=ft.FontWeight.BOLD),
                     ft.ResponsiveRow([
                         stat_card(_("Revenue"), stat_values["revenue"], ft.icons.ATTACH_MONEY, ft.colors.GREEN_700, "/reports"),
                         stat_card(_("Orders"), stat_values["orders"], ft.icons.SHOPPING_BAG, ft.colors.BLUE_700, "/history"),
@@ -186,26 +192,26 @@ def DashboardView(page: ft.Page, repo):
                         stat_card(_("Products"), stat_values["products"], ft.icons.INVENTORY_2, ft.colors.ORANGE_700, "/inventory"),
                         stat_card(_("Pending Lab"), stat_values["pending"], ft.icons.HOURGLASS_EMPTY, ft.colors.RED_700, "/lab"),
                         stat_card(_("Balance Due"), stat_values["balance"], ft.icons.MONEY_OFF, ft.colors.AMBER_700, "/history"),
-                    ], spacing=10, run_spacing=10),
+                    ], spacing=SPACE_MD, run_spacing=SPACE_MD),
 
-                    ft.Divider(height=20),
+                    ft.Divider(height=SPACE_LG),
 
                     # Quick Actions
-                    ft.Text(_("Quick Actions"), size=20, weight=ft.FontWeight.BOLD),
+                    ft.Text(_("Quick Actions"), size=TITLE_SIZE, weight=ft.FontWeight.BOLD),
                     nav_buttons,
 
-                    ft.Divider(height=20),
+                    ft.Divider(height=SPACE_LG),
 
                     # Recent Orders
-                    ft.Text(_("Recent Orders"), size=20, weight=ft.FontWeight.BOLD),
+                    ft.Text(_("Recent Orders"), size=TITLE_SIZE, weight=ft.FontWeight.BOLD),
                     ft.Container(
                         content=recent_orders_container,
                         border=ft.border.all(1, ft.colors.GREY_300),
-                        border_radius=10,
-                        padding=5
+                        border_radius=12,
+                        padding=8
                     )
-                ], spacing=15, scroll=ft.ScrollMode.AUTO, expand=True),
-                padding=20,
+                ], spacing=SPACE_LG, scroll=ft.ScrollMode.AUTO, expand=True),
+                padding=24,
                 expand=True
             )
         ],

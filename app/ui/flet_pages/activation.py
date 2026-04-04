@@ -5,6 +5,7 @@ Shows activation screen if software is not licensed.
 
 import flet as ft
 from app.core.licensing import LicenseManager
+from app.ui.components.design_helpers import build_dialog, danger_button, secondary_button
 
 
 def ActivationView(page: ft.Page, license_manager: LicenseManager, on_activated):
@@ -180,9 +181,9 @@ def LicenseInfoDialog(page: ft.Page, license_manager: LicenseManager):
             # Show error
             pass
 
-    dialog = ft.AlertDialog(
-        title=ft.Text("License Information"),
-        content=ft.Container(
+    dialog = build_dialog(
+        "License Information",
+        ft.Container(
             width=400,
             content=ft.Column([
                 ft.Row([
@@ -201,15 +202,11 @@ def LicenseInfoDialog(page: ft.Page, license_manager: LicenseManager):
                 ft.Text(f"Machine ID: {license_manager.machine_id}", size=10, color=ft.colors.GREY_500, selectable=True),
             ], spacing=8),
         ),
-        actions=[
-            ft.TextButton("Close", on_click=lambda e: setattr(page.dialog, 'open', False) or page.update()),
-            ft.TextButton(
-                "Deactivate",
-                on_click=handle_deactivate,
-                style=ft.ButtonStyle(color=ft.colors.RED_700),
-            ) if is_licensed else ft.Container(),
-        ],
+        [],
     )
+    dialog.actions = [secondary_button("Close", on_click=lambda e: setattr(page.dialog, 'open', False) or page.update())]
+    if is_licensed:
+        dialog.actions.append(danger_button("Deactivate", on_click=handle_deactivate))
 
     return dialog
 

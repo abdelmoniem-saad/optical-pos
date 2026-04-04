@@ -1,5 +1,6 @@
 import flet as ft
 from app.core.i18n import _
+from app.ui.components.ui_tokens import BUTTON_HEIGHT, INPUT_HEIGHT, SPACE_MD, TITLE_SIZE
 
 
 def LoginView(page: ft.Page, repo, on_login_success):
@@ -7,21 +8,25 @@ def LoginView(page: ft.Page, repo, on_login_success):
 
     username_input = ft.TextField(
         label=_("Username"),
-        width=300,
+        width=360,
+        height=INPUT_HEIGHT,
+        text_size=16,
         autofocus=True,
     )
     password_input = ft.TextField(
         label=_("Password"),
         password=True,
         can_reveal_password=True,
-        width=300,
+        width=360,
+        height=INPUT_HEIGHT,
+        text_size=16,
     )
     error_text = ft.Text(color=ft.colors.RED_700, size=14)
 
     login_button = ft.ElevatedButton(
         _("Login"),
-        width=300,
-        height=50,
+        width=360,
+        height=BUTTON_HEIGHT,
         style=ft.ButtonStyle(
             shape=ft.RoundedRectangleBorder(radius=10),
             color=ft.colors.WHITE,
@@ -76,17 +81,17 @@ def LoginView(page: ft.Page, repo, on_login_success):
             ft.Container(
                 content=ft.Column([
                     ft.Text(_("Welcome"), size=40, weight=ft.FontWeight.BOLD, text_align=ft.TextAlign.CENTER),
-                    ft.Text(_("Lensy POS"), size=14, color=ft.colors.GREY_500),
+                    ft.Text(_("Lensy POS"), size=TITLE_SIZE, color=ft.colors.GREY_500),
                     ft.Divider(height=20, color=ft.colors.TRANSPARENT),
                     username_input,
                     password_input,
                     error_text,
                     login_button,
-                ], horizontal_alignment=ft.CrossAxisAlignment.CENTER),
-                padding=40,
-                border_radius=20,
+                ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=SPACE_MD),
+                padding=50,
+                border_radius=24,
                 bgcolor=ft.colors.SURFACE_VARIANT,
-                width=400,
+                width=460,
             )
         ]
     )

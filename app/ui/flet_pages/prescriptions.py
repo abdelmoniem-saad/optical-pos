@@ -1,5 +1,14 @@
 import flet as ft
 from app.core.i18n import _
+from app.ui.components.design_helpers import (
+    build_dialog,
+    icon_action,
+    open_dialog,
+    primary_button,
+    secondary_button,
+    standard_appbar,
+)
+from app.ui.components.feedback import show_error, show_success
 import datetime
 import subprocess
 import os
@@ -79,16 +88,12 @@ def PrescriptionView(page: ft.Page, repo, customer_id):
 
         content = "\n".join(lines)
         print(content)
-        page.snack_bar = ft.SnackBar(ft.Text(f"✓ {_('Sent to printer')}"))
-        page.snack_bar.open = True
-        page.update()
+        show_success(page, f"✓ {_('Sent to printer')}")
 
     def preview_image(image_path):
         """Preview an attached image."""
         if not image_path or not os.path.exists(image_path):
-            page.snack_bar = ft.SnackBar(ft.Text(_("Image not found")))
-            page.snack_bar.open = True
-            page.update()
+            show_error(page, _("Image not found"))
             return
 
         # Open image with default system viewer
@@ -98,9 +103,7 @@ def PrescriptionView(page: ft.Page, repo, customer_id):
             else:  # Linux/Mac
                 subprocess.run(['xdg-open', image_path])
         except Exception as ex:
-            page.snack_bar = ft.SnackBar(ft.Text(f"{_('Error')}: {str(ex)}"))
-            page.snack_bar.open = True
-            page.update()
+            show_error(page, f"{_('Error')}: {str(ex)}")
 
     def load_prescriptions():
         p_list.controls.clear()
@@ -150,20 +153,20 @@ def PrescriptionView(page: ft.Page, repo, customer_id):
                     image_path = p.get("image_path", "")
 
                     action_buttons = ft.Row([
-                        ft.IconButton(
+                        icon_action(
                             ft.icons.PRINT,
                             tooltip=_("Print"),
                             icon_color=ft.colors.BLUE_700,
-                            on_click=lambda e, r=record: print_prescription(r)
+                            on_click=lambda e, r=record: print_prescription(r),
                         ),
                     ], spacing=0)
 
                     if image_path:
-                        action_buttons.controls.insert(0, ft.IconButton(
+                        action_buttons.controls.insert(0, icon_action(
                             ft.icons.IMAGE,
                             tooltip=_("View Image"),
                             icon_color=ft.colors.GREEN_700,
-                            on_click=lambda e, path=image_path: preview_image(path)
+                            on_click=lambda e, path=image_path: preview_image(path),
                         ))
 
                     p_list.controls.append(
@@ -217,20 +220,20 @@ def PrescriptionView(page: ft.Page, repo, customer_id):
                     image_path = e.get("image_path", "")
 
                     action_buttons = ft.Row([
-                        ft.IconButton(
+                        icon_action(
                             ft.icons.PRINT,
                             tooltip=_("Print"),
                             icon_color=ft.colors.BLUE_700,
-                            on_click=lambda ev, r=record: print_prescription(r)
+                            on_click=lambda ev, r=record: print_prescription(r),
                         ),
                     ], spacing=0)
 
                     if image_path:
-                        action_buttons.controls.insert(0, ft.IconButton(
+                        action_buttons.controls.insert(0, icon_action(
                             ft.icons.IMAGE,
                             tooltip=_("View Image"),
                             icon_color=ft.colors.GREEN_700,
-                            on_click=lambda ev, path=image_path: preview_image(path)
+                            on_click=lambda ev, path=image_path: preview_image(path),
                         ))
 
                     p_list.controls.append(
@@ -314,9 +317,7 @@ def PrescriptionView(page: ft.Page, repo, customer_id):
         """Dialog to add a new prescription."""
         def save_rx(e):
             if not sph_od.value and not sph_os.value:
-                page.snack_bar = ft.SnackBar(ft.Text(_("Please enter at least one eye measurement")))
-                page.snack_bar.open = True
-                page.update()
+                show_error(page, _("Please enter at least one eye measurement"))
                 return
 
             rx_data = {
@@ -332,14 +333,12 @@ def PrescriptionView(page: ft.Page, repo, customer_id):
                 "axis_os": axis_os.value,
                 "ipd_os": ipd_os.value,
                 "notes": notes_field.value,
-                "created_at": datetime.datetime.utcnow().isoformat()
+                "created_at": datetime.datetime.now(datetime.UTC).isoformat()
             }
             repo.add_prescription(rx_data)
             dialog.open = False
-            page.snack_bar = ft.SnackBar(ft.Text(_("Prescription added successfully")))
-            page.snack_bar.open = True
+            show_success(page, _("Prescription added successfully"))
             load_prescriptions()
-            page.update()
 
         rx_type = ft.Dropdown(
             label=_("Type"),
@@ -367,9 +366,9 @@ def PrescriptionView(page: ft.Page, repo, customer_id):
 
         notes_field = ft.TextField(label=_("Notes"), multiline=True, min_lines=2, expand=True)
 
-        dialog = ft.AlertDialog(
-            title=ft.Text(_("Add Prescription")),
-            content=ft.Container(
+        dialog = build_dialog(
+            _("Add Prescription"),
+            ft.Container(
                 ft.Column([
                     ft.Row([rx_type, doctor_field]),
                     ft.Divider(),
@@ -378,18 +377,17 @@ def PrescriptionView(page: ft.Page, repo, customer_id):
                     ft.Text("OS (Left Eye)", weight=ft.FontWeight.BOLD),
                     ft.Row([sph_os, cyl_os, axis_os, ipd_os]),
                     ft.Divider(),
-                    notes_field
+                    notes_field,
                 ], tight=True, spacing=10),
-                width=500
+                width=500,
             ),
-            actions=[
-                ft.TextButton(_("Cancel"), on_click=lambda e: setattr(dialog, "open", False) or page.update()),
-                ft.ElevatedButton(_("Save"), on_click=save_rx)
-            ]
+            [],
         )
-        page.dialog = dialog
-        dialog.open = True
-        page.update()
+        dialog.actions = [
+            secondary_button(_("Cancel"), on_click=lambda e: setattr(dialog, "open", False) or page.update()),
+            primary_button(_("Save"), on_click=save_rx),
+        ]
+        open_dialog(page, dialog)
 
     load_customer()
     load_prescriptions()
@@ -397,12 +395,7 @@ def PrescriptionView(page: ft.Page, repo, customer_id):
     return ft.View(
         f"/prescription/{customer_id}",
         [
-            ft.AppBar(
-                title=ft.Text(f"{_('Prescriptions')} - {customer_name}"),
-                bgcolor=ft.colors.BLUE_700,
-                color=ft.colors.WHITE,
-                leading=ft.IconButton(ft.icons.ARROW_BACK, on_click=lambda _: page.go("/customers"))
-            ),
+            standard_appbar(f"{_('Prescriptions')} - {customer_name}", on_back=lambda _: page.go("/customers")),
             ft.Container(
                 content=ft.Column([
                     # Customer info header
@@ -412,7 +405,7 @@ def PrescriptionView(page: ft.Page, repo, customer_id):
                                 leading=ft.Icon(ft.icons.PERSON, size=40),
                                 title=ft.Text(customer_name, size=20, weight=ft.FontWeight.BOLD),
                                 subtitle=ft.Text(f"📱 {customer_data.get('phone', 'N/A') if customer_data else 'N/A'} | 📍 {customer_data.get('city', 'N/A') if customer_data else 'N/A'}"),
-                                trailing=ft.ElevatedButton(_("+ Add Prescription"), icon=ft.icons.ADD, on_click=add_prescription)
+                                trailing=primary_button(_("+ Add Prescription"), icon=ft.icons.ADD, on_click=add_prescription)
                             ),
                             padding=10
                         )

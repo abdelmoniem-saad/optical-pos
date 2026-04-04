@@ -1,6 +1,10 @@
 import flet as ft
 from app.core.i18n import _
 import datetime
+from app.ui.components.design_helpers import build_dialog, open_dialog, primary_button, standard_appbar
+from app.ui.components.feedback import show_error, show_info, show_success
+from app.ui.components.ui_sync import UIEventTopic, publish_ui_event
+from app.ui.components.ui_tokens import BUTTON_HEIGHT, INPUT_HEIGHT, SPACE_LG, SPACE_MD, TITLE_SIZE
 
 
 def POSView(page: ft.Page, repo):
@@ -46,14 +50,9 @@ class _POSController:
         self.doctor_name = ""
 
         # UI Components
-        self.app_bar = ft.AppBar(
-            title=ft.Text(_("Sales POS")),
-            bgcolor=ft.colors.BLUE_700,
-            color=ft.colors.WHITE,
-            leading=ft.IconButton(ft.icons.ARROW_BACK, on_click=lambda _: self._page.go("/"))
-        )
+        self.app_bar = standard_appbar(_("Sales POS"), on_back=lambda _: self._page.go("/"))
         
-        self.content_area = ft.Container(expand=True, padding=20)
+        self.content_area = ft.Container(expand=True, padding=24)
 
         # Create the view
         self.view = ft.View(
@@ -63,7 +62,58 @@ class _POSController:
             controls=[self.app_bar, self.content_area]
         )
 
+        self._register_shortcuts()
         self.show_step_0()
+
+    def _register_shortcuts(self):
+        previous_handler = getattr(self._page, "on_keyboard_event", None)
+
+        def handle_key(e: ft.KeyboardEvent):
+            if self._page.route != "/pos":
+                if callable(previous_handler):
+                    previous_handler(e)
+                return
+
+            key = (e.key or "").upper()
+            ctrl = bool(getattr(e, "ctrl", False))
+
+            if key == "F2":
+                if hasattr(self, "add_item_search"):
+                    self.add_item_search.focus()
+                    self._page.update()
+                elif hasattr(self, "paid_input"):
+                    self.paid_input.focus()
+                    self._page.update()
+                return
+
+            if key == "F4" and hasattr(self, "paid_input"):
+                self.paid_input.focus()
+                self._page.update()
+                return
+
+            if ctrl and key == "ENTER" and self.current_step == 4:
+                self.finish_order()
+                return
+
+            if ctrl and key == "BACKSPACE" and self.current_step == 4:
+                self.clear_cart()
+                show_info(self._page, _("Cart cleared"))
+                return
+
+            if key == "ESCAPE":
+                if self.current_step == 4:
+                    if self.selected_category in ["Frame", "ContactLens"]:
+                        self.show_step_2()
+                    else:
+                        self.show_step_1()
+                elif self.current_step == 3:
+                    self.show_step_2()
+                elif self.current_step == 2:
+                    self.show_step_1()
+                elif self.current_step == 1:
+                    self.show_step_0()
+
+        self._page.on_keyboard_event = handle_key
 
     # ==================== STEP 0: CATEGORY SELECTION ====================
     def show_step_0(self):
@@ -82,26 +132,26 @@ class _POSController:
                 ft.Container(
                     content=ft.Column([
                         ft.Icon(icon, size=60, color=ft.colors.WHITE),
-                        ft.Text(label, size=20, weight=ft.FontWeight.BOLD, color=ft.colors.WHITE)
+                        ft.Text(label, size=22, weight=ft.FontWeight.BOLD, color=ft.colors.WHITE)
                     ], alignment=ft.MainAxisAlignment.CENTER, horizontal_alignment=ft.CrossAxisAlignment.CENTER),
-                    padding=30,
+                    padding=36,
                     border_radius=15,
                     bgcolor=color,
                     on_click=lambda e, cat=val: self.start_with_category(cat),
                     col={"xs": 6, "sm": 4, "md": 4, "lg": 2.4},
-                    height=180,
+                    height=210,
                 ) for label, val, icon, color in categories
             ],
             alignment=ft.MainAxisAlignment.CENTER,
-            spacing=20,
-            run_spacing=20
+            spacing=SPACE_LG,
+            run_spacing=SPACE_LG
         )
         
         self.content_area.content = ft.Column([
-            ft.Text(_("Select Product Category"), size=32, weight=ft.FontWeight.BOLD),
-            ft.Divider(height=30),
+            ft.Text(_("Select Product Category"), size=34, weight=ft.FontWeight.BOLD),
+            ft.Divider(height=SPACE_LG),
             grid
-        ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=20)
+        ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=SPACE_LG)
         self._page.update()
 
     def start_with_category(self, category):
@@ -115,12 +165,12 @@ class _POSController:
         self.current_step = 1
         
         # Customer input fields
-        self.c_name = ft.TextField(label=_("Name") + " *", expand=True, autofocus=True)
-        self.c_phone = ft.TextField(label=_("Mobile Phone"), expand=True)
-        self.c_phone2 = ft.TextField(label=_("Second Number"), expand=True)
-        self.c_city = ft.TextField(label=_("City Name"), expand=True)
-        self.c_email = ft.TextField(label=_("Email"), expand=True)
-        self.c_address = ft.TextField(label=_("Address"), expand=True)
+        self.c_name = ft.TextField(label=_("Name") + " *", expand=True, autofocus=True, height=INPUT_HEIGHT, text_size=15)
+        self.c_phone = ft.TextField(label=_("Mobile Phone"), expand=True, height=INPUT_HEIGHT, text_size=15)
+        self.c_phone2 = ft.TextField(label=_("Second Number"), expand=True, height=INPUT_HEIGHT, text_size=15)
+        self.c_city = ft.TextField(label=_("City Name"), expand=True, height=INPUT_HEIGHT, text_size=15)
+        self.c_email = ft.TextField(label=_("Email"), expand=True, height=INPUT_HEIGHT, text_size=15)
+        self.c_address = ft.TextField(label=_("Address"), expand=True, height=INPUT_HEIGHT, text_size=15)
 
         # Debounced search
         def on_field_change(e):
@@ -137,11 +187,13 @@ class _POSController:
                 ft.ElevatedButton(
                     _("← Back"),
                     icon=ft.icons.ARROW_BACK,
+                    height=BUTTON_HEIGHT,
                     on_click=lambda _: self.show_step_0()
                 ),
                 ft.ElevatedButton(
                     _("Walk-in (No Customer) →"),
                     icon=ft.icons.PERSON_OFF,
+                    height=BUTTON_HEIGHT,
                     bgcolor=ft.colors.ORANGE_700,
                     color=ft.colors.WHITE,
                     on_click=lambda _: self.go_to_next_step(None)
@@ -149,6 +201,7 @@ class _POSController:
                 ft.ElevatedButton(
                     _("Continue with Customer →"),
                     icon=ft.icons.ARROW_FORWARD,
+                    height=BUTTON_HEIGHT,
                     bgcolor=ft.colors.GREEN_700,
                     color=ft.colors.WHITE,
                     on_click=lambda _: self.validate_and_proceed_customer()
@@ -156,14 +209,14 @@ class _POSController:
             ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
             padding=ft.padding.only(top=10),
             bgcolor=ft.colors.SURFACE_VARIANT,
-            border_radius=10
+            border_radius=12
         )
 
         self.content_area.content = ft.Column([
             # Header
-            ft.Text(_("Step 1: Customer Selection"), size=24, weight=ft.FontWeight.BOLD),
+            ft.Text(_("Step 1: Customer Selection"), size=TITLE_SIZE, weight=ft.FontWeight.BOLD),
             ft.Text(_("Enter customer information or select from search results below."), color=ft.colors.GREY_700),
-            ft.Divider(height=10),
+            ft.Divider(height=SPACE_MD),
 
             # Customer Form
             ft.ResponsiveRow([
@@ -178,14 +231,14 @@ class _POSController:
             ft.Container(
                 content=self.customer_results,
                 border=ft.border.all(1, ft.colors.GREY_300),
-                border_radius=10,
-                padding=5,
-                height=200
+                border_radius=12,
+                padding=8,
+                height=240
             ),
 
             # Navigation Buttons
             nav_buttons
-        ], spacing=10, expand=True)
+        ], spacing=SPACE_MD, expand=True)
 
         # Don't load customers initially - wait for user to type
         self.customer_results.controls.append(
@@ -271,18 +324,14 @@ class _POSController:
         self._page.update()
 
         # Show confirmation
-        self._page.snack_bar = ft.SnackBar(ft.Text(f"✓ {_('Selected')}: {customer.get('name')}"))
-        self._page.snack_bar.open = True
-        self._page.update()
+        show_success(self._page, f"✓ {_('Selected')}: {customer.get('name')}")
 
     def validate_and_proceed_customer(self):
         """Validate customer data and proceed to next step."""
         name = self.c_name.value.strip() if self.c_name.value else ""
 
         if not name:
-            self._page.snack_bar = ft.SnackBar(ft.Text(_("Please enter customer name.")))
-            self._page.snack_bar.open = True
-            self._page.update()
+            show_error(self._page, _("Please enter customer name."))
             return
 
         # If no customer selected, create new one
@@ -414,8 +463,7 @@ class _POSController:
         def use_past_exam(exam):
             """Use a past examination - add it as a new row."""
             self.add_exam_row(exam)
-            self._page.snack_bar = ft.SnackBar(ft.Text(f"✓ {_('Past examination loaded')}"))
-            self._page.snack_bar.open = True
+            show_success(self._page, f"✓ {_('Past examination loaded')}")
             # Close the drawer
             if hasattr(self, 'past_rx_drawer'):
                 self.past_rx_drawer.open = False
@@ -647,9 +695,7 @@ class _POSController:
                     image_path_ref["path"] = result.files[0].path
                     image_indicator.name = ft.icons.CHECK_CIRCLE
                     image_indicator.color = ft.colors.GREEN_700
-                    self._page.snack_bar = ft.SnackBar(ft.Text(f"✓ {_('Image attached')}: {result.files[0].name}"))
-                    self._page.snack_bar.open = True
-                    self._page.update()
+                    show_success(self._page, f"✓ {_('Image attached')}: {result.files[0].name}")
 
             file_picker = ft.FilePicker(on_result=on_result)
             self._page.overlay.append(file_picker)
@@ -882,9 +928,7 @@ class _POSController:
                 "total_price": float(product.get("sale_price", 0))
             })
 
-        self._page.snack_bar = ft.SnackBar(ft.Text(f"✓ {product.get('name')} {_('added to cart')}"))
-        self._page.snack_bar.open = True
-        self._page.update()
+        show_success(self._page, f"✓ {product.get('name')} {_('added to cart')}")
 
     # ==================== STEP 4: ITEMS & CART ====================
     def show_step_4(self):
@@ -1003,9 +1047,7 @@ class _POSController:
         product = self.repo.find_product_by_name_or_sku(search_term)
 
         if not product:
-            self._page.snack_bar = ft.SnackBar(ft.Text(f"{_('Product not found')}: {search_term}"))
-            self._page.snack_bar.open = True
-            self._page.update()
+            show_error(self._page, f"{_('Product not found')}: {search_term}")
             return
 
         existing = next((item for item in self.cart_items if item["product_id"] == product["id"]), None)
@@ -1078,8 +1120,8 @@ class _POSController:
     def on_totals_change(self):
         """Handle totals input changes."""
         try:
-            self.totals["discount"] = float(self.discount_input.value or 0)
-            self.totals["amount_paid"] = float(self.paid_input.value or 0)
+            self.totals["discount"] = max(0.0, float(self.discount_input.value or 0))
+            self.totals["amount_paid"] = max(0.0, float(self.paid_input.value or 0))
         except ValueError:
             pass
         self.update_totals_display()
@@ -1089,7 +1131,7 @@ class _POSController:
         # Calculate gross - use custom price if enabled, otherwise sum of items
         if hasattr(self, 'use_custom_price') and self.use_custom_price.value:
             try:
-                gross = float(self.custom_price_input.value or 0)
+                gross = max(0.0, float(self.custom_price_input.value or 0))
             except ValueError:
                 gross = sum(item["total_price"] for item in self.cart_items)
         else:
@@ -1099,8 +1141,17 @@ class _POSController:
                 self.custom_price_input.value = str(gross)
 
         self.totals["gross_total"] = gross
-        self.totals["net_amount"] = gross - self.totals["discount"]
+        self.totals["discount"] = min(self.totals["discount"], gross)
+        self.totals["net_amount"] = max(0.0, gross - self.totals["discount"])
+        self.totals["amount_paid"] = min(self.totals["amount_paid"], self.totals["net_amount"])
         self.totals["balance"] = self.totals["net_amount"] - self.totals["amount_paid"]
+
+        if hasattr(self, "discount_input"):
+            self.discount_input.value = f"{self.totals['discount']:.2f}"
+        if hasattr(self, "paid_input"):
+            self.paid_input.value = f"{self.totals['amount_paid']:.2f}"
+        if hasattr(self, "custom_price_input"):
+            self.custom_price_input.value = f"{self.totals['gross_total']:.2f}"
 
         self.totals_display.controls.clear()
 
@@ -1147,9 +1198,7 @@ class _POSController:
     def finish_order(self):
         """Finalize the sale: save to database, create stock movements, show receipt."""
         if not self.cart_items and not self.examinations:
-            self._page.snack_bar = ft.SnackBar(ft.Text(_("Cart is empty and no examinations. Cannot checkout.")))
-            self._page.snack_bar.open = True
-            self._page.update()
+            show_error(self._page, _("Cart is empty and no examinations. Cannot checkout."))
             return
 
         try:
@@ -1162,9 +1211,7 @@ class _POSController:
 
             if insufficient_items:
                 msg = _("Insufficient stock for") + ":\n" + "\n".join(insufficient_items)
-                self._page.snack_bar = ft.SnackBar(ft.Text(msg), duration=5000)
-                self._page.snack_bar.open = True
-                self._page.update()
+                show_error(self._page, msg, duration=5000)
                 return
 
             # Prepare sale data
@@ -1195,13 +1242,18 @@ class _POSController:
                 examinations=self.examinations if self.examinations else None
             )
 
+            publish_ui_event(self._page, UIEventTopic.SALES)
+            publish_ui_event(self._page, UIEventTopic.INVENTORY)
+            if self.examinations:
+                publish_ui_event(self._page, UIEventTopic.LAB)
+            if self.selected_customer:
+                publish_ui_event(self._page, UIEventTopic.CUSTOMERS)
+
             # Show success and receipt preview
             self.show_receipt_preview(sale_data)
 
         except Exception as ex:
-            self._page.snack_bar = ft.SnackBar(ft.Text(f"{_('Error saving order')}: {str(ex)}"))
-            self._page.snack_bar.open = True
-            self._page.update()
+            show_error(self._page, f"{_('Error saving order')}: {str(ex)}")
 
     def show_receipt_preview(self, sale_data):
         """Show receipt preview dialog with 3 print options: Shop, Customer, Lab."""
@@ -1379,9 +1431,7 @@ class _POSController:
             elif copy_type == "lab":
                 content = build_lab_copy()
             print(content)
-            self._page.snack_bar = ft.SnackBar(ft.Text(f"✓ {_('Sent to printer')}"))
-            self._page.snack_bar.open = True
-            self._page.update()
+            show_success(self._page, f"✓ {_('Sent to printer')}")
 
         def print_all(e):
             print(build_shop_copy())
@@ -1389,9 +1439,7 @@ class _POSController:
             print(build_customer_copy())
             print("\n" + "="*50 + "\n")
             print(build_lab_copy())
-            self._page.snack_bar = ft.SnackBar(ft.Text(f"✓ {_('All copies sent to printer')}"))
-            self._page.snack_bar.open = True
-            self._page.update()
+            show_success(self._page, f"✓ {_('All copies sent to printer')}")
 
         def close_and_reset(e):
             dlg.open = False
@@ -1433,13 +1481,14 @@ class _POSController:
             ft.OutlinedButton(_("Print Lab"), icon=ft.icons.PRINT, on_click=lambda e: print_copy("lab")),
         ], alignment=ft.MainAxisAlignment.CENTER, spacing=10)
 
-        dlg = ft.AlertDialog(
-            title=ft.Row([
-                ft.Icon(ft.icons.CHECK_CIRCLE, color=ft.colors.GREEN_700, size=30),
-                ft.Text(_("Order Saved Successfully!"), weight=ft.FontWeight.BOLD),
-            ]),
-            content=ft.Container(
+        dlg = build_dialog(
+            _("Order Saved Successfully!"),
+            ft.Container(
                 ft.Column([
+                    ft.Row([
+                        ft.Icon(ft.icons.CHECK_CIRCLE, color=ft.colors.GREEN_700, size=30),
+                        ft.Text(_("Order Saved Successfully!"), weight=ft.FontWeight.BOLD),
+                    ], alignment=ft.MainAxisAlignment.CENTER),
                     copy_tabs,
                     ft.Divider(height=10),
                     preview_container,
@@ -1448,27 +1497,14 @@ class _POSController:
                 ], spacing=10, horizontal_alignment=ft.CrossAxisAlignment.CENTER),
                 width=480,
             ),
-            actions=[
-                ft.ElevatedButton(
-                    _("Print All 3 Copies"),
-                    icon=ft.icons.PRINT,
-                    bgcolor=ft.colors.PURPLE_700,
-                    color=ft.colors.WHITE,
-                    on_click=print_all
-                ),
-                ft.ElevatedButton(
-                    _("Done"),
-                    icon=ft.icons.CHECK,
-                    bgcolor=ft.colors.GREEN_700,
-                    color=ft.colors.WHITE,
-                    on_click=close_and_reset
-                )
-            ],
-            actions_alignment=ft.MainAxisAlignment.SPACE_BETWEEN
+            [],
         )
-        self._page.dialog = dlg
-        dlg.open = True
-        self._page.update()
+        dlg.actions = [
+            primary_button(_("Print All 3 Copies"), on_click=print_all, icon=ft.icons.PRINT),
+            primary_button(_("Done"), on_click=close_and_reset, icon=ft.icons.CHECK),
+        ]
+        dlg.actions_alignment = ft.MainAxisAlignment.SPACE_BETWEEN
+        open_dialog(self._page, dlg)
 
     def reset_pos(self):
         """Reset POS to initial state."""

@@ -23,17 +23,87 @@ print(f"[COMPAT] Flet module loaded", file=sys.stderr, flush=True)
 
 def _patch_flet_colors():
     """Ensure ft.colors is available (maps to ft.Colors in 0.25+)."""
-    # In Flet 0.25+, Colors is the new enum
+    # In Flet 0.25+, Colors is the new enum.
+    # Wrap it with a proxy so older color names continue to work.
     if hasattr(ft, 'Colors') and ft.Colors is not None:
-        # Create a lowercase alias for backward compatibility
-        if not hasattr(ft, 'colors') or ft.colors is None:
-            ft.colors = ft.Colors
-        print("[COMPAT] Using ft.Colors (0.25+ style)", file=sys.stderr, flush=True)
+        color_enum = ft.Colors
+
+        def _resolve_color_name(name: str):
+            if hasattr(color_enum, name):
+                return getattr(color_enum, name)
+
+            # Common cross-version aliases.
+            alias_candidates = {
+                "SURFACE_VARIANT": ["SURFACE_CONTAINER_HIGHEST", "SURFACE_CONTAINER_HIGH", "SURFACE_CONTAINER", "SURFACE"],
+                "BACKGROUND": ["SURFACE"],
+            }
+            for candidate in alias_candidates.get(name, []):
+                if hasattr(color_enum, candidate):
+                    return getattr(color_enum, candidate)
+
+            # Spelling differences across releases.
+            normalized_candidates = []
+            if "GREY" in name:
+                normalized_candidates.append(name.replace("GREY", "GRAY"))
+            if "BLUE_GREY" in name:
+                normalized_candidates.append(name.replace("BLUE_GREY", "BLUE_GRAY"))
+
+            for candidate in normalized_candidates:
+                if hasattr(color_enum, candidate):
+                    return getattr(color_enum, candidate)
+
+            # Last resort to keep UI rendering instead of crashing hard.
+            return "transparent"
+
+        class ColorsProxy:
+            def __getattr__(self, name):
+                return _resolve_color_name(name)
+
+        ft.colors = ColorsProxy()
+        print("[COMPAT] Using proxied ft.Colors (0.25+ style)", file=sys.stderr, flush=True)
         return
 
-    # Older versions have ft.colors directly
+    # Older versions have ft.colors directly; still proxy for missing names.
     if hasattr(ft, 'colors') and ft.colors is not None:
-        print("[COMPAT] Using ft.colors (legacy style)", file=sys.stderr, flush=True)
+        legacy_palette = ft.colors
+        modern_palette = getattr(ft, "Colors", None)
+
+        def _resolve_legacy(name: str):
+            if hasattr(legacy_palette, name):
+                return getattr(legacy_palette, name)
+            if modern_palette is not None and hasattr(modern_palette, name):
+                return getattr(modern_palette, name)
+
+            alias_candidates = {
+                "SURFACE_VARIANT": ["SURFACE_CONTAINER_HIGHEST", "SURFACE_CONTAINER_HIGH", "SURFACE_CONTAINER", "SURFACE"],
+                "BACKGROUND": ["SURFACE"],
+            }
+            for candidate in alias_candidates.get(name, []):
+                if hasattr(legacy_palette, candidate):
+                    return getattr(legacy_palette, candidate)
+                if modern_palette is not None and hasattr(modern_palette, candidate):
+                    return getattr(modern_palette, candidate)
+
+            normalized_candidates = []
+            if "GREY" in name:
+                normalized_candidates.append(name.replace("GREY", "GRAY"))
+            if "BLUE_GREY" in name:
+                normalized_candidates.append(name.replace("BLUE_GREY", "BLUE_GRAY"))
+
+            for candidate in normalized_candidates:
+                if hasattr(legacy_palette, candidate):
+                    return getattr(legacy_palette, candidate)
+                if modern_palette is not None and hasattr(modern_palette, candidate):
+                    return getattr(modern_palette, candidate)
+
+            return "transparent"
+
+        class LegacyColorsProxy:
+            def __getattr__(self, name):
+                return _resolve_legacy(name)
+
+        ft.colors = LegacyColorsProxy()
+        print("[COMPAT] Using proxied ft.colors (legacy style)", file=sys.stderr, flush=True)
         return
 
     # Fallback - create basic color constants

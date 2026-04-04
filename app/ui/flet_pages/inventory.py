@@ -1,14 +1,45 @@
 import flet as ft
 from app.core.i18n import _
+from app.ui.components.design_helpers import (
+    build_dialog,
+    open_dialog,
+    primary_button,
+    refresh_action,
+    secondary_button,
+    standard_appbar,
+)
+from app.ui.components.feedback import show_error, show_success
+from app.ui.components.ui_sync import UIEventTopic, publish_ui_event
+from app.ui.components.ui_tokens import INPUT_HEIGHT, SPACE_LG, SPACE_MD, TITLE_SIZE
 
 def InventoryView(page: ft.Page, repo):
     
     # --- Products Tab ---
-    items_list = ft.ListView(expand=True, spacing=10)
+    items_list = ft.ListView(expand=True, spacing=SPACE_MD)
+
+    inventory_summary = ft.Text("", color=ft.colors.GREY_700)
+
+    def get_selected_stock_mode():
+        return stock_filter.value if stock_filter.value else "All"
 
     def load_inventory(term="", category=None):
         items_list.controls.clear()
         inventory = repo.get_inventory(category=category, search_term=term if term else None)
+
+        stock_mode = get_selected_stock_mode()
+        if stock_mode == "InStock":
+            inventory = [i for i in inventory if float(i.get("stock_qty", 0) or 0) > 0]
+        elif stock_mode == "OutOfStock":
+            inventory = [i for i in inventory if float(i.get("stock_qty", 0) or 0) <= 0]
+        elif stock_mode == "LowStock":
+            inventory = [i for i in inventory if 0 < float(i.get("stock_qty", 0) or 0) < 5]
+
+        total_items = len(inventory)
+        low_stock_count = len([i for i in inventory if 0 < float(i.get("stock_qty", 0) or 0) < 5])
+        out_of_stock_count = len([i for i in inventory if float(i.get("stock_qty", 0) or 0) <= 0])
+        inventory_summary.value = (
+            f"{_('Items')}: {total_items} | {_('Low Stock')}: {low_stock_count} | {_('Out of Stock')}: {out_of_stock_count}"
+        )
 
         if not inventory:
             items_list.controls.append(
@@ -22,17 +53,18 @@ def InventoryView(page: ft.Page, repo):
                 items_list.controls.append(
                     ft.ListTile(
                         leading=ft.Icon(ft.icons.INVENTORY_2),
-                        title=ft.Text(item.get("name", "Unknown")),
+                        title=ft.Text(item.get("name", "Unknown"), size=16, weight=ft.FontWeight.W_600),
                         subtitle=ft.Text(
                             f"SKU: {item.get('sku')} | {_('Category')}: {item.get('category', 'N/A')} | "
-                            f"{_('Price')}: {item.get('sale_price', 0):.2f}"
+                            f"{_('Price')}: {item.get('sale_price', 0):.2f}",
+                            size=13,
                         ),
                         trailing=ft.Row([
                             ft.Container(
                                 ft.Text(f"{stock}", weight=ft.FontWeight.BOLD, color=stock_color),
                                 bgcolor=ft.colors.GREY_200,
-                                padding=ft.padding.symmetric(horizontal=10, vertical=5),
-                                border_radius=5
+                                padding=ft.padding.symmetric(horizontal=12, vertical=8),
+                                border_radius=8
                             ),
                             ft.IconButton(ft.icons.ADD_CIRCLE, tooltip=_("Adjust Stock"), on_click=lambda e, i=item: show_adjust_stock_dialog(i)),
                             ft.IconButton(ft.icons.EDIT, tooltip=_("Edit"), on_click=lambda e, i=item: show_product_dialog(i)),
@@ -62,15 +94,13 @@ def InventoryView(page: ft.Page, repo):
                     data["stock_qty"] = initial_stock
                     repo.add_inventory_item(data)
 
+                publish_ui_event(page, UIEventTopic.INVENTORY)
+
                 dialog.open = False
                 load_inventory(search_input.value, get_selected_category())
-                page.snack_bar = ft.SnackBar(ft.Text(_("Product saved successfully!")))
-                page.snack_bar.open = True
-                page.update()
+                show_success(page, _("Product saved successfully!"))
             except Exception as ex:
-                page.snack_bar = ft.SnackBar(ft.Text(f"{_('Error')}: {str(ex)}"))
-                page.snack_bar.open = True
-                page.update()
+                show_error(page, f"{_('Error')}: {str(ex)}")
 
         name_field = ft.TextField(label=_("Name"), value=item.get("name", "") if item else "", expand=True)
         sku_field = ft.TextField(label=_("SKU"), value=item.get("sku", "") if item else repo.generate_sku("Other"), width=150)
@@ -114,8 +144,14 @@ def InventoryView(page: ft.Page, repo):
         )
 
         # Frame-specific fields
-        frame_types = repo.get_frame_types()
-        frame_colors = repo.get_frame_colors()
+        try:
+            frame_types = repo.get_frame_types() or []
+        except Exception:
+            frame_types = []
+        try:
+            frame_colors = repo.get_frame_colors() or []
+        except Exception:
+            frame_colors = []
 
         frame_type_field = ft.Dropdown(
             label=_("Frame Type"),
@@ -130,30 +166,29 @@ def InventoryView(page: ft.Page, repo):
             width=150
         )
 
-        dialog = ft.AlertDialog(
-            title=ft.Text(_("Edit Product") if item else _("New Product")),
-            content=ft.Container(
+        dialog = build_dialog(
+            _("Edit Product") if item else _("New Product"),
+            ft.Container(
                 ft.Column([
                     ft.Row([name_field]),
                     ft.Row([sku_field, barcode_field, cat_dropdown]),
                     ft.Row([price_field, cost_field, qty_field]),
                     ft.Row([frame_type_field, frame_color_field]),
                 ], tight=True, spacing=10),
-                width=500
+                width=500,
             ),
-            actions=[
-                ft.TextButton(_("Cancel"), on_click=lambda e: close_dialog()),
-                ft.ElevatedButton(_("Save"), on_click=save_product)
-            ]
+            [],
         )
+        dialog.actions = [
+            secondary_button(_("Cancel"), on_click=lambda e: close_dialog()),
+            primary_button(_("Save"), on_click=save_product),
+        ]
 
         def close_dialog():
             dialog.open = False
             page.update()
 
-        page.dialog = dialog
-        dialog.open = True
-        page.update()
+        open_dialog(page, dialog)
 
     def show_adjust_stock_dialog(item):
         """Dialog to adjust stock with movement record."""
@@ -181,15 +216,13 @@ def InventoryView(page: ft.Page, repo):
                     note=note_field.value or ""
                 )
 
+                publish_ui_event(page, UIEventTopic.INVENTORY)
+
                 dialog.open = False
                 load_inventory(search_input.value, get_selected_category())
-                page.snack_bar = ft.SnackBar(ft.Text(_("Stock adjusted successfully!")))
-                page.snack_bar.open = True
-                page.update()
+                show_success(page, _("Stock adjusted successfully!"))
             except Exception as ex:
-                page.snack_bar = ft.SnackBar(ft.Text(f"{_('Error')}: {str(ex)}"))
-                page.snack_bar.open = True
-                page.update()
+                show_error(page, f"{_('Error')}: {str(ex)}")
 
         adjustment_field = ft.TextField(
             label=_("Adjustment (+/-)"),
@@ -211,28 +244,29 @@ def InventoryView(page: ft.Page, repo):
         ref_field = ft.TextField(label=_("Reference No."), width=150)
         note_field = ft.TextField(label=_("Note"), expand=True)
 
-        dialog = ft.AlertDialog(
-            title=ft.Text(f"{_('Adjust Stock')}: {item.get('name')}"),
-            content=ft.Container(
+        dialog = build_dialog(
+            f"{_('Adjust Stock')}: {item.get('name')}",
+            ft.Container(
                 ft.Column([
                     ft.Text(f"{_('Current Stock')}: {current_stock}", size=16, weight=ft.FontWeight.BOLD),
                     ft.Row([adjustment_field, type_dropdown]),
                     ft.Row([ref_field, note_field]),
                 ], tight=True, spacing=10),
-                width=400
+                width=400,
             ),
-            actions=[
-                ft.TextButton(_("Cancel"), on_click=lambda e: setattr(dialog, "open", False) or page.update()),
-                ft.ElevatedButton(_("Adjust"), on_click=adjust_stock)
-            ]
+            [],
         )
-        page.dialog = dialog
-        dialog.open = True
-        page.update()
+        dialog.actions = [
+            secondary_button(_("Cancel"), on_click=lambda e: setattr(dialog, "open", False) or page.update()),
+            primary_button(_("Adjust"), on_click=adjust_stock),
+        ]
+        open_dialog(page, dialog)
 
     search_input = ft.TextField(
         label=_("Search by name or SKU..."),
         prefix_icon=ft.icons.SEARCH,
+        height=INPUT_HEIGHT,
+        text_size=15,
         expand=True,
         on_change=lambda e: load_inventory(e.control.value, get_selected_category())
     )
@@ -248,7 +282,20 @@ def InventoryView(page: ft.Page, repo):
             ft.dropdown.Option("ContactLens", _("Contact Lenses")),
             ft.dropdown.Option("Other", _("Others"))
         ],
-        width=180,
+        width=210,
+        on_change=lambda e: load_inventory(search_input.value, get_selected_category())
+    )
+
+    stock_filter = ft.Dropdown(
+        label=_("Stock"),
+        value="All",
+        options=[
+            ft.dropdown.Option("All", _("All Stock")),
+            ft.dropdown.Option("InStock", _("In Stock")),
+            ft.dropdown.Option("LowStock", _("Low Stock (<5)")),
+            ft.dropdown.Option("OutOfStock", _("Out of Stock")),
+        ],
+        width=210,
         on_change=lambda e: load_inventory(search_input.value, get_selected_category())
     )
 
@@ -257,15 +304,16 @@ def InventoryView(page: ft.Page, repo):
 
     products_content = ft.Column([
         ft.Row([
-            ft.Text(_("Products"), size=22, weight=ft.FontWeight.BOLD),
+            ft.Text(_("Products"), size=TITLE_SIZE, weight=ft.FontWeight.BOLD),
             ft.Row([
-                ft.IconButton(ft.icons.REFRESH, tooltip=_("Refresh"), on_click=lambda _: load_inventory(search_input.value, get_selected_category())),
-                ft.ElevatedButton(_("+ Add New Product"), icon=ft.icons.ADD, on_click=lambda _: show_product_dialog()),
+                refresh_action(on_click=lambda _: load_inventory(search_input.value, get_selected_category()), tooltip=_("Refresh")),
+                primary_button(_("+ Add New Product"), on_click=lambda _: show_product_dialog(), icon=ft.icons.ADD),
             ]),
         ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
-        ft.Row([search_input, category_filter]),
+        ft.Row([search_input, category_filter, stock_filter]),
+        inventory_summary,
         items_list
-    ], spacing=10, expand=True)
+    ], spacing=SPACE_MD, expand=True)
 
     # --- Suppliers Tab ---
     suppliers_list = ft.ListView(expand=True, spacing=10)
@@ -312,25 +360,24 @@ def InventoryView(page: ft.Page, repo):
         email_field = ft.TextField(label=_("Email"), value=supplier.get("email", "") if supplier else "")
         address_field = ft.TextField(label=_("Address"), value=supplier.get("address", "") if supplier else "", multiline=True)
 
-        dialog = ft.AlertDialog(
-            title=ft.Text(_("Supplier")),
-            content=ft.Column([name_field, phone_field, email_field, address_field], tight=True),
-            actions=[
-                ft.TextButton(_("Cancel"), on_click=lambda e: setattr(dialog, "open", False) or page.update()),
-                ft.TextButton(_("Save"), on_click=save_supplier)
-            ]
+        dialog = build_dialog(
+            _("Supplier"),
+            ft.Column([name_field, phone_field, email_field, address_field], tight=True),
+            [],
         )
-        page.dialog = dialog
-        dialog.open = True
-        page.update()
-    
+        dialog.actions = [
+            secondary_button(_("Cancel"), on_click=lambda e: setattr(dialog, "open", False) or page.update()),
+            primary_button(_("Save"), on_click=save_supplier),
+        ]
+        open_dialog(page, dialog)
+
     suppliers_content = ft.Column([
         ft.Row([
-            ft.Text(_("Suppliers"), size=22, weight=ft.FontWeight.BOLD),
-            ft.ElevatedButton(_("+ Add Supplier"), icon=ft.icons.ADD, on_click=lambda _: show_supplier_dialog())
+            ft.Text(_("Suppliers"), size=TITLE_SIZE, weight=ft.FontWeight.BOLD),
+            primary_button(_("+ Add Supplier"), on_click=lambda _: show_supplier_dialog(), icon=ft.icons.ADD)
         ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
         suppliers_list
-    ], spacing=10, expand=True)
+    ], spacing=SPACE_MD, expand=True)
 
     # --- Optical Settings Tab ---
     def create_optical_settings_tab():
@@ -400,9 +447,8 @@ def InventoryView(page: ft.Page, repo):
                     repo.add_frame_color(input_field.value.strip())
                 input_field.value = ""
                 load_optical_settings()
-                page.snack_bar = ft.SnackBar(ft.Text(_("Added successfully!")))
-                page.snack_bar.open = True
-                page.update()
+                publish_ui_event(page, UIEventTopic.INVENTORY)
+                show_success(page, _("Added successfully!"))
 
         lens_input = ft.TextField(label=_("Add Lens Type"), expand=True, on_submit=lambda e: add_item("lens_types", lens_input))
         frame_type_input = ft.TextField(label=_("Add Frame Type"), expand=True, on_submit=lambda e: add_item("frame_types", frame_type_input))
@@ -445,17 +491,17 @@ def InventoryView(page: ft.Page, repo):
         return ft.Column([
             ft.Row([
                 ft.Icon(ft.icons.SETTINGS, size=28),
-                ft.Text(_("Optical Settings"), size=22, weight=ft.FontWeight.BOLD),
+                ft.Text(_("Optical Settings"), size=TITLE_SIZE, weight=ft.FontWeight.BOLD),
             ], spacing=10),
             ft.Text(_("Manage lens types, frame types, and colors used in prescriptions and orders."),
                     color=ft.colors.GREY_700, size=14),
-            ft.Divider(height=20),
+            ft.Divider(height=SPACE_LG),
             ft.ResponsiveRow([
                 create_settings_card(_("Lens Types"), ft.icons.LENS, ft.colors.BLUE_700, lens_types_list, lens_input, "lens_types"),
                 create_settings_card(_("Frame Types"), ft.icons.CROP_SQUARE, ft.colors.GREEN_700, frame_types_list, frame_type_input, "frame_types"),
                 create_settings_card(_("Frame Colors"), ft.icons.COLOR_LENS, ft.colors.PURPLE_700, frame_colors_list, frame_color_input, "frame_colors"),
-            ], spacing=15, run_spacing=15)
-        ], expand=True, spacing=10)
+            ], spacing=SPACE_MD, run_spacing=SPACE_MD)
+        ], expand=True, spacing=SPACE_MD)
 
     optical_settings_content = create_optical_settings_tab()
 
@@ -475,13 +521,8 @@ def InventoryView(page: ft.Page, repo):
     return ft.View(
         "/inventory",
         [
-            ft.AppBar(
-                title=ft.Text(_("Inventory Management")),
-                bgcolor=ft.colors.BLUE_700,
-                color=ft.colors.WHITE,
-                leading=ft.IconButton(ft.icons.ARROW_BACK, on_click=lambda _: page.go("/"))
-            ),
-            ft.Container(content=tabs, expand=True, padding=10)
+            standard_appbar(_("Inventory Management"), on_back=lambda _: page.go("/")),
+            ft.Container(content=tabs, expand=True, padding=SPACE_MD)
         ],
     )
 

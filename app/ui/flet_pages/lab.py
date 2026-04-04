@@ -1,8 +1,12 @@
 import flet as ft
 from app.core.i18n import _
+from app.ui.components.design_helpers import build_dialog, open_dialog, secondary_button, standard_appbar
+from app.ui.components.feedback import show_success
+from app.ui.components.ui_sync import UIEventTopic, publish_ui_event, subscribe_ui_event
+from app.ui.components.ui_tokens import INPUT_HEIGHT, SPACE_LG, SPACE_MD, TITLE_SIZE
 
 def LabView(page: ft.Page, repo):
-    lab_list = ft.ListView(expand=True, spacing=5)
+    lab_list = ft.ListView(expand=True, spacing=SPACE_MD)
 
     # Filter controls
     status_filter = ft.Dropdown(
@@ -15,7 +19,7 @@ def LabView(page: ft.Page, repo):
             ft.dropdown.Option("Ready", _("Ready")),
             ft.dropdown.Option("Received", _("Received")),
         ],
-        width=180,
+        width=210,
         on_change=lambda e: load_data(search_input.value)
     )
 
@@ -26,10 +30,10 @@ def LabView(page: ft.Page, repo):
 
     def update_status(sale_id, status):
         repo.update_sale_lab_status(sale_id, status)
+        publish_ui_event(page, UIEventTopic.LAB)
+        publish_ui_event(page, UIEventTopic.SALES)
         load_data(search_input.value)
-        page.snack_bar = ft.SnackBar(ft.Text(_("Status updated successfully")))
-        page.snack_bar.open = True
-        page.update()
+        show_success(page, _("Status updated successfully"))
 
     def load_data(term=""):
         lab_list.controls.clear()
@@ -110,8 +114,8 @@ def LabView(page: ft.Page, repo):
                                         width=50,
                                         height=50
                                     ),
-                                    title=ft.Text(f"#{s['invoice_no']} - {cust_name}", weight=ft.FontWeight.BOLD),
-                                    subtitle=ft.Text(f"📱 {cust_phone} | 👨‍⚕️ {s.get('doctor_name', 'N/A')}"),
+                                    title=ft.Text(f"#{s['invoice_no']} - {cust_name}", weight=ft.FontWeight.BOLD, size=16),
+                                    subtitle=ft.Text(f"📱 {cust_phone} | 👨‍⚕️ {s.get('doctor_name', 'N/A')}", size=13),
                                 ),
                                 ft.Row([
                                     ft.Column([
@@ -151,7 +155,7 @@ def LabView(page: ft.Page, repo):
                                     ], horizontal_alignment=ft.CrossAxisAlignment.CENTER)
                                 ], alignment=ft.MainAxisAlignment.SPACE_AROUND),
                             ]),
-                            padding=10
+                            padding=14
                         )
                     )
                 )
@@ -191,24 +195,23 @@ def LabView(page: ft.Page, repo):
         if not exams:
             exam_col.controls.append(ft.Text(_("No examination data"), italic=True))
 
-        dialog = ft.AlertDialog(
-            title=ft.Text(f"{_('Lab Order')} #{sale.get('invoice_no', '')}"),
-            content=ft.Container(
+        dialog = build_dialog(
+            f"{_('Lab Order')} #{sale.get('invoice_no', '')}",
+            ft.Container(
                 ft.Column([
                     ft.Text(f"{_('Customer')}: {cust_name}", weight=ft.FontWeight.BOLD),
                     ft.Text(f"{_('Doctor')}: {sale.get('doctor_name', 'N/A')}"),
                     ft.Divider(),
                     ft.Text(_("Examinations:"), weight=ft.FontWeight.BOLD),
-                    exam_col
+                    exam_col,
                 ], scroll=ft.ScrollMode.AUTO),
                 width=500,
-                height=400
+                height=400,
             ),
-            actions=[ft.TextButton(_("Close"), on_click=lambda e: setattr(dialog, "open", False) or page.update())]
+            [],
         )
-        page.dialog = dialog
-        dialog.open = True
-        page.update()
+        dialog.actions = [secondary_button(_("Close"), on_click=lambda e: setattr(dialog, "open", False) or page.update())]
+        open_dialog(page, dialog)
 
     def print_lab_copy(sale):
         """Print lab copy for technicians."""
@@ -249,32 +252,29 @@ Exam #{i} - {exam.get('exam_type', 'N/A')}
         lab_copy += f"\n{'='*50}\n"
 
         print(lab_copy)
-        page.snack_bar = ft.SnackBar(ft.Text(_("Lab copy sent to printer")))
-        page.snack_bar.open = True
-        page.update()
+        show_success(page, _("Lab copy sent to printer"))
 
     search_input = ft.TextField(
         label=_("Search by Invoice, Customer or Doctor..."),
         prefix_icon=ft.icons.SEARCH,
+        height=INPUT_HEIGHT,
+        text_size=15,
         expand=True,
         on_change=lambda e: load_data(e.control.value)
     )
+
+    subscribe_ui_event(page, UIEventTopic.LAB, "lab_view", lambda _: load_data(search_input.value))
 
     load_data()
 
     return ft.View(
         "/lab",
         [
-            ft.AppBar(
-                title=ft.Text(_("Lab Management")),
-                bgcolor=ft.colors.BLUE_700,
-                color=ft.colors.WHITE,
-                leading=ft.IconButton(ft.icons.ARROW_BACK, on_click=lambda _: page.go("/"))
-            ),
+            standard_appbar(_("Lab Management"), on_back=lambda _: page.go("/")),
             ft.Container(
                 content=ft.Column([
                     ft.Row([
-                        ft.Text(_("Lab Orders"), size=28, weight=ft.FontWeight.BOLD),
+                        ft.Text(_("Lab Orders"), size=TITLE_SIZE, weight=ft.FontWeight.BOLD),
                         ft.IconButton(
                             ft.icons.REFRESH,
                             tooltip=_("Refresh"),
@@ -289,7 +289,7 @@ Exam #{i} - {exam.get('exam_type', 'N/A')}
                                 not_started_text,
                             ]),
                             bgcolor=ft.colors.RED_100,
-                            padding=ft.padding.symmetric(horizontal=15, vertical=8),
+                            padding=ft.padding.symmetric(horizontal=16, vertical=10),
                             border_radius=20
                         ),
                         ft.Container(
@@ -298,7 +298,7 @@ Exam #{i} - {exam.get('exam_type', 'N/A')}
                                 in_lab_text,
                             ]),
                             bgcolor=ft.colors.ORANGE_100,
-                            padding=ft.padding.symmetric(horizontal=15, vertical=8),
+                            padding=ft.padding.symmetric(horizontal=16, vertical=10),
                             border_radius=20
                         ),
                         ft.Container(
@@ -307,15 +307,15 @@ Exam #{i} - {exam.get('exam_type', 'N/A')}
                                 ready_text,
                             ]),
                             bgcolor=ft.colors.GREEN_100,
-                            padding=ft.padding.symmetric(horizontal=15, vertical=8),
+                            padding=ft.padding.symmetric(horizontal=16, vertical=10),
                             border_radius=20
                         ),
-                    ], spacing=10),
-                    ft.Divider(),
+                    ], spacing=SPACE_MD),
+                    ft.Divider(height=SPACE_LG),
                     ft.Row([search_input, status_filter]),
                     lab_list,
-                ], expand=True, spacing=10),
-                padding=20,
+                ], expand=True, spacing=SPACE_MD),
+                padding=24,
                 expand=True
             )
         ]

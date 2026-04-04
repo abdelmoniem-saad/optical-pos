@@ -1,14 +1,35 @@
 import flet as ft
 from app.core.i18n import _
 import datetime
+from app.ui.components.design_helpers import refresh_action, standard_appbar
+from app.ui.components.ui_sync import UIEventTopic, subscribe_ui_event
+from app.ui.components.ui_tokens import SPACE_LG, SPACE_MD, TITLE_SIZE
 
 def ReportsView(page: ft.Page, repo):
+    period_filter = ft.Dropdown(
+        label=_("Period"),
+        value="all",
+        width=180,
+        options=[
+            ft.dropdown.Option("today", _("Today")),
+            ft.dropdown.Option("month", _("This Month")),
+            ft.dropdown.Option("all", _("All Time")),
+        ],
+    )
 
     # Get all data
     def get_report_data():
         sales = repo.get_sales()
         customers = repo.get_customers()
         products = repo.get_inventory()
+
+        period_value = period_filter.value or "all"
+        if period_value == "today":
+            today = datetime.date.today().isoformat()
+            sales = [s for s in sales if s.get("order_date", "").startswith(today)]
+        elif period_value == "month":
+            month_start = datetime.date.today().replace(day=1).isoformat()
+            sales = [s for s in sales if s.get("order_date", "") >= month_start]
 
         total_revenue = sum(float(s.get("net_amount", 0)) for s in sales)
         total_paid = sum(float(s.get("amount_paid", 0)) for s in sales)
@@ -67,7 +88,7 @@ def ReportsView(page: ft.Page, repo):
     stat_texts = {}
 
     def stat_card(key, title, subtitle="", icon=ft.icons.INFO, color=ft.colors.BLUE_700):
-        value_text = ft.Text("0", size=28, weight=ft.FontWeight.BOLD)
+        value_text = ft.Text("0", size=30, weight=ft.FontWeight.BOLD)
         stat_texts[key] = {"value": value_text}
         subtitle_text = ft.Text(subtitle, size=12, color=ft.colors.GREY_700) if subtitle else ft.Container()
         if subtitle:
@@ -78,11 +99,11 @@ def ReportsView(page: ft.Page, repo):
                     ft.ListTile(
                         leading=ft.Icon(icon, color=color, size=40),
                         title=value_text,
-                        subtitle=ft.Text(title, size=14),
+                        subtitle=ft.Text(title, size=15),
                     ),
                     subtitle_text
                 ]),
-                padding=10
+                padding=14
             ),
             col={"xs": 12, "sm": 6, "md": 4, "lg": 3}
         )
@@ -97,10 +118,11 @@ def ReportsView(page: ft.Page, repo):
         stat_card("month_revenue", _("This Month"), subtitle="0 orders", icon=ft.icons.CALENDAR_MONTH, color=ft.colors.PURPLE_700),
         stat_card("pending_lab", _("Pending Lab"), icon=ft.icons.HOURGLASS_EMPTY, color=ft.colors.ORANGE_700),
         stat_card("ready_lab", _("Ready for Pickup"), icon=ft.icons.CHECK_CIRCLE, color=ft.colors.GREEN_700),
-    ], spacing=10, run_spacing=10)
+    ], spacing=SPACE_MD, run_spacing=SPACE_MD)
 
     # Low stock alert
     low_stock_list = ft.Column([], spacing=5)
+    period_summary = ft.Text("", color=ft.colors.GREY_700)
 
     # Top customers
     top_customers_list = ft.Column([], spacing=5)
@@ -108,6 +130,16 @@ def ReportsView(page: ft.Page, repo):
     def refresh_reports(e=None):
         """Refresh all report data."""
         data = get_report_data()
+
+        period_map = {
+            "today": _("Today"),
+            "month": _("This Month"),
+            "all": _("All Time"),
+        }
+        selected_period_label = period_map.get(period_filter.value or "all", _("All Time"))
+        period_summary.value = (
+            f"{_('Period')}: {selected_period_label} | {_('Orders')}: {data['order_count']} | {_('Revenue')}: {data['total_revenue']:.2f}"
+        )
 
         stat_texts["total_revenue"]["value"].value = f"{data['total_revenue']:.0f}"
         stat_texts["total_paid"]["value"].value = f"{data['total_paid']:.0f}"
@@ -163,29 +195,34 @@ def ReportsView(page: ft.Page, repo):
         page.update()
 
     # Initial load
+    period_filter.on_change = refresh_reports
     refresh_reports()
+    subscribe_ui_event(page, UIEventTopic.SALES, "reports_sales", lambda _: refresh_reports())
+    subscribe_ui_event(page, UIEventTopic.INVENTORY, "reports_inventory", lambda _: refresh_reports())
+    subscribe_ui_event(page, UIEventTopic.CUSTOMERS, "reports_customers", lambda _: refresh_reports())
 
     return ft.View(
         "/reports",
         [
-            ft.AppBar(
-                title=ft.Text(_("Reports & Analytics")),
-                bgcolor=ft.colors.BLUE_700,
-                color=ft.colors.WHITE,
-                leading=ft.IconButton(ft.icons.ARROW_BACK, on_click=lambda _: page.go("/")),
-                actions=[
-                    ft.IconButton(ft.icons.REFRESH, icon_color=ft.colors.WHITE, tooltip=_("Refresh"), on_click=refresh_reports)
-                ]
+            standard_appbar(
+                _("Reports & Analytics"),
+                on_back=lambda _: page.go("/"),
+                actions=[refresh_action(on_click=refresh_reports, tooltip=_("Refresh"), icon_color=ft.colors.WHITE)],
             ),
             ft.Container(
                 content=ft.Column([
-                    ft.Text(_("Business Reports"), size=28, weight=ft.FontWeight.BOLD),
+                    ft.Row([
+                        ft.Text(_("Business Reports"), size=TITLE_SIZE, weight=ft.FontWeight.BOLD),
+                        ft.Container(expand=True),
+                        period_filter,
+                    ]),
+                    period_summary,
                     ft.Divider(),
 
                     # Summary Cards
                     summary_cards,
 
-                    ft.Divider(height=30),
+                    ft.Divider(height=SPACE_LG),
 
                     # Two column layout for lists
                     ft.ResponsiveRow([
@@ -215,10 +252,10 @@ def ReportsView(page: ft.Page, repo):
                             ]),
                             col={"xs": 12, "md": 6}
                         ),
-                    ], spacing=20),
+                    ], spacing=SPACE_MD),
 
-                ], spacing=15, scroll=ft.ScrollMode.AUTO),
-                padding=20,
+                ], spacing=SPACE_MD, scroll=ft.ScrollMode.AUTO),
+                padding=24,
                 expand=True
             )
         ]

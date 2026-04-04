@@ -1,6 +1,15 @@
 import flet as ft
-import os
 from app.core.i18n import _
+from app.ui.components.design_helpers import (
+    build_dialog,
+    danger_button,
+    open_dialog,
+    primary_button,
+    secondary_button,
+    standard_appbar,
+)
+from app.ui.components.feedback import show_error, show_success
+from app.ui.components.ui_tokens import BUTTON_HEIGHT, INPUT_HEIGHT, SPACE_LG, SPACE_MD, TITLE_SIZE
 
 def SettingsView(page: ft.Page, repo):
     
@@ -9,28 +18,26 @@ def SettingsView(page: ft.Page, repo):
 
     # --- Shop Settings Tab ---
     def create_shop_settings():
-        shop_name = ft.TextField(label=_("Shop Name"), value=repo.get_setting("shop_name", "Lensy Optical"), expand=True)
+        shop_name = ft.TextField(label=_("Shop Name"), value=repo.get_setting("shop_name", "Lensy Optical"), expand=True, height=INPUT_HEIGHT)
         shop_address = ft.TextField(label=_("Address"), value=repo.get_setting("store_address", ""), expand=True, multiline=True, min_lines=2)
-        shop_phone = ft.TextField(label=_("Phone"), value=repo.get_setting("store_phone", ""), expand=True)
-        currency = ft.TextField(label=_("Currency"), value=repo.get_setting("currency", "EGP"), width=100)
+        shop_phone = ft.TextField(label=_("Phone"), value=repo.get_setting("store_phone", ""), expand=True, height=INPUT_HEIGHT)
+        currency = ft.TextField(label=_("Currency"), value=repo.get_setting("currency", "EGP"), width=120, height=INPUT_HEIGHT)
 
         def save_settings(e):
             repo.set_setting("shop_name", shop_name.value)
             repo.set_setting("store_address", shop_address.value)
             repo.set_setting("store_phone", shop_phone.value)
             repo.set_setting("currency", currency.value)
-            page.snack_bar = ft.SnackBar(ft.Text(_("Settings saved successfully!")))
-            page.snack_bar.open = True
-            page.update()
+            show_success(page, _("Settings saved successfully!"))
 
         return ft.Column([
-            ft.Text(_("Shop Information"), size=20, weight=ft.FontWeight.BOLD),
+            ft.Text(_("Shop Information"), size=TITLE_SIZE, weight=ft.FontWeight.BOLD),
             ft.Divider(),
             shop_name,
             shop_address,
             ft.Row([shop_phone, currency]),
-            ft.ElevatedButton(_("Save Settings"), icon=ft.icons.SAVE, on_click=save_settings),
-        ], spacing=15, expand=True)
+            primary_button(_("Save Settings"), on_click=save_settings, icon=ft.icons.SAVE),
+        ], spacing=SPACE_MD, expand=True)
 
     # --- License & Updates Tab ---
     def create_license_tab():
@@ -49,11 +56,13 @@ def SettingsView(page: ft.Page, repo):
         update_button = ft.ElevatedButton(
             _("Check for Updates"),
             icon=ft.icons.SYSTEM_UPDATE,
+            height=BUTTON_HEIGHT,
             disabled=False,
         )
         download_button = ft.ElevatedButton(
             _("Download Update"),
             icon=ft.icons.DOWNLOAD,
+            height=BUTTON_HEIGHT,
             visible=False,
             bgcolor=ft.colors.GREEN_700,
             color=ft.colors.WHITE,
@@ -153,21 +162,18 @@ def SettingsView(page: ft.Page, repo):
                         page.update()
                         page.go("/activate")
                     else:
-                        page.snack_bar = ft.SnackBar(ft.Text(msg))
-                        page.snack_bar.open = True
-                        page.update()
+                        show_error(page, msg)
 
-            confirm_dialog = ft.AlertDialog(
-                title=ft.Text(_("Deactivate License")),
-                content=ft.Text(_("This will deactivate the license on this machine. You can reactivate on another machine.")),
-                actions=[
-                    ft.TextButton(_("Cancel"), on_click=lambda e: setattr(confirm_dialog, "open", False) or page.update()),
-                    ft.ElevatedButton(_("Deactivate"), bgcolor=ft.colors.RED_700, color=ft.colors.WHITE, on_click=confirm_deactivate)
-                ]
+            confirm_dialog = build_dialog(
+                _("Deactivate License"),
+                ft.Text(_("This will deactivate the license on this machine. You can reactivate on another machine.")),
+                [],
             )
-            page.dialog = confirm_dialog
-            confirm_dialog.open = True
-            page.update()
+            confirm_dialog.actions = [
+                secondary_button(_("Cancel"), on_click=lambda e: setattr(confirm_dialog, "open", False) or page.update()),
+                danger_button(_("Deactivate"), on_click=confirm_deactivate),
+            ]
+            open_dialog(page, confirm_dialog)
 
         update_button.on_click = check_for_updates
         download_button.on_click = download_update
@@ -176,7 +182,7 @@ def SettingsView(page: ft.Page, repo):
         refresh_license_info()
 
         return ft.Column([
-            ft.Text(_("License & Updates"), size=20, weight=ft.FontWeight.BOLD),
+            ft.Text(_("License & Updates"), size=TITLE_SIZE, weight=ft.FontWeight.BOLD),
             ft.Divider(),
 
             # License Section
@@ -192,12 +198,12 @@ def SettingsView(page: ft.Page, repo):
                         ft.TextButton(_("Deactivate License"), icon=ft.icons.LOGOUT, on_click=deactivate_license) if license_manager else ft.Container(),
                     ]),
                 ], spacing=10),
-                padding=15,
+                padding=SPACE_MD,
                 border=ft.border.all(1, ft.colors.GREY_300),
                 border_radius=10,
             ),
 
-            ft.Divider(height=20),
+            ft.Divider(height=SPACE_LG),
 
             # Updates Section
             ft.Text(_("Software Updates"), size=16, weight=ft.FontWeight.BOLD),
@@ -208,11 +214,11 @@ def SettingsView(page: ft.Page, repo):
                     update_status_text,
                     release_notes_text,
                 ], spacing=10),
-                padding=15,
+                padding=SPACE_MD,
                 border=ft.border.all(1, ft.colors.GREY_300),
                 border_radius=10,
             ),
-        ], spacing=15)
+        ], spacing=SPACE_MD)
 
     # --- Backup Tab ---
     def create_backup_tab():
@@ -220,10 +226,8 @@ def SettingsView(page: ft.Page, repo):
             import json
             data = repo.get_all_data_export()
             # In a real app, you'd save to a file
-            page.snack_bar = ft.SnackBar(ft.Text(_("Data exported (check console)")))
-            page.snack_bar.open = True
+            show_success(page, _("Data exported (check console)"))
             print(json.dumps(data, indent=2, default=str))
-            page.update()
 
         def reset_data(e):
             def confirm_reset(e):
@@ -233,43 +237,34 @@ def SettingsView(page: ft.Page, repo):
                     os.remove(LOCAL_JSON_DB)
                 repo._ensure_local_db()
                 confirm_dialog.open = False
-                page.snack_bar = ft.SnackBar(ft.Text(_("Data reset successfully. Please restart the app.")))
-                page.snack_bar.open = True
-                page.update()
+                show_success(page, _("Data reset successfully. Please restart the app."))
 
-            confirm_dialog = ft.AlertDialog(
-                title=ft.Text(_("Confirm Reset")),
-                content=ft.Text(_("This will delete ALL data. Are you sure?")),
-                actions=[
-                    ft.TextButton(_("Cancel"), on_click=lambda e: setattr(confirm_dialog, "open", False) or page.update()),
-                    ft.ElevatedButton(_("Reset"), bgcolor=ft.colors.RED_700, color=ft.colors.WHITE, on_click=confirm_reset)
-                ]
+            confirm_dialog = build_dialog(
+                _("Confirm Reset"),
+                ft.Text(_("This will delete ALL data. Are you sure?")),
+                [],
             )
-            page.dialog = confirm_dialog
-            confirm_dialog.open = True
-            page.update()
+            confirm_dialog.actions = [
+                secondary_button(_("Cancel"), on_click=lambda e: setattr(confirm_dialog, "open", False) or page.update()),
+                danger_button(_("Reset"), on_click=confirm_reset),
+            ]
+            open_dialog(page, confirm_dialog)
 
         return ft.Column([
-            ft.Text(_("Backup & Data"), size=20, weight=ft.FontWeight.BOLD),
+            ft.Text(_("Backup & Data"), size=TITLE_SIZE, weight=ft.FontWeight.BOLD),
             ft.Divider(),
-            ft.ElevatedButton(_("Export Data (JSON)"), icon=ft.icons.DOWNLOAD, on_click=export_data),
+            primary_button(_("Export Data (JSON)"), on_click=export_data, icon=ft.icons.DOWNLOAD),
             ft.Divider(height=30),
             ft.Text(_("Danger Zone"), color=ft.colors.RED_700, weight=ft.FontWeight.BOLD),
-            ft.ElevatedButton(
-                _("Reset All Data"),
-                icon=ft.icons.DELETE_FOREVER,
-                bgcolor=ft.colors.RED_700,
-                color=ft.colors.WHITE,
-                on_click=reset_data
-            ),
-        ], spacing=15)
+            danger_button(_("Reset All Data"), on_click=reset_data, icon=ft.icons.DELETE_FOREVER),
+        ], spacing=SPACE_MD)
 
     tabs = ft.Tabs(
         selected_index=0,
         tabs=[
-            ft.Tab(text=_("Shop Settings"), icon=ft.icons.STORE, content=ft.Container(create_shop_settings(), padding=20)),
-            ft.Tab(text=_("License & Updates"), icon=ft.icons.VERIFIED_USER, content=ft.Container(create_license_tab(), padding=20)),
-            ft.Tab(text=_("Backup"), icon=ft.icons.BACKUP, content=ft.Container(create_backup_tab(), padding=20)),
+            ft.Tab(text=_("Shop Settings"), icon=ft.icons.STORE, content=ft.Container(create_shop_settings(), padding=24)),
+            ft.Tab(text=_("License & Updates"), icon=ft.icons.VERIFIED_USER, content=ft.Container(create_license_tab(), padding=24)),
+            ft.Tab(text=_("Backup"), icon=ft.icons.BACKUP, content=ft.Container(create_backup_tab(), padding=24)),
         ],
         expand=True
     )
@@ -277,13 +272,8 @@ def SettingsView(page: ft.Page, repo):
     return ft.View(
         "/settings",
         [
-            ft.AppBar(
-                title=ft.Text(_("Settings")),
-                bgcolor=ft.colors.BLUE_700,
-                color=ft.colors.WHITE,
-                leading=ft.IconButton(ft.icons.ARROW_BACK, on_click=lambda _: page.go("/"))
-            ),
-            ft.Container(content=tabs, expand=True, padding=10)
+            standard_appbar(_("Settings"), on_back=lambda _: page.go("/")),
+            ft.Container(content=tabs, expand=True, padding=SPACE_MD)
         ]
     )
 

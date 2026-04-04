@@ -3,7 +3,9 @@ import app.flet_compat  # noqa: F401 - patches ft.colors, ft.icons, etc.
 
 import flet as ft
 import os
+import traceback
 
+from app.config import IS_SERVER
 from app.database.repository import POSRepository
 from app.ui.flet_pages.dashboard import DashboardView
 from app.ui.flet_pages.inventory import InventoryView
@@ -17,11 +19,24 @@ from app.ui.flet_pages.settings import SettingsView
 from app.ui.flet_pages.history import HistoryView
 from app.ui.flet_pages.reports import ReportsView
 from app.ui.components.top_bar import create_top_bar
+from app.ui.components.ui_tokens import PAGE_TRANSITION_MS
 
 # Licensing - can be disabled for development
 ENABLE_LICENSING = os.environ.get("ENABLE_LICENSING", "false").lower() == "true"
 
 def main(page: ft.Page):
+    print("[BOOT] main() started", flush=True)
+
+    def on_page_error(e):
+        # Surface event-handler errors that would otherwise look like "button does nothing".
+        try:
+            print(f"[PAGE][ERROR] {getattr(e, 'data', e)}", flush=True)
+        except Exception:
+            print("[PAGE][ERROR] Unknown page error", flush=True)
+        traceback.print_exc()
+
+    page.on_error = on_page_error
+
     # Base Configuration
     page.title = "Lensy POS"
     page.theme_mode = ft.ThemeMode.LIGHT
@@ -29,7 +44,7 @@ def main(page: ft.Page):
     page.spacing = 0
     
     # Check if running on server/web
-    is_web = os.environ.get("RENDER") or os.environ.get("RAILWAY_ENVIRONMENT") or os.environ.get("FLY_APP_NAME")
+    is_web = IS_SERVER
 
     # Open in fullscreen/maximized mode (only for desktop)
     if not is_web:
@@ -77,7 +92,15 @@ def main(page: ft.Page):
                 [
                     top_bar,
                     ft.Container(
-                        content=ft.Column(controls, expand=True, spacing=0),
+                        content=ft.AnimatedSwitcher(
+                            content=ft.Container(
+                                key=f"route-shell-{route}",
+                                content=ft.Column(controls, expand=True, spacing=0),
+                                expand=True,
+                            ),
+                            duration=max(PAGE_TRANSITION_MS, 340),
+                            transition=ft.AnimatedSwitcherTransition.FADE,
+                        ),
                         expand=True,
                     )
                 ],
@@ -87,61 +110,89 @@ def main(page: ft.Page):
         return view_content
 
     def route_change(e):
-        page.views.clear()
-        
-        # License Guard (for desktop builds with licensing enabled)
-        if license_manager and page.route != "/activate":
-            is_licensed, license_msg = license_manager.is_licensed()
-            if not is_licensed:
-                from app.ui.flet_pages.activation import ActivationView
-                page.views.append(ActivationView(page, license_manager, on_license_activated))
-                page.update()
+        try:
+            print(f"[ROUTE] route_change -> {page.route}", flush=True)
+            page.views.clear()
+
+            # License Guard (for desktop builds with licensing enabled)
+            if license_manager and page.route != "/activate":
+                is_licensed, license_msg = license_manager.is_licensed()
+                if not is_licensed:
+                    from app.ui.flet_pages.activation import ActivationView
+                    page.views.append(ActivationView(page, license_manager, on_license_activated))
+                    page.update()
+                    return
+
+            # Auth Guard
+            user = page.data.get("user") if hasattr(page, 'data') and page.data else None
+            if not user and page.route != "/login" and page.route != "/activate":
+                page.go("/login")
                 return
 
-        # Auth Guard
-        user = page.data.get("user") if hasattr(page, 'data') and page.data else None
-        if not user and page.route != "/login" and page.route != "/activate":
-            page.go("/login")
-            return
-
-        # Routing Logic
-        if page.route == "/activate":
-            if license_manager:
-                from app.ui.flet_pages.activation import ActivationView
-                page.views.append(ActivationView(page, license_manager, on_license_activated))
+            # Routing Logic
+            if page.route == "/activate":
+                if license_manager:
+                    from app.ui.flet_pages.activation import ActivationView
+                    page.views.append(ActivationView(page, license_manager, on_license_activated))
+                else:
+                    page.go("/login")
+            elif page.route == "/login":
+                page.views.append(LoginView(page, repo, on_login_success))
+            elif page.route == "/":
+                page.views.append(wrap_with_top_bar(DashboardView(page, repo), "/"))
+            elif page.route == "/inventory":
+                page.views.append(wrap_with_top_bar(InventoryView(page, repo), "/inventory"))
+            elif page.route == "/customers":
+                page.views.append(wrap_with_top_bar(CustomersView(page, repo), "/customers"))
+            elif page.route.startswith("/prescription/"):
+                cust_id = page.route.split("/")[-1]
+                page.views.append(wrap_with_top_bar(PrescriptionView(page, repo, cust_id), page.route))
+            elif page.route == "/pos":
+                page.views.append(wrap_with_top_bar(POSView(page, repo), "/pos"))
+            elif page.route == "/lab":
+                page.views.append(wrap_with_top_bar(LabView(page, repo), "/lab"))
+            elif page.route == "/staff":
+                page.views.append(wrap_with_top_bar(StaffView(page, repo), "/staff"))
+            elif page.route == "/settings":
+                page.views.append(wrap_with_top_bar(SettingsView(page, repo), "/settings"))
+            elif page.route == "/history":
+                page.views.append(wrap_with_top_bar(HistoryView(page, repo), "/history"))
+            elif page.route == "/reports":
+                page.views.append(wrap_with_top_bar(ReportsView(page, repo), "/reports"))
             else:
                 page.go("/login")
-        elif page.route == "/login":
-            page.views.append(LoginView(page, repo, on_login_success))
-        elif page.route == "/":
-            page.views.append(wrap_with_top_bar(DashboardView(page, repo), "/"))
-        elif page.route == "/inventory":
-            page.views.append(wrap_with_top_bar(InventoryView(page, repo), "/inventory"))
-        elif page.route == "/customers":
-            page.views.append(wrap_with_top_bar(CustomersView(page, repo), "/customers"))
-        elif page.route.startswith("/prescription/"):
-            cust_id = page.route.split("/")[-1]
-            page.views.append(wrap_with_top_bar(PrescriptionView(page, repo, cust_id), page.route))
-        elif page.route == "/pos":
-            page.views.append(wrap_with_top_bar(POSView(page, repo), "/pos"))
-        elif page.route == "/lab":
-            page.views.append(wrap_with_top_bar(LabView(page, repo), "/lab"))
-        elif page.route == "/staff":
-            page.views.append(wrap_with_top_bar(StaffView(page, repo), "/staff"))
-        elif page.route == "/settings":
-            page.views.append(wrap_with_top_bar(SettingsView(page, repo), "/settings"))
-        elif page.route == "/history":
-            page.views.append(wrap_with_top_bar(HistoryView(page, repo), "/history"))
-        elif page.route == "/reports":
-            page.views.append(wrap_with_top_bar(ReportsView(page, repo), "/reports"))
+                return
 
-        page.update()
+            page.update()
+        except Exception as ex:
+            print(f"[ROUTE] Failed to render route '{page.route}': {ex}", flush=True)
+            page.views.clear()
+            page.views.append(
+                ft.View(
+                    route="/error",
+                    controls=[
+                        ft.Container(
+                            expand=True,
+                            alignment=ft.Alignment(0, 0),
+                            content=ft.Column(
+                                [
+                                    ft.Text("Startup error", size=22, weight=ft.FontWeight.BOLD),
+                                    ft.Text(str(ex), selectable=True),
+                                ],
+                                tight=True,
+                                horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                            ),
+                        )
+                    ],
+                )
+            )
+            page.update()
 
     def view_pop(e):
         if len(page.views) > 1:
             page.views.pop()
             top_view = page.views[-1]
-            page.go(top_view.route)
+            page.go(top_view.route or "/login")
 
     page.on_route_change = route_change
     page.on_view_pop = view_pop
@@ -156,6 +207,11 @@ def main(page: ft.Page):
     else:
         page.go("/login")
 
+    # Fallback: in some desktop/runtime combinations, go() may not trigger
+    # immediate first render; force one so app never starts as a blank window.
+    if not page.views:
+        route_change(None)
+
 # This is the entry point for `flet build web`
 def web_main(page: ft.Page):
     main(page)
@@ -163,18 +219,37 @@ def web_main(page: ft.Page):
 if __name__ == "__main__":
     import sys
 
+    def launch_flet(target, **kwargs):
+        """Launch app across Flet versions.
+
+        Newer Flet prefers run(); older versions only provide app().
+        """
+        is_web_mode = kwargs.get("view") == ft.AppView.WEB_BROWSER
+
+        # Desktop startup is more reliable with app() across mixed local installs.
+        if not is_web_mode and hasattr(ft, "app"):
+            print("[BOOT] Launching with ft.app() [desktop compatibility]", flush=True)
+            return ft.app(target=target, **kwargs)
+
+        if hasattr(ft, "run"):
+            print("[BOOT] Launching with ft.run()", flush=True)
+            return ft.run(target, **kwargs)
+
+        print("[BOOT] Launching with ft.app()", flush=True)
+        return ft.app(target=target, **kwargs)
+
     # Get port from environment variable (for Render/Railway/etc.)
     port = int(os.environ.get("PORT", 10000))
 
     # Check if running on a server
-    is_server = os.environ.get("RENDER") or os.environ.get("RAILWAY_ENVIRONMENT") or os.environ.get("FLY_APP_NAME")
+    is_server = IS_SERVER
 
     if is_server:
         print(f"Starting Flet web server on 0.0.0.0:{port}...", flush=True)
         sys.stdout.flush()
         # Run as web app on server
-        ft.app(
-            target=main,
+        launch_flet(
+            main,
             view=ft.AppView.WEB_BROWSER,
             port=port,
             host="0.0.0.0",
@@ -182,5 +257,4 @@ if __name__ == "__main__":
         )
     else:
         # Run locally as desktop app
-        ft.app(target=main, assets_dir="assets")
-
+        launch_flet(main, assets_dir="assets")

@@ -7,8 +7,6 @@ from contextlib import contextmanager
 
 from app.config import DB_FILENAME
 
-# Default database URL
-DB_FILENAME = DB_FILENAME
 
 def get_base_dir():
     if getattr(sys, 'frozen', False):

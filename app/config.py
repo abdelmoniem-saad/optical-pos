@@ -2,8 +2,16 @@ import os
 
 # --- Environment Detection ---
 # Check if running on a server (Render, Railway, etc.) or web
-IS_SERVER = os.environ.get("RENDER") or os.environ.get("RAILWAY_ENVIRONMENT") or os.environ.get("FLY_APP_NAME")
-IS_WEB = 'PYODIDE_RUNTIME' in os.environ or IS_SERVER
+IS_SERVER = bool(
+	os.environ.get("RENDER")
+	or os.environ.get("RAILWAY_ENVIRONMENT")
+	or os.environ.get("FLY_APP_NAME")
+)
+IS_WEB = bool("PYODIDE_RUNTIME" in os.environ or IS_SERVER)
+
+# --- Local SQLite Configuration ---
+# Used by legacy Flask bridge and any local-only workflows.
+DB_FILENAME = os.environ.get("DB_FILENAME", "pos_data.db")
 
 # --- Supabase Configuration ---
 SUPABASE_URL = os.environ.get("SUPABASE_URL")

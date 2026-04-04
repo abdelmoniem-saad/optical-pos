@@ -1,8 +1,13 @@
 import flet as ft
 from app.core.i18n import _
+from app.ui.components.design_helpers import build_dialog, open_dialog, primary_button, refresh_action, secondary_button, standard_appbar
+from app.ui.components.feedback import show_error, show_success
+from app.ui.components.ui_sync import UIEventTopic, publish_ui_event, subscribe_ui_event
+from app.ui.components.ui_tokens import INPUT_HEIGHT, SPACE_LG, SPACE_MD, TITLE_SIZE
 
 def HistoryView(page: ft.Page, repo):
-    items_list = ft.ListView(expand=True, spacing=5)
+    items_list = ft.ListView(expand=True, spacing=SPACE_MD)
+    summary_text = ft.Text("", color=ft.colors.GREY_700)
 
     # Filter controls
     status_filter = ft.Dropdown(
@@ -15,7 +20,7 @@ def HistoryView(page: ft.Page, repo):
             ft.dropdown.Option("Ready", _("Ready")),
             ft.dropdown.Option("Received", _("Received")),
         ],
-        width=150,
+        width=180,
         on_change=lambda e: load_history(search_input.value)
     )
 
@@ -28,7 +33,7 @@ def HistoryView(page: ft.Page, repo):
             ft.dropdown.Option("Partial", _("Partial")),
             ft.dropdown.Option("Unpaid", _("Unpaid")),
         ],
-        width=150,
+        width=180,
         on_change=lambda e: load_history(search_input.value)
     )
 
@@ -69,6 +74,13 @@ def HistoryView(page: ft.Page, repo):
             elif payment_filter.value == "Unpaid":
                 filtered_sales = [s for s in filtered_sales if float(s.get("amount_paid", 0) or 0) == 0]
 
+        total_net = sum(float(s.get("net_amount", 0) or 0) for s in filtered_sales)
+        total_paid = sum(float(s.get("amount_paid", 0) or 0) for s in filtered_sales)
+        total_due = total_net - total_paid
+        summary_text.value = (
+            f"{_('Orders')}: {len(filtered_sales)} | {_('Net')}: {total_net:.2f} | {_('Due')}: {total_due:.2f}"
+        )
+
         if not filtered_sales:
             items_list.controls.append(
                 ft.ListTile(title=ft.Text(_("No orders found"), italic=True, color=ft.colors.GREY_700))
@@ -101,8 +113,8 @@ def HistoryView(page: ft.Page, repo):
                             content=ft.Column([
                                 ft.ListTile(
                                     leading=ft.Icon(ft.icons.RECEIPT, color=status_color, size=35),
-                                    title=ft.Text(f"#{s['invoice_no']} - {cust_name}", weight=ft.FontWeight.BOLD),
-                                    subtitle=ft.Text(f"{s.get('order_date', '')[:16]} | {_('Doctor')}: {s.get('doctor_name', 'N/A')}"),
+                                    title=ft.Text(f"#{s['invoice_no']} - {cust_name}", weight=ft.FontWeight.BOLD, size=16),
+                                    subtitle=ft.Text(f"{s.get('order_date', '')[:16]} | {_('Doctor')}: {s.get('doctor_name', 'N/A')}", size=13),
                                     trailing=ft.PopupMenuButton(
                                         items=[
                                             ft.PopupMenuItem(text=_("View Details"), icon=ft.icons.VISIBILITY, on_click=lambda e, sale=s: show_sale_details(sale)),
@@ -146,7 +158,7 @@ def HistoryView(page: ft.Page, repo):
                                     ),
                                 ], alignment=ft.MainAxisAlignment.SPACE_AROUND),
                             ]),
-                            padding=10
+                            padding=14
                         )
                     )
                 )
@@ -225,18 +237,17 @@ def HistoryView(page: ft.Page, repo):
             ft.Row([ft.Text(_("Balance")), ft.Text(f"{balance:.2f}", color=ft.colors.RED_700 if balance > 0 else ft.colors.GREEN_700)], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
         ])
 
-        dialog = ft.AlertDialog(
-            title=ft.Text(f"{_('Invoice')} #{sale.get('invoice_no', '')}"),
-            content=ft.Container(
+        dialog = build_dialog(
+            f"{_('Invoice')} #{sale.get('invoice_no', '')}",
+            ft.Container(
                 ft.Column(content_controls, spacing=5, scroll=ft.ScrollMode.AUTO),
                 width=450,
-                height=450
+                height=450,
             ),
-            actions=[ft.TextButton(_("Close"), on_click=lambda e: setattr(dialog, "open", False) or page.update())]
+            [],
         )
-        page.dialog = dialog
-        dialog.open = True
-        page.update()
+        dialog.actions = [secondary_button(_("Close"), on_click=lambda e: setattr(dialog, "open", False) or page.update())]
+        open_dialog(page, dialog)
 
     def show_payment_dialog(sale):
         """Dialog to record additional payment."""
@@ -245,18 +256,14 @@ def HistoryView(page: ft.Page, repo):
         remaining = total - current_paid
 
         if remaining <= 0:
-            page.snack_bar = ft.SnackBar(ft.Text(_("This order is already fully paid")))
-            page.snack_bar.open = True
-            page.update()
+            show_error(page, _("This order is already fully paid"))
             return
 
         def record_payment(e):
             try:
                 new_payment = float(payment_field.value or 0)
                 if new_payment <= 0:
-                    page.snack_bar = ft.SnackBar(ft.Text(_("Please enter a valid payment amount")))
-                    page.snack_bar.open = True
-                    page.update()
+                    show_error(page, _("Please enter a valid payment amount"))
                     return
 
                 new_total_paid = current_paid + new_payment
@@ -269,14 +276,11 @@ def HistoryView(page: ft.Page, repo):
                 sale["amount_paid"] = new_total_paid
 
                 dialog.open = False
-                page.snack_bar = ft.SnackBar(ft.Text(_("Payment recorded successfully")))
-                page.snack_bar.open = True
+                publish_ui_event(page, UIEventTopic.SALES)
                 load_history(search_input.value)
-                page.update()
+                show_success(page, _("Payment recorded successfully"))
             except Exception as ex:
-                page.snack_bar = ft.SnackBar(ft.Text(f"{_('Error')}: {str(ex)}"))
-                page.snack_bar.open = True
-                page.update()
+                show_error(page, f"{_('Error')}: {str(ex)}")
 
         payment_field = ft.TextField(
             label=_("Amount"),
@@ -284,24 +288,23 @@ def HistoryView(page: ft.Page, repo):
             autofocus=True
         )
 
-        dialog = ft.AlertDialog(
-            title=ft.Text(_("Record Payment")),
-            content=ft.Column([
+        dialog = build_dialog(
+            _("Record Payment"),
+            ft.Column([
                 ft.Text(f"{_('Invoice')}: #{sale.get('invoice_no', '')}"),
                 ft.Text(f"{_('Total')}: {total:.2f}"),
                 ft.Text(f"{_('Already Paid')}: {current_paid:.2f}"),
                 ft.Text(f"{_('Remaining')}: {remaining:.2f}", color=ft.colors.RED_700 if remaining > 0 else ft.colors.GREEN_700),
                 ft.Divider(),
-                payment_field
+                payment_field,
             ], tight=True, spacing=10),
-            actions=[
-                ft.TextButton(_("Cancel"), on_click=lambda e: setattr(dialog, "open", False) or page.update()),
-                ft.ElevatedButton(_("Record Payment"), on_click=record_payment)
-            ]
+            [],
         )
-        page.dialog = dialog
-        dialog.open = True
-        page.update()
+        dialog.actions = [
+            secondary_button(_("Cancel"), on_click=lambda e: setattr(dialog, "open", False) or page.update()),
+            primary_button(_("Record Payment"), on_click=record_payment),
+        ]
+        open_dialog(page, dialog)
 
     def print_receipt(sale):
         """Print receipt for a sale."""
@@ -327,38 +330,37 @@ def HistoryView(page: ft.Page, repo):
 {'='*40}
 """
         print(receipt)
-        page.snack_bar = ft.SnackBar(ft.Text(_("Receipt sent to printer")))
-        page.snack_bar.open = True
-        page.update()
+        show_success(page, _("Receipt sent to printer"))
 
     search_input = ft.TextField(
         label=_("Search by Invoice, Customer or Doctor..."),
         prefix_icon=ft.icons.SEARCH,
+        height=INPUT_HEIGHT,
+        text_size=15,
         expand=True,
         on_change=lambda e: load_history(e.control.value)
     )
+
+    subscribe_ui_event(page, UIEventTopic.SALES, "history_view", lambda _: load_history(search_input.value))
 
     load_history()
 
     return ft.View(
         "/history",
         [
-            ft.AppBar(
-                title=ft.Text(_("Sales History")),
-                bgcolor=ft.colors.BLUE_700,
-                color=ft.colors.WHITE,
-                leading=ft.IconButton(ft.icons.ARROW_BACK, on_click=lambda _: page.go("/"))
-            ),
+            standard_appbar(_("Sales History"), on_back=lambda _: page.go("/")),
             ft.Container(
                 content=ft.Column([
                     ft.Row([
-                        ft.Text(_("Sales History & Invoices"), size=25, weight=ft.FontWeight.BOLD),
-                        ft.IconButton(ft.icons.REFRESH, tooltip=_("Refresh"), on_click=lambda _: load_history(search_input.value)),
+                        ft.Text(_("Sales History & Invoices"), size=TITLE_SIZE, weight=ft.FontWeight.BOLD),
+                        refresh_action(on_click=lambda _: load_history(search_input.value), tooltip=_("Refresh")),
                     ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
                     ft.Row([search_input, status_filter, payment_filter]),
+                    summary_text,
+                    ft.Divider(height=SPACE_LG),
                     items_list,
-                ], expand=True),
-                padding=20,
+                ], expand=True, spacing=SPACE_MD),
+                padding=24,
                 expand=True
             )
         ]
