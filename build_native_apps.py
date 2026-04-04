@@ -44,6 +44,17 @@ APP_PACKAGE = f"{APP_ORG}.pos"
 ENABLE_LICENSING = True
 
 
+def get_flet_command_prefix():
+    """Use the Flet CLI that belongs to the current Python environment."""
+    scripts_dir = os.path.dirname(sys.executable)
+    exe_name = "flet.exe" if os.name == "nt" else "flet"
+    flet_exe = os.path.join(scripts_dir, exe_name)
+    if os.path.exists(flet_exe):
+        return [flet_exe]
+    # Fallback to PATH only when venv/local executable is unavailable.
+    return ["flet"]
+
+
 def run_command(cmd, description, show_output=True):
     """Run a shell command and handle errors."""
     print(f"\n{'='*60}")
@@ -73,12 +84,20 @@ def check_prerequisites():
 
     # Check Python
     print(f"  ✅ Python {sys.version.split()[0]}")
+    print(f"  ℹ️  Interpreter: {sys.executable}")
 
     # Check Flet
     try:
         import flet
         flet_version = getattr(flet, '__version__', 'unknown')
         print(f"  ✅ Flet {flet_version}")
+
+        # Print which CLI binary will actually be used by this script.
+        cli_cmd = get_flet_command_prefix() + ["--version"]
+        cli_result = subprocess.run(cli_cmd, capture_output=True, text=True)
+        cli_line = (cli_result.stdout or cli_result.stderr or "").strip().splitlines()
+        if cli_line:
+            print(f"  ℹ️  Flet CLI: {cli_line[0]}")
     except ImportError:
         print("  ❌ Flet not installed. Run: pip install flet")
         return False
@@ -101,8 +120,8 @@ def build_windows():
     print("🪟 Building Windows Application")
     print("="*60)
 
-    cmd = [
-        "flet", "build", "windows",
+    cmd = get_flet_command_prefix() + [
+        "build", "windows",
         "--project", APP_NAME,
         "--description", APP_DESCRIPTION,
         "--product", APP_NAME,
@@ -121,8 +140,8 @@ def build_macos():
     print("🍎 Building macOS Application")
     print("="*60)
 
-    cmd = [
-        "flet", "build", "macos",
+    cmd = get_flet_command_prefix() + [
+        "build", "macos",
         "--project", APP_NAME,
         "--description", APP_DESCRIPTION,
         "--product", APP_NAME,
@@ -141,8 +160,8 @@ def build_linux():
     print("🐧 Building Linux Application")
     print("="*60)
 
-    cmd = [
-        "flet", "build", "linux",
+    cmd = get_flet_command_prefix() + [
+        "build", "linux",
         "--project", APP_NAME,
         "--description", APP_DESCRIPTION,
         "--product", APP_NAME,
@@ -161,14 +180,17 @@ def build_android(apk=True, aab=False):
 
     build_type = "apk" if apk else "aab"
 
-    cmd = [
-        "flet", "build", build_type,
+    cmd = get_flet_command_prefix() + [
+        "build", build_type,
         "--project", APP_NAME,
         "--description", APP_DESCRIPTION,
         "--product", APP_NAME,
         "--org", APP_ORG,
         "--module-name", "main",
         "--android-adaptive-icon-background", "#2196F3",
+        # Use a valid released template ref (main maps to invalid vmain zip URL in some CLI versions).
+        "--template-ref", "0.83.0",
+        "--clear-cache",
     ]
 
     return run_command(cmd, f"Building Android {build_type.upper()}")
@@ -184,8 +206,8 @@ def build_ios():
         print("❌ iOS builds require macOS with Xcode installed.")
         return False
 
-    cmd = [
-        "flet", "build", "ipa",
+    cmd = get_flet_command_prefix() + [
+        "build", "ipa",
         "--project", APP_NAME,
         "--description", APP_DESCRIPTION,
         "--product", APP_NAME,
@@ -202,8 +224,8 @@ def build_web():
     print("🌐 Building Web Application")
     print("="*60)
 
-    cmd = [
-        "flet", "build", "web",
+    cmd = get_flet_command_prefix() + [
+        "build", "web",
         "--project", APP_NAME,
         "--base-url", "/",
         "--module-name", "main",
