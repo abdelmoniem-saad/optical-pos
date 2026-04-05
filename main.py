@@ -69,8 +69,34 @@ def main(page: ft.Page):
         page.data = {}
     page.data["user"] = None
 
-    # Initialize Repository
-    repo = POSRepository()
+    # Initialize Repository early and fail with a visible screen instead of a blank app.
+    try:
+        repo = POSRepository()
+    except Exception as ex:
+        print(f"[BOOT] Repository initialization failed: {ex}", flush=True)
+        traceback.print_exc()
+        page.views.clear()
+        page.views.append(
+            ft.View(
+                route="/fatal",
+                controls=[
+                    ft.Container(
+                        expand=True,
+                        alignment=ft.Alignment(0, 0),
+                        content=ft.Column(
+                            [
+                                ft.Text("Startup failed", size=22, weight=ft.FontWeight.BOLD),
+                                ft.Text(str(ex), selectable=True),
+                            ],
+                            tight=True,
+                            horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                        ),
+                    )
+                ],
+            )
+        )
+        page.update()
+        return
 
     section_shell = ft.View(route="/", controls=[], padding=0, spacing=0)
 

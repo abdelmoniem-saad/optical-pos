@@ -24,6 +24,7 @@ import subprocess
 import shutil
 import argparse
 from datetime import datetime
+from importlib.metadata import version, PackageNotFoundError
 
 # Add project root to path for imports
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -53,6 +54,14 @@ def get_flet_command_prefix():
         return [flet_exe]
     # Fallback to PATH only when venv/local executable is unavailable.
     return ["flet"]
+
+
+def get_installed_flet_version():
+    """Return installed Python flet package version or None."""
+    try:
+        return version("flet")
+    except PackageNotFoundError:
+        return None
 
 
 def run_command(cmd, description, show_output=True):
@@ -172,7 +181,7 @@ def build_linux():
     return run_command(cmd, "Building Linux application")
 
 
-def build_android(apk=True, aab=False):
+def build_android(apk=True, aab=False, template_ref=None, clear_cache=False):
     """Build Android application using Flet."""
     print("\n" + "="*60)
     print("🤖 Building Android Application")
@@ -188,10 +197,15 @@ def build_android(apk=True, aab=False):
         "--org", APP_ORG,
         "--module-name", "main",
         "--android-adaptive-icon-background", "#2196F3",
-        # Use a valid released template ref (main maps to invalid vmain zip URL in some CLI versions).
-        "--template-ref", "0.83.0",
-        "--clear-cache",
     ]
+
+    # Keep template in sync with installed flet by default; override via CLI/env when needed.
+    effective_template_ref = template_ref or os.environ.get("LENSY_ANDROID_TEMPLATE_REF") or get_installed_flet_version()
+    if effective_template_ref:
+        cmd += ["--template-ref", effective_template_ref]
+
+    if clear_cache:
+        cmd.append("--clear-cache")
 
     return run_command(cmd, f"Building Android {build_type.upper()}")
 
@@ -319,6 +333,10 @@ Examples:
     parser.add_argument("--linux", action="store_true", help="Build Linux application")
     parser.add_argument("--android", action="store_true", help="Build Android APK")
     parser.add_argument("--android-aab", action="store_true", help="Build Android App Bundle (for Play Store)")
+    parser.add_argument("--android-template-ref", default=None,
+                        help="Android flet-build-template ref (default: installed flet version)")
+    parser.add_argument("--android-clear-cache", action="store_true",
+                        help="Pass --clear-cache to Android build")
     parser.add_argument("--ios", action="store_true", help="Build iOS application (requires macOS)")
     parser.add_argument("--web", action="store_true", help="Build web application")
     parser.add_argument("--all", action="store_true", help="Build all supported platforms")
@@ -364,12 +382,21 @@ Examples:
             platforms_built.append("linux")
 
     if args.all or args.android:
-        results["Android APK"] = build_android(apk=True)
+        results["Android APK"] = build_android(
+            apk=True,
+            template_ref=args.android_template_ref,
+            clear_cache=args.android_clear_cache,
+        )
         if results["Android APK"]:
             platforms_built.append("apk")
 
     if args.android_aab:
-        results["Android AAB"] = build_android(apk=False, aab=True)
+        results["Android AAB"] = build_android(
+            apk=False,
+            aab=True,
+            template_ref=args.android_template_ref,
+            clear_cache=args.android_clear_cache,
+        )
         if results["Android AAB"]:
             platforms_built.append("aab")
 
