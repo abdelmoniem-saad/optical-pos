@@ -2,20 +2,37 @@ import json
 import os
 import uuid
 import datetime
-from app.config import USE_SUPABASE, SUPABASE_URL, SUPABASE_KEY, LOCAL_JSON_DB
+from app.config import USE_SUPABASE, SUPABASE_URL, SUPABASE_KEY, LOCAL_JSON_DB, FORCE_SUPABASE, DATA_BACKEND
 
 class POSRepository:
     def __init__(self):
         self.supabase = None
+        self.backend_mode = DATA_BACKEND
+        self.backend = "local"
+        supabase_error = None
+
         if USE_SUPABASE:
             if SUPABASE_URL and SUPABASE_KEY:
                 try:
                     from supabase import create_client
                     self.supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+                    self.backend = "supabase"
                 except ImportError:
-                    pass
-                except Exception:
-                    pass
+                    supabase_error = "supabase package is not installed"
+                except Exception as ex:
+                    supabase_error = str(ex)
+
+        if FORCE_SUPABASE and not self.supabase:
+            if not (SUPABASE_URL and SUPABASE_KEY):
+                raise RuntimeError(
+                    "Supabase backend is required (LENSY_DATA_BACKEND=supabase), "
+                    "but credentials are missing. Set SUPABASE_URL/SUPABASE_KEY "
+                    "or provide app/supabase_config.json."
+                )
+            raise RuntimeError(
+                "Supabase backend is required (LENSY_DATA_BACKEND=supabase), "
+                f"but client initialization failed: {supabase_error or 'unknown error'}"
+            )
 
         if not self.supabase:
             self._ensure_local_db()

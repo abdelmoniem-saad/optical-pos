@@ -72,6 +72,11 @@ def main(page: ft.Page):
     # Initialize Repository early and fail with a visible screen instead of a blank app.
     try:
         repo = POSRepository()
+        print(
+            f"[BOOT] Repository backend='{getattr(repo, 'backend', 'unknown')}', "
+            f"mode='{getattr(repo, 'backend_mode', 'auto')}'",
+            flush=True,
+        )
     except Exception as ex:
         print(f"[BOOT] Repository initialization failed: {ex}", flush=True)
         traceback.print_exc()

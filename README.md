@@ -131,6 +131,23 @@ python run_web.py
 ```
 Access at `http://localhost:5000`
 
+### Keep Web and APK on the Same Data
+
+If APK and web show different customers/orders, the APK is using local JSON while web uses Supabase.
+
+Use strict Supabase mode before building APK:
+
+```bash
+# Windows PowerShell
+$env:LENSY_DATA_BACKEND = "supabase"
+```
+
+Provide credentials for packaged/mobile runs using one of:
+- `SUPABASE_URL` and `SUPABASE_KEY` environment variables, or
+- `app/supabase_config.json` (copy from `app/supabase_config.example.json` and fill values).
+
+In strict mode the app fails fast if Supabase is not configured, instead of silently writing to local storage.
+
 ### Remote Access with Ngrok
 For permanent free remote access:
 ```bash
