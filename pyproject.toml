@@ -10,8 +10,6 @@ dependencies = [
     "flet==0.28.3",
     "supabase>=2.0.0",
     "bcrypt>=4.0.0",
-    "passlib>=1.7.4",
-    "sqlalchemy>=2.0.0",
 ]
 
 [project.optional-dependencies]
@@ -41,7 +39,6 @@ assets = ["assets", "uploads"]
 # Additional Python packages to bundle
 packages = [
     "app",
-    "scripts",
 ]
 
 # Platform-specific settings

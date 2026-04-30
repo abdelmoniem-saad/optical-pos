@@ -70,11 +70,3 @@ def verify_password(password, hashed_password):
         # SHA256 hash
         return hashlib.sha256(password.encode()).hexdigest() == hashed_password
 
-def authenticate_user(session, username, password):
-    """Check if user exists and password is correct."""
-    from app.database.models import User
-    user = session.query(User).filter_by(username=username, is_active=True).first()
-    if user and verify_password(password, user.password_hash):
-        return user
-    return None
-

@@ -76,12 +76,11 @@ A comprehensive Point of Sale (POS) system designed specifically for optical sho
 
 ## 🛠️ Technology Stack
 
-- **Frontend**: [Flet](https://flet.dev/) - Python-based Flutter framework
+- **Frontend**: [Flet](https://flet.dev/) - Python-based Flutter framework (desktop, mobile, and web from one codebase)
 - **Data Storage**: 
   - Local: JSON file (`pos_data.json`)
   - Cloud: [Supabase](https://supabase.com/) (optional)
-- **Web Bridge**: Flask (for remote/mobile access)
-- **Authentication**: bcrypt + passlib
+- **Authentication**: bcrypt
 
 ## 📦 Installation
 
@@ -125,11 +124,11 @@ A comprehensive Point of Sale (POS) system designed specifically for optical sho
 python main.py
 ```
 
-### Web Mode (Flask Bridge for Mobile/Remote Access)
+### Web Mode (Flet)
+Build the web target via Flet's own tooling:
 ```bash
-python run_web.py
+flet build web
 ```
-Access at `http://localhost:5000`
 
 ### Keep Web and APK on the Same Data
 
@@ -148,12 +147,6 @@ Provide credentials for packaged/mobile runs using one of:
 
 In strict mode the app fails fast if Supabase is not configured, instead of silently writing to local storage.
 
-### Remote Access with Ngrok
-For permanent free remote access:
-```bash
-ngrok http --domain=your-subdomain.ngrok-free.dev 5000
-```
-
 ## 🔐 Default Credentials
 - **Username**: `admin`
 - **Password**: `Admin123`
@@ -163,9 +156,7 @@ ngrok http --domain=your-subdomain.ngrok-free.dev 5000
 ```
 optical-pos/
 ├── main.py                 # Flet app entry point
-├── run_web.py              # Flask web bridge
-├── web_app.py              # Flask routes
-├── requirements.txt        # Python dependencies
+├── pyproject.toml          # Python dependencies and Flet build config
 ├── supabase_full_schema.sql # Complete database schema (including licensing)
 ├── license_admin.py        # License management CLI tool
 ├── build_native_apps.py    # Native app builder script
@@ -173,13 +164,14 @@ optical-pos/
 │   ├── config.py           # App configuration
 │   ├── flet_compat.py      # Flet version compatibility
 │   ├── core/
-│   │   ├── auth.py         # Authentication
+│   │   ├── auth.py         # Password hashing and verification
 │   │   ├── i18n.py         # Internationalization
-│   │   ├── licensing.py    # License management & auto-updates
-│   │   └── state.py        # Application state
+│   │   └── licensing.py    # License management & auto-updates
 │   ├── database/
-│   │   └── repository.py   # Data access layer
+│   │   └── repository.py   # POSRepository: JSON or Supabase backend
 │   └── ui/
+│       ├── colors.py       # Color helpers (uses flet_compat)
+│       ├── components/     # Shared UI: design helpers, ui_sync event bus, ui_tokens, top_bar, feedback
 │       └── flet_pages/     # Flet UI views
 │           ├── dashboard.py
 │           ├── pos.py      # Main POS view
@@ -194,7 +186,6 @@ optical-pos/
 │           ├── login.py
 │           └── activation.py # License activation UI
 ├── static/                 # Static files for PWA
-├── templates/              # Flask templates
 └── uploads/                # Uploaded files
 ```
 
