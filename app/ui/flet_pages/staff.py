@@ -78,10 +78,10 @@ def StaffView(page: ft.Page, repo):
                                     ),
                                     ft.PopupMenuButton(
                                         items=[
-                                            ft.PopupMenuItem(text=_("Edit"), icon=ft.icons.EDIT, on_click=lambda e, user=u: show_user_dialog(user)),
-                                            ft.PopupMenuItem(text=_("Change Password"), icon=ft.icons.LOCK, on_click=lambda e, user=u: show_password_dialog(user)),
+                                            ft.PopupMenuItem(content=_("Edit"), icon=ft.icons.EDIT, on_click=lambda e, user=u: show_user_dialog(user)),
+                                            ft.PopupMenuItem(content=_("Change Password"), icon=ft.icons.LOCK, on_click=lambda e, user=u: show_password_dialog(user)),
                                             ft.PopupMenuItem(
-                                                text=_("Deactivate") if is_active else _("Activate"),
+                                                content=_("Deactivate") if is_active else _("Activate"),
                                                 icon=ft.icons.BLOCK if is_active else ft.icons.CHECK,
                                                 on_click=lambda e, user=u, active=is_active: toggle_user_status(user, not active)
                                             ),

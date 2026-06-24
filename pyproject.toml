@@ -6,6 +6,15 @@ authors = [
     {name = "Lensy", email = "support@lensy.com"}
 ]
 requires-python = ">=3.10"
+# IMPORTANT: Flet is pinned to an exact version (==), not a range. Flet has
+# historically introduced breaking enum/API changes between minor releases
+# (e.g. 0.24 -> 0.25 renamed `ft.colors` -> `ft.Colors`). app/flet_compat.py
+# papers over those at runtime; trimming or re-validating that shim is part
+# of every Flet upgrade. Do NOT bump this without:
+#   1. running the full smoke checklist (login, POS sale, inventory, lab,
+#      reports) on desktop and APK,
+#   2. updating app/flet_compat.py for any new enum/API drift,
+#   3. testing the APK build end-to-end.
 dependencies = [
     "flet==0.28.3",
     "supabase>=2.0.0",
@@ -14,6 +23,7 @@ dependencies = [
 
 [project.optional-dependencies]
 desktop = [
+    # Pinned in lockstep with `flet` above; bump together.
     "flet-desktop==0.28.3",
 ]
 

@@ -262,9 +262,9 @@ def SettingsView(page: ft.Page, repo):
     tabs = ft.Tabs(
         selected_index=0,
         tabs=[
-            ft.Tab(text=_("Shop Settings"), icon=ft.icons.STORE, content=ft.Container(create_shop_settings(), padding=24)),
-            ft.Tab(text=_("License & Updates"), icon=ft.icons.VERIFIED_USER, content=ft.Container(create_license_tab(), padding=24)),
-            ft.Tab(text=_("Backup"), icon=ft.icons.BACKUP, content=ft.Container(create_backup_tab(), padding=24)),
+            ft.Tab(label=_("Shop Settings"), icon=ft.icons.STORE, content=ft.Container(create_shop_settings(), padding=24)),
+            ft.Tab(label=_("License & Updates"), icon=ft.icons.VERIFIED_USER, content=ft.Container(create_license_tab(), padding=24)),
+            ft.Tab(label=_("Backup"), icon=ft.icons.BACKUP, content=ft.Container(create_backup_tab(), padding=24)),
         ],
         expand=True
     )

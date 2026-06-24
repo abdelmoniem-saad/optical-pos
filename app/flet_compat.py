@@ -1,16 +1,45 @@
-"""
-Flet Compatibility Module
-Import this FIRST before any other flet imports to ensure compatibility.
+"""Flet compatibility shim.
 
-This module patches flet to work across different versions (0.24.x to 0.25.x+).
-In Flet 0.25+, colors/icons are uppercase enums (Colors, Icons).
-This module provides backwards compatibility with lowercase access.
+Import this **first**, before any other ``flet`` imports, so that lookups
+like ``ft.colors.BLUE_700`` and ``ft.icons.ARROW_BACK`` keep working as
+Flet's API drifts between releases.
+
+Why this exists
+---------------
+Flet has changed the way colors and icons are exposed across minor
+versions:
+
+  * Flet 0.24 and earlier:  ``ft.colors`` and ``ft.icons`` were the enums.
+  * Flet 0.25+:              renamed to ``ft.Colors`` / ``ft.Icons``.
+  * Flet 0.30+:              ``ft.icons`` (lowercase) is bound to a *module*,
+                             not the enum, so ``ft.icons.ARROW_BACK`` raises
+                             AttributeError even though ``ft.Icons.ARROW_BACK``
+                             works fine.
+
+The application code is full of ``ft.colors.X`` / ``ft.icons.X`` references
+that predate the rename. Sweeping them all is a separate refactor; this
+module installs proxies on ``ft.colors`` and ``ft.icons`` that always
+delegate to the modern enums plus a few sensible aliasings, so the legacy
+syntax keeps working on a pinned modern Flet.
+
+Upgrade policy
+--------------
+Flet is pinned exactly in ``pyproject.toml`` and ``requirements.txt``.
+When that pin moves, re-run the test suite with the new Flet installed
+and audit this file for any new attribute drift (e.g. another rename of
+``ft.colors`` / ``ft.icons``, removed icon constants, or moved properties
+on ``ft.Padding`` / ``ft.Margin`` / ``page.window``).
+
+This file used to also carry a ~190-line ``ColorsFallback`` class with
+hardcoded color name strings, in case neither ``ft.Colors`` nor
+``ft.colors`` existed. That branch is unreachable on any installable
+Flet release and was removed.
 """
 
 import sys
 import warnings
 
-# Suppress deprecation warnings for colors/icons
+# Suppress deprecation warnings for the legacy ft.colors / ft.icons access.
 warnings.filterwarnings('ignore', message='.*colors enum is deprecated.*')
 warnings.filterwarnings('ignore', message='.*icons enum is deprecated.*')
 
@@ -18,358 +47,334 @@ print("[COMPAT] Loading Flet compatibility module...", file=sys.stderr, flush=Tr
 
 import flet as ft
 
-print(f"[COMPAT] Flet module loaded", file=sys.stderr, flush=True)
+print("[COMPAT] Flet module loaded", file=sys.stderr, flush=True)
 
 
 def _patch_flet_colors():
-    """Ensure ft.colors is available (maps to ft.Colors in 0.25+)."""
-    # In Flet 0.25+, Colors is the new enum.
-    # Wrap it with a proxy so older color names continue to work.
-    if hasattr(ft, 'Colors') and ft.Colors is not None:
-        color_enum = ft.Colors
+    """Install a proxy on ``ft.colors`` that delegates to ``ft.Colors``.
 
-        def _resolve_color_name(name: str):
-            if hasattr(color_enum, name):
-                return getattr(color_enum, name)
+    The proxy also handles cross-version aliasing so older constant
+    names keep resolving to a sensible value:
 
-            # Common cross-version aliases.
-            alias_candidates = {
-                "SURFACE_VARIANT": ["SURFACE_CONTAINER_HIGHEST", "SURFACE_CONTAINER_HIGH", "SURFACE_CONTAINER", "SURFACE"],
-                "BACKGROUND": ["SURFACE"],
-            }
-            for candidate in alias_candidates.get(name, []):
-                if hasattr(color_enum, candidate):
-                    return getattr(color_enum, candidate)
+      * ``SURFACE_VARIANT`` -> ``SURFACE_CONTAINER_HIGHEST`` (etc.) on
+        newer Flet, where the Material 3 palette renamed surfaces.
+      * British spellings (``GREY`` -> ``GRAY`` and ``BLUE_GREY`` ->
+        ``BLUE_GRAY``) on releases that switched.
 
-            # Spelling differences across releases.
-            normalized_candidates = []
-            if "GREY" in name:
-                normalized_candidates.append(name.replace("GREY", "GRAY"))
-            if "BLUE_GREY" in name:
-                normalized_candidates.append(name.replace("BLUE_GREY", "BLUE_GRAY"))
-
-            for candidate in normalized_candidates:
-                if hasattr(color_enum, candidate):
-                    return getattr(color_enum, candidate)
-
-            # Last resort to keep UI rendering instead of crashing hard.
-            return "transparent"
-
-        class ColorsProxy:
-            def __getattr__(self, name):
-                return _resolve_color_name(name)
-
-        ft.colors = ColorsProxy()
-        print("[COMPAT] Using proxied ft.Colors (0.25+ style)", file=sys.stderr, flush=True)
+    If the requested name has no match, the proxy returns the literal
+    ``"transparent"`` so the UI keeps rendering instead of crashing on a
+    stray color name.
+    """
+    if not (hasattr(ft, 'Colors') and ft.Colors is not None):
+        # On any supported Flet version ft.Colors exists. If we ever land here
+        # the install is fundamentally broken; let the caller see the error.
+        print("[COMPAT][WARN] ft.Colors is not available; ft.colors lookups will likely fail", file=sys.stderr, flush=True)
         return
 
-    # Older versions have ft.colors directly; still proxy for missing names.
-    if hasattr(ft, 'colors') and ft.colors is not None:
-        legacy_palette = ft.colors
-        modern_palette = getattr(ft, "Colors", None)
+    color_enum = ft.Colors
 
-        def _resolve_legacy(name: str):
-            if hasattr(legacy_palette, name):
-                return getattr(legacy_palette, name)
-            if modern_palette is not None and hasattr(modern_palette, name):
-                return getattr(modern_palette, name)
+    _ALIASES = {
+        "SURFACE_VARIANT": ["SURFACE_CONTAINER_HIGHEST", "SURFACE_CONTAINER_HIGH", "SURFACE_CONTAINER", "SURFACE"],
+        "BACKGROUND": ["SURFACE"],
+    }
 
-            alias_candidates = {
-                "SURFACE_VARIANT": ["SURFACE_CONTAINER_HIGHEST", "SURFACE_CONTAINER_HIGH", "SURFACE_CONTAINER", "SURFACE"],
-                "BACKGROUND": ["SURFACE"],
-            }
-            for candidate in alias_candidates.get(name, []):
-                if hasattr(legacy_palette, candidate):
-                    return getattr(legacy_palette, candidate)
-                if modern_palette is not None and hasattr(modern_palette, candidate):
-                    return getattr(modern_palette, candidate)
+    def _resolve_color_name(name: str):
+        if hasattr(color_enum, name):
+            return getattr(color_enum, name)
 
-            normalized_candidates = []
-            if "GREY" in name:
-                normalized_candidates.append(name.replace("GREY", "GRAY"))
-            if "BLUE_GREY" in name:
-                normalized_candidates.append(name.replace("BLUE_GREY", "BLUE_GRAY"))
+        for candidate in _ALIASES.get(name, []):
+            if hasattr(color_enum, candidate):
+                return getattr(color_enum, candidate)
 
-            for candidate in normalized_candidates:
-                if hasattr(legacy_palette, candidate):
-                    return getattr(legacy_palette, candidate)
-                if modern_palette is not None and hasattr(modern_palette, candidate):
-                    return getattr(modern_palette, candidate)
+        # British/American spelling differences.
+        normalized = []
+        if "GREY" in name:
+            normalized.append(name.replace("GREY", "GRAY"))
+        if "BLUE_GREY" in name:
+            normalized.append(name.replace("BLUE_GREY", "BLUE_GRAY"))
+        for candidate in normalized:
+            if hasattr(color_enum, candidate):
+                return getattr(color_enum, candidate)
 
-            return "transparent"
+        # Last resort - keep the page rendering instead of crashing.
+        return "transparent"
 
-        class LegacyColorsProxy:
-            def __getattr__(self, name):
-                return _resolve_legacy(name)
+    class ColorsProxy:
+        def __getattr__(self, name):
+            return _resolve_color_name(name)
 
-        ft.colors = LegacyColorsProxy()
-        print("[COMPAT] Using proxied ft.colors (legacy style)", file=sys.stderr, flush=True)
-        return
-
-    # Fallback - create basic color constants
-    print("[COMPAT] Creating fallback colors", file=sys.stderr, flush=True)
-
-    class ColorsFallback:
-        """Fallback colors for when Flet colors are not available."""
-        # Basic colors
-        RED = "red"
-        RED_50 = "red50"
-        RED_100 = "red100"
-        RED_200 = "red200"
-        RED_300 = "red300"
-        RED_400 = "red400"
-        RED_500 = "red500"
-        RED_600 = "red600"
-        RED_700 = "red700"
-        RED_800 = "red800"
-        RED_900 = "red900"
-
-        BLUE = "blue"
-        BLUE_50 = "blue50"
-        BLUE_100 = "blue100"
-        BLUE_200 = "blue200"
-        BLUE_300 = "blue300"
-        BLUE_400 = "blue400"
-        BLUE_500 = "blue500"
-        BLUE_600 = "blue600"
-        BLUE_700 = "blue700"
-        BLUE_800 = "blue800"
-        BLUE_900 = "blue900"
-
-        GREEN = "green"
-        GREEN_50 = "green50"
-        GREEN_100 = "green100"
-        GREEN_200 = "green200"
-        GREEN_300 = "green300"
-        GREEN_400 = "green400"
-        GREEN_500 = "green500"
-        GREEN_600 = "green600"
-        GREEN_700 = "green700"
-        GREEN_800 = "green800"
-        GREEN_900 = "green900"
-
-        ORANGE = "orange"
-        ORANGE_50 = "orange50"
-        ORANGE_100 = "orange100"
-        ORANGE_200 = "orange200"
-        ORANGE_300 = "orange300"
-        ORANGE_400 = "orange400"
-        ORANGE_500 = "orange500"
-        ORANGE_600 = "orange600"
-        ORANGE_700 = "orange700"
-        ORANGE_800 = "orange800"
-        ORANGE_900 = "orange900"
-
-        YELLOW = "yellow"
-        YELLOW_50 = "yellow50"
-        YELLOW_100 = "yellow100"
-        YELLOW_200 = "yellow200"
-        YELLOW_300 = "yellow300"
-        YELLOW_400 = "yellow400"
-        YELLOW_500 = "yellow500"
-        YELLOW_600 = "yellow600"
-        YELLOW_700 = "yellow700"
-        YELLOW_800 = "yellow800"
-        YELLOW_900 = "yellow900"
-
-        PURPLE = "purple"
-        PURPLE_50 = "purple50"
-        PURPLE_100 = "purple100"
-        PURPLE_200 = "purple200"
-        PURPLE_300 = "purple300"
-        PURPLE_400 = "purple400"
-        PURPLE_500 = "purple500"
-        PURPLE_600 = "purple600"
-        PURPLE_700 = "purple700"
-        PURPLE_800 = "purple800"
-        PURPLE_900 = "purple900"
-
-        PINK = "pink"
-        PINK_50 = "pink50"
-        PINK_100 = "pink100"
-        PINK_200 = "pink200"
-        PINK_300 = "pink300"
-        PINK_400 = "pink400"
-        PINK_500 = "pink500"
-        PINK_600 = "pink600"
-        PINK_700 = "pink700"
-        PINK_800 = "pink800"
-        PINK_900 = "pink900"
-
-        GREY = "grey"
-        GREY_50 = "grey50"
-        GREY_100 = "grey100"
-        GREY_200 = "grey200"
-        GREY_300 = "grey300"
-        GREY_400 = "grey400"
-        GREY_500 = "grey500"
-        GREY_600 = "grey600"
-        GREY_700 = "grey700"
-        GREY_800 = "grey800"
-        GREY_900 = "grey900"
-
-        BLUE_GREY = "bluegrey"
-        BLUE_GREY_50 = "bluegrey50"
-        BLUE_GREY_100 = "bluegrey100"
-        BLUE_GREY_200 = "bluegrey200"
-        BLUE_GREY_300 = "bluegrey300"
-        BLUE_GREY_400 = "bluegrey400"
-        BLUE_GREY_500 = "bluegrey500"
-        BLUE_GREY_600 = "bluegrey600"
-        BLUE_GREY_700 = "bluegrey700"
-        BLUE_GREY_800 = "bluegrey800"
-        BLUE_GREY_900 = "bluegrey900"
-
-        # Basic
-        WHITE = "white"
-        BLACK = "black"
-        TRANSPARENT = "transparent"
-
-        # Theme colors
-        SURFACE = "surface"
-        SURFACE_VARIANT = "surfacevariant"
-        ON_SURFACE = "onsurface"
-        BACKGROUND = "background"
-        PRIMARY = "primary"
-        ON_PRIMARY = "onprimary"
-        SECONDARY = "secondary"
-        ERROR = "error"
-
-        # Additional colors used in the app
-        AMBER = "amber"
-        AMBER_50 = "amber50"
-        AMBER_100 = "amber100"
-        AMBER_200 = "amber200"
-        AMBER_300 = "amber300"
-        AMBER_400 = "amber400"
-        AMBER_500 = "amber500"
-        AMBER_600 = "amber600"
-        AMBER_700 = "amber700"
-        AMBER_800 = "amber800"
-        AMBER_900 = "amber900"
-
-        TEAL = "teal"
-        TEAL_50 = "teal50"
-        TEAL_100 = "teal100"
-        TEAL_200 = "teal200"
-        TEAL_300 = "teal300"
-        TEAL_400 = "teal400"
-        TEAL_500 = "teal500"
-        TEAL_600 = "teal600"
-        TEAL_700 = "teal700"
-        TEAL_800 = "teal800"
-        TEAL_900 = "teal900"
-
-        INDIGO = "indigo"
-        INDIGO_50 = "indigo50"
-        INDIGO_100 = "indigo100"
-        INDIGO_200 = "indigo200"
-        INDIGO_300 = "indigo300"
-        INDIGO_400 = "indigo400"
-        INDIGO_500 = "indigo500"
-        INDIGO_600 = "indigo600"
-        INDIGO_700 = "indigo700"
-        INDIGO_800 = "indigo800"
-        INDIGO_900 = "indigo900"
-
-        BROWN = "brown"
-        BROWN_50 = "brown50"
-        BROWN_100 = "brown100"
-        BROWN_200 = "brown200"
-        BROWN_300 = "brown300"
-        BROWN_400 = "brown400"
-        BROWN_500 = "brown500"
-        BROWN_600 = "brown600"
-        BROWN_700 = "brown700"
-        BROWN_800 = "brown800"
-        BROWN_900 = "brown900"
-
-        CYAN = "cyan"
-        CYAN_50 = "cyan50"
-        CYAN_100 = "cyan100"
-        CYAN_200 = "cyan200"
-        CYAN_300 = "cyan300"
-        CYAN_400 = "cyan400"
-        CYAN_500 = "cyan500"
-        CYAN_600 = "cyan600"
-        CYAN_700 = "cyan700"
-        CYAN_800 = "cyan800"
-        CYAN_900 = "cyan900"
-
-    ft.colors = ColorsFallback
-    ft.Colors = ColorsFallback
+    ft.colors = ColorsProxy()
+    print("[COMPAT] Using proxied ft.Colors", file=sys.stderr, flush=True)
 
 
 def _patch_flet_icons():
-    """Ensure ft.icons is available (maps to ft.Icons in 0.25+)."""
-    # In Flet 0.25+, Icons is the new enum
-    if hasattr(ft, 'Icons') and ft.Icons is not None:
-        if not hasattr(ft, 'icons') or ft.icons is None:
-            ft.icons = ft.Icons
-        print("[COMPAT] Using ft.Icons (0.25+ style)", file=sys.stderr, flush=True)
+    """Install a proxy on ``ft.icons`` that delegates to ``ft.Icons``.
+
+    Handles the Flet 0.30+ regression where ``ft.icons`` (lowercase) is
+    bound to a *module*, not the enum, so the attribute lookups all
+    fail. Also tries common variant suffixes (``_ROUNDED``, ``_OUTLINED``,
+    ``_SHARP``) for icons that only exist as variants in some versions.
+    """
+    if not (hasattr(ft, 'Icons') and ft.Icons is not None):
+        print("[COMPAT][WARN] ft.Icons is not available; leaving ft.icons as-is", file=sys.stderr, flush=True)
         return
 
-    if hasattr(ft, 'icons') and ft.icons is not None:
-        print("[COMPAT] Using ft.icons (legacy style)", file=sys.stderr, flush=True)
+    icons_enum = ft.Icons
+
+    def _resolve_icon_name(name: str):
+        if hasattr(icons_enum, name):
+            return getattr(icons_enum, name)
+        for suffix in ("_ROUNDED", "_OUTLINED", "_SHARP"):
+            if hasattr(icons_enum, name + suffix):
+                return getattr(icons_enum, name + suffix)
+        # Neutral fallback so a missing icon doesn't crash the page.
+        return getattr(icons_enum, "HELP_OUTLINE", "help")
+
+    class IconsProxy:
+        def __getattr__(self, name):
+            return _resolve_icon_name(name)
+
+    ft.icons = IconsProxy()
+    print("[COMPAT] Using proxied ft.Icons", file=sys.stderr, flush=True)
+
+
+def _patch_flet_widgets():
+    """Bridge widget kwargs that were renamed/restructured in Flet 0.80+.
+
+    This codebase carries lots of pre-0.80 idioms:
+
+      * ``ft.PopupMenuItem(text=...)``  -> kwarg renamed to ``content=``
+      * ``ft.Tab(text=..., content=...)`` -> ``label=`` for the strip;
+        ``content`` is no longer carried by Tab itself.
+      * ``ft.Tabs(tabs=[...])``         -> Tabs now takes a single
+        ``content=Control`` + ``length=int``, with the bar / body managed
+        externally. We synthesize a TabBar + a swapping container.
+      * ``ft.Dropdown(on_change=...)``  -> renamed to ``on_select=``.
+      * ``ft.ElevatedButton(text=...)`` / ``ft.Button(text=...)`` etc.
+        -> the first slot is now ``content=``.
+
+    Sweeping every call site is the "right" fix; until that lands,
+    these monkey-patches keep the legacy idioms working on a modern
+    Flet so the app actually boots. They're safe to remove once the
+    legacy kwargs are gone from the codebase.
+    """
+
+    import inspect
+
+    def _signature_params(cls):
+        try:
+            return set(inspect.signature(cls.__init__).parameters)
+        except (ValueError, TypeError):
+            return set()
+
+    def _alias_kwarg(cls, old_name, new_name):
+        """Make ``cls(old_name=X, ...)`` rewrite to ``cls(new_name=X, ...)``.
+
+        No-op if the class still accepts ``old_name`` (i.e. we're on a Flet
+        where the rename hasn't happened yet) or doesn't accept ``new_name``
+        (i.e. neither name works — let the real error surface).
+        """
+        if cls is None:
+            return
+        params = _signature_params(cls)
+        if old_name in params or new_name not in params:
+            return
+        orig_init = cls.__init__
+
+        def patched(self, *args, **kwargs):
+            if old_name in kwargs and new_name not in kwargs:
+                kwargs[new_name] = kwargs.pop(old_name)
+            orig_init(self, *args, **kwargs)
+
+        cls.__init__ = patched
+
+    # ft.View positional order changed: pre-0.80 was View(route, controls, ...);
+    # 0.80+ is View(controls, route, ...). The codebase uses the legacy order
+    # in many places (e.g. ft.View("/login", [...]) ), which on 0.82 silently
+    # makes the route a list and controls a string -> blank screen, no error.
+    # Detect by first-positional being a str ("/route") and second being a list,
+    # and swap. Skip if kwargs already specify controls or route explicitly.
+    View = getattr(ft, "View", None)
+    if View is not None:
+        view_params = _signature_params(View)
+        # Only patch when the modern signature has controls as the first param
+        # (i.e. before route) and we have access to both names.
+        try:
+            param_names = list(inspect.signature(View.__init__).parameters)
+            modern_order = (
+                "controls" in param_names
+                and "route" in param_names
+                and param_names.index("controls") < param_names.index("route")
+            )
+        except (ValueError, TypeError):
+            modern_order = False
+
+        if modern_order:
+            orig_view_init = View.__init__
+
+            def patched_view_init(self, *args, **kwargs):
+                if (
+                    len(args) >= 2
+                    and isinstance(args[0], str)
+                    and isinstance(args[1], list)
+                    and "controls" not in kwargs
+                    and "route" not in kwargs
+                ):
+                    # Legacy positional order: View(route_str, controls_list, ...)
+                    new_args = (args[1], args[0]) + args[2:]
+                    args = new_args
+                orig_view_init(self, *args, **kwargs)
+
+            View.__init__ = patched_view_init
+
+    # PopupMenuItem(text=) -> content=
+    _alias_kwarg(getattr(ft, "PopupMenuItem", None), "text", "content")
+
+    # Dropdown(on_change=) -> on_select=
+    _alias_kwarg(getattr(ft, "Dropdown", None), "on_change", "on_select")
+
+    # Buttons: text= -> content=. Patch every Button-like class we use.
+    for name in ("ElevatedButton", "Button", "TextButton", "OutlinedButton", "FilledButton", "FilledTonalButton"):
+        _alias_kwarg(getattr(ft, name, None), "text", "content")
+
+    # Tab: text= -> label=, plus stash `content` for our Tabs shim to read.
+    # Only patch on Flet versions where Tab no longer carries content directly.
+    Tab = getattr(ft, "Tab", None)
+    if Tab is not None and "content" not in _signature_params(Tab):
+        orig_tab_init = Tab.__init__
+
+        def patched_tab_init(self, *args, **kwargs):
+            if "text" in kwargs and "label" not in kwargs and "label" in _signature_params(Tab):
+                kwargs["label"] = kwargs.pop("text")
+            stashed_content = kwargs.pop("content", None)
+            orig_tab_init(self, *args, **kwargs)
+            self._legacy_content = stashed_content
+
+        Tab.__init__ = patched_tab_init
+
+    # Tabs(tabs=[Tab(content=..., label=...), ...]) -> rebuild with TabBar +
+    # a swapping Container as the Tabs.content. Only patch on Flet versions
+    # where Tabs no longer accepts a ``tabs`` kwarg.
+    Tabs = getattr(ft, "Tabs", None)
+    TabBar = getattr(ft, "TabBar", None)
+    if Tabs is not None and TabBar is not None and "tabs" not in _signature_params(Tabs):
+        orig_tabs_init = Tabs.__init__
+
+        def patched_tabs_init(self, *args, **kwargs):
+            old_tabs = kwargs.pop("tabs", None)
+            if old_tabs is not None and "content" not in kwargs:
+                initial = getattr(old_tabs[0], "_legacy_content", None) if old_tabs else None
+                body = ft.Container(content=initial, expand=True)
+                bar = TabBar(tabs=list(old_tabs))
+
+                user_on_change = kwargs.pop("on_change", None)
+
+                def _on_change(e):
+                    idx = getattr(e.control, "selected_index", 0)
+                    if 0 <= idx < len(old_tabs):
+                        body.content = getattr(old_tabs[idx], "_legacy_content", None)
+                        try:
+                            body.update()
+                        except Exception:
+                            pass
+                    if callable(user_on_change):
+                        user_on_change(e)
+
+                kwargs["on_change"] = _on_change
+                kwargs["length"] = len(old_tabs)
+                kwargs["content"] = ft.Column([bar, body], expand=True)
+            orig_tabs_init(self, *args, **kwargs)
+
+        Tabs.__init__ = patched_tabs_init
+
+
+def _patch_flet_alignment():
+    """Add legacy lowercase aliases (``ft.alignment.center`` etc.) on the
+    ``ft.alignment`` module.
+
+    Pre-0.80 Flet exposed ``ft.alignment.center``, ``ft.alignment.top_left``,
+    etc. as ready-made ``Alignment`` instances on the module. Flet 0.80+
+    promoted these to *class* attributes on ``ft.Alignment`` (uppercase),
+    so ``ft.alignment.center`` raises ``AttributeError: module
+    'flet.controls.alignment' has no attribute 'center'``. We add
+    lowercase aliases on the module that point at the uppercase class
+    constants so legacy call sites keep working.
+    """
+    alignment_mod = getattr(ft, "alignment", None)
+    Alignment = getattr(ft, "Alignment", None)
+    if alignment_mod is None or Alignment is None:
         return
 
-    print("[COMPAT] Icons not found - they may need to be accessed differently", file=sys.stderr, flush=True)
+    name_pairs = [
+        ("center", "CENTER"),
+        ("top_center", "TOP_CENTER"),
+        ("top_left", "TOP_LEFT"),
+        ("top_right", "TOP_RIGHT"),
+        ("center_left", "CENTER_LEFT"),
+        ("center_right", "CENTER_RIGHT"),
+        ("bottom_center", "BOTTOM_CENTER"),
+        ("bottom_left", "BOTTOM_LEFT"),
+        ("bottom_right", "BOTTOM_RIGHT"),
+    ]
+    aliased = []
+    for lower, upper in name_pairs:
+        if hasattr(alignment_mod, lower):
+            continue
+        value = getattr(Alignment, upper, None)
+        if value is None:
+            continue
+        try:
+            setattr(alignment_mod, lower, value)
+            aliased.append(lower)
+        except (AttributeError, TypeError):
+            # Some Flet builds expose `alignment` as an immutable namespace.
+            pass
+    if aliased:
+        print(f"[COMPAT] Aliased legacy ft.alignment names: {', '.join(aliased)}", file=sys.stderr, flush=True)
 
 
-def _patch_flet_padding():
-    """Ensure padding helpers work across versions."""
-    # In newer Flet, use ft.padding.symmetric() instead of ft.Padding.symmetric()
-    if hasattr(ft, 'padding') and ft.padding is not None:
-        print("[COMPAT] ft.padding available", file=sys.stderr, flush=True)
-
-    # Patch Padding class if it exists but lacks methods
+def _patch_flet_padding_and_margin():
+    """Patch ``ft.Padding`` / ``ft.Margin`` to expose ``symmetric`` /
+    ``only`` / ``all`` shortcuts on releases that moved them onto the
+    lowercase ``ft.padding`` / ``ft.margin`` modules.
+    """
     if hasattr(ft, 'Padding'):
         if not hasattr(ft.Padding, 'symmetric'):
             try:
-                ft.Padding.symmetric = staticmethod(lambda horizontal=0, vertical=0: ft.padding.symmetric(horizontal=horizontal, vertical=vertical))
-            except:
+                ft.Padding.symmetric = staticmethod(
+                    lambda horizontal=0, vertical=0: ft.padding.symmetric(horizontal=horizontal, vertical=vertical)
+                )
+            except Exception:
                 pass
         if not hasattr(ft.Padding, 'all'):
             try:
                 ft.Padding.all = staticmethod(lambda value: ft.padding.all(value))
-            except:
+            except Exception:
                 pass
 
-
-def _patch_flet_margin():
-    """Ensure margin helpers work across versions."""
-    # In newer Flet, use ft.margin instead of ft.Margin
-    if hasattr(ft, 'margin') and ft.margin is not None:
-        print("[COMPAT] ft.margin available", file=sys.stderr, flush=True)
-
-    # Patch Margin class if it exists but lacks methods
     if hasattr(ft, 'Margin'):
         if not hasattr(ft.Margin, 'only'):
             try:
-                ft.Margin.only = staticmethod(lambda left=0, top=0, right=0, bottom=0: ft.margin.only(left=left, top=top, right=right, bottom=bottom))
-            except:
+                ft.Margin.only = staticmethod(
+                    lambda left=0, top=0, right=0, bottom=0: ft.margin.only(left=left, top=top, right=right, bottom=bottom)
+                )
+            except Exception:
                 pass
         if not hasattr(ft.Margin, 'symmetric'):
             try:
-                ft.Margin.symmetric = staticmethod(lambda horizontal=0, vertical=0: ft.margin.symmetric(horizontal=horizontal, vertical=vertical))
-            except:
+                ft.Margin.symmetric = staticmethod(
+                    lambda horizontal=0, vertical=0: ft.margin.symmetric(horizontal=horizontal, vertical=vertical)
+                )
+            except Exception:
                 pass
 
 
-def _patch_window_properties():
-    """Handle window property changes in different Flet versions."""
-    # In Flet 0.23+, window properties moved to page.window object
-    # This is handled at runtime, but we note it here
-    print("[COMPAT] Window properties: use page.window.maximized (0.23+ style)", file=sys.stderr, flush=True)
-
-
-# Apply all patches
+# Apply patches at import time. main.py imports this module first so the
+# proxies are in place before any view code touches ft.colors / ft.icons.
 print("[COMPAT] Applying patches...", file=sys.stderr, flush=True)
 _patch_flet_colors()
 _patch_flet_icons()
-_patch_flet_padding()
-_patch_flet_margin()
-_patch_window_properties()
+_patch_flet_widgets()
+_patch_flet_alignment()
+_patch_flet_padding_and_margin()
 print("[COMPAT] All patches applied successfully", file=sys.stderr, flush=True)
-
-

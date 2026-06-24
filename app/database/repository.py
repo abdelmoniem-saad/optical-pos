@@ -105,29 +105,26 @@ class POSRepository:
             json.dump(data, f, indent=4)
 
     # --- Auth & Users ---
-    def authenticate(self, username, password):
-        from app.core.auth import verify_password
-
+    def get_user_by_username(self, username):
+        """Look up an active user by username. Returns the user dict (with role joined)
+        or None. Does NOT verify the password — see app.core.auth.authenticate for that.
+        """
         if self.supabase:
             try:
                 res = self.supabase.table("users").select("*, roles(*)").eq("username", username).eq("is_active", True).execute()
                 if res.data:
-                    user = res.data[0]
-                    if verify_password(password, user["password_hash"]):
-                        return user
+                    return res.data[0]
                 return None
             except Exception as e:
                 print(f"[AUTH] Supabase error: {e}")
                 return None
 
-        # Local DB authentication
         data = self._read_local()
         for user in data["users"]:
             if user["username"] == username and user.get("is_active", True):
-                if verify_password(password, user["password_hash"]):
-                    role_id = user.get("role_id")
-                    user["role"] = next((r for r in data["roles"] if r["id"] == role_id), None)
-                    return user
+                role_id = user.get("role_id")
+                user["role"] = next((r for r in data["roles"] if r["id"] == role_id), None)
+                return user
         return None
 
     def get_users(self):

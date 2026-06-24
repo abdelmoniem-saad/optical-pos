@@ -1,6 +1,12 @@
 import flet as ft
 
-from app.ui.components.ui_tokens import BUTTON_HEIGHT, SPACE_MD
+from app.ui.components.ui_tokens import (
+    BRAND_PRIMARY,
+    BUTTON_HEIGHT,
+    DANGER,
+    ON_PRIMARY,
+    SPACE_MD,
+)
 
 
 def primary_button(label: str, on_click, icon=None, expand: bool = False):
@@ -10,8 +16,8 @@ def primary_button(label: str, on_click, icon=None, expand: bool = False):
         height=BUTTON_HEIGHT,
         on_click=on_click,
         style=ft.ButtonStyle(
-            bgcolor=ft.colors.BLUE_700,
-            color=ft.colors.WHITE,
+            bgcolor=BRAND_PRIMARY,
+            color=ON_PRIMARY,
             shape=ft.RoundedRectangleBorder(radius=10),
         ),
         expand=expand,
@@ -25,8 +31,8 @@ def danger_button(label: str, on_click, icon=None, expand: bool = False):
         height=BUTTON_HEIGHT,
         on_click=on_click,
         style=ft.ButtonStyle(
-            bgcolor=ft.colors.RED_700,
-            color=ft.colors.WHITE,
+            bgcolor=DANGER,
+            color=ON_PRIMARY,
             shape=ft.RoundedRectangleBorder(radius=10),
         ),
         expand=expand,
@@ -58,8 +64,8 @@ def refresh_action(on_click=None, tooltip: str = "Refresh", icon_color=None):
 def standard_appbar(title: str, on_back=None, actions=None):
     return ft.AppBar(
         title=ft.Text(title),
-        bgcolor=ft.colors.BLUE_700,
-        color=ft.colors.WHITE,
+        bgcolor=BRAND_PRIMARY,
+        color=ON_PRIMARY,
         leading=ft.IconButton(ft.icons.ARROW_BACK, on_click=on_back) if on_back else None,
         actions=actions or [],
     )

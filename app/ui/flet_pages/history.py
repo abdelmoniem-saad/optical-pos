@@ -117,9 +117,9 @@ def HistoryView(page: ft.Page, repo):
                                     subtitle=ft.Text(f"{s.get('order_date', '')[:16]} | {_('Doctor')}: {s.get('doctor_name', 'N/A')}", size=13),
                                     trailing=ft.PopupMenuButton(
                                         items=[
-                                            ft.PopupMenuItem(text=_("View Details"), icon=ft.icons.VISIBILITY, on_click=lambda e, sale=s: show_sale_details(sale)),
-                                            ft.PopupMenuItem(text=_("Record Payment"), icon=ft.icons.PAYMENT, on_click=lambda e, sale=s: show_payment_dialog(sale)),
-                                            ft.PopupMenuItem(text=_("Print"), icon=ft.icons.PRINT, on_click=lambda e, sale=s: print_receipt(sale)),
+                                            ft.PopupMenuItem(content=_("View Details"), icon=ft.icons.VISIBILITY, on_click=lambda e, sale=s: show_sale_details(sale)),
+                                            ft.PopupMenuItem(content=_("Record Payment"), icon=ft.icons.PAYMENT, on_click=lambda e, sale=s: show_payment_dialog(sale)),
+                                            ft.PopupMenuItem(content=_("Print"), icon=ft.icons.PRINT, on_click=lambda e, sale=s: print_receipt(sale)),
                                         ]
                                     )
                                 ),

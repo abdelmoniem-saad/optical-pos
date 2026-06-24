@@ -1,5 +1,7 @@
 import flet as ft
 
+from app.ui.components.ui_tokens import BRAND_PRIMARY, DANGER, SUCCESS
+
 
 def _show(page: ft.Page, message: str, bgcolor=None, duration: int = 2500):
     bar = ft.SnackBar(ft.Text(message), bgcolor=bgcolor, duration=duration)
@@ -20,12 +22,12 @@ def _show(page: ft.Page, message: str, bgcolor=None, duration: int = 2500):
 
 
 def show_success(page: ft.Page, message: str, duration: int = 2500):
-    _show(page, message, bgcolor=ft.colors.GREEN_700, duration=duration)
+    _show(page, message, bgcolor=SUCCESS, duration=duration)
 
 
 def show_error(page: ft.Page, message: str, duration: int = 3500):
-    _show(page, message, bgcolor=ft.colors.RED_700, duration=duration)
+    _show(page, message, bgcolor=DANGER, duration=duration)
 
 
 def show_info(page: ft.Page, message: str, duration: int = 2200):
-    _show(page, message, bgcolor=ft.colors.BLUE_700, duration=duration)
+    _show(page, message, bgcolor=BRAND_PRIMARY, duration=duration)

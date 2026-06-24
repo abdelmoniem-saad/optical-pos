@@ -70,3 +70,19 @@ def verify_password(password, hashed_password):
         # SHA256 hash
         return hashlib.sha256(password.encode()).hexdigest() == hashed_password
 
+
+def authenticate(repo, username, password):
+    """Authenticate a username/password pair against the repository.
+
+    Returns the user dict (with role joined) on success, or None.
+    The repository is responsible for the user lookup; this function
+    composes that with password verification so the data layer stays
+    free of auth concerns.
+    """
+    if not username or not password:
+        return None
+    user = repo.get_user_by_username(username)
+    if user and verify_password(password, user.get("password_hash", "")):
+        return user
+    return None
+

@@ -85,11 +85,11 @@ def CustomersView(page: ft.Page, repo):
                                     subtitle=ft.Text(f"📱 {c.get('phone', 'N/A')} | 📍 {c.get('city', 'N/A')}", size=13),
                                     trailing=ft.PopupMenuButton(
                                         items=[
-                                            ft.PopupMenuItem(text=_("View Prescriptions"), icon=ft.icons.ASSIGNMENT, on_click=lambda e, cid=c["id"]: page.go(f"/prescription/{cid}")),
-                                            ft.PopupMenuItem(text=_("Edit"), icon=ft.icons.EDIT, on_click=lambda e, cust=c: show_customer_dialog(cust)),
-                                            ft.PopupMenuItem(text=_("New Order"), icon=ft.icons.SHOPPING_CART, on_click=lambda e: page.go("/pos")),
+                                            ft.PopupMenuItem(content=_("View Prescriptions"), icon=ft.icons.ASSIGNMENT, on_click=lambda e, cid=c["id"]: page.go(f"/prescription/{cid}")),
+                                            ft.PopupMenuItem(content=_("Edit"), icon=ft.icons.EDIT, on_click=lambda e, cust=c: show_customer_dialog(cust)),
+                                            ft.PopupMenuItem(content=_("New Order"), icon=ft.icons.SHOPPING_CART, on_click=lambda e: page.go("/pos")),
                                             ft.PopupMenuItem(),  # Divider
-                                            ft.PopupMenuItem(text=_("Delete"), icon=ft.icons.DELETE, on_click=lambda e, cust=c: confirm_delete_customer(cust)),
+                                            ft.PopupMenuItem(content=_("Delete"), icon=ft.icons.DELETE, on_click=lambda e, cust=c: confirm_delete_customer(cust)),
                                         ]
                                     )
                                 ),

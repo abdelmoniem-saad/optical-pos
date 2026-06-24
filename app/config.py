@@ -12,10 +12,6 @@ IS_SERVER = bool(
 )
 IS_WEB = bool("PYODIDE_RUNTIME" in os.environ or IS_SERVER)
 
-# --- Local SQLite Configuration ---
-# Used by legacy Flask bridge and any local-only workflows.
-DB_FILENAME = os.environ.get("DB_FILENAME", "pos_data.db")
-
 # --- Supabase Configuration ---
 def _load_supabase_config_file() -> dict:
 	"""Load Supabase credentials from a bundled JSON file if present."""

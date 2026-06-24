@@ -1,4 +1,5 @@
 import flet as ft
+from app.core.auth import authenticate
 from app.core.i18n import _
 from app.ui.components.ui_tokens import BUTTON_HEIGHT, INPUT_HEIGHT, SPACE_MD, TITLE_SIZE
 
@@ -51,7 +52,7 @@ def LoginView(page: ft.Page, repo, on_login_success):
                 page.update()
                 return
 
-            user = repo.authenticate(username, password)
+            user = authenticate(repo, username, password)
 
             if user:
                 error_text.value = _("Success! Redirecting...")
