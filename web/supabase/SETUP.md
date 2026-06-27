@@ -65,12 +65,11 @@ browser, so it runs in an Edge Function. Deploy it once (needs the
 [Supabase CLI](https://supabase.com/docs/guides/cli) + `supabase login`):
 
 ```bash
-# from the repo root
-supabase link --project-ref qhbprvavoudetjbyxrsn
+# from the repo root (the function lives in supabase/functions/create-user/)
 supabase functions deploy create-user --project-ref qhbprvavoudetjbyxrsn
 ```
 
-The function source is [`functions/create-user/index.ts`](./functions/create-user/index.ts).
+The function source is at `supabase/functions/create-user/index.ts` (repo root).
 `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` are injected automatically; nothing
 else to configure. After deploy, **Staff → + Add Staff** creates real logins
 (it also mirrors them into `public.users` so they show in the list).

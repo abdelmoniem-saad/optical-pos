@@ -1,0 +1,6 @@
+project_id = "qhbprvavoudetjbyxrsn"
+
+# Only signed-in users can call this function (the platform checks the JWT
+# before it runs); inside, it uses the service-role key to create the login.
+[functions.create-user]
+verify_jwt = true

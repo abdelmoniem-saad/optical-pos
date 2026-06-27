@@ -6,7 +6,7 @@
 // server-side. The platform verifies the caller's JWT before this runs
 // (verify_jwt is on by default), so only authenticated users can call it.
 //
-// Deploy:  supabase functions deploy create-user
+// Deploy:  supabase functions deploy create-user --project-ref qhbprvavoudetjbyxrsn
 // (SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are injected automatically.)
 
 import { createClient } from 'jsr:@supabase/supabase-js@2'
