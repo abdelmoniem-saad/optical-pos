@@ -23,6 +23,7 @@ function useNamedTable(table: string) {
 export const useLensTypes = () => useNamedTable('lens_types')
 export const useFrameColors = () => useNamedTable('frame_colors')
 export const useFrameTypes = () => useNamedTable('frame_types')
+export const useRoles = () => useNamedTable('roles')
 
 /** Add a row to a metadata table (lens_types, frame_types, frame_colors). */
 export function useAddMetadata(table: string) {

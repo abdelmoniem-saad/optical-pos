@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import type { User } from '../lib/database.types'
 
@@ -17,5 +17,17 @@ export function useUsers() {
       if (error) throw error
       return data ?? []
     },
+  })
+}
+
+/** Change a user's role. */
+export function useUpdateUserRole() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ id, role_id }: { id: string; role_id: string | null }) => {
+      const { error } = await supabase.from('users').update({ role_id }).eq('id', id)
+      if (error) throw error
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['users'] }),
   })
 }

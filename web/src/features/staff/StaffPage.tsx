@@ -1,16 +1,19 @@
 import { useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import { useUsers } from '../../data/staff'
+import { useUpdateUserRole, useUsers } from '../../data/staff'
+import { useRoles } from '../../data/metadata'
 import { supabase } from '../../lib/supabase'
 import { useI18n } from '../../i18n/LanguageContext'
 
 function AddUserForm({ onClose }: { onClose: () => void }) {
   const { t } = useI18n()
   const qc = useQueryClient()
-  const [f, setF] = useState({ username: '', full_name: '', password: '' })
+  const roles = useRoles()
+  const [f, setF] = useState({ username: '', full_name: '', password: '', role_id: '' })
   const [err, setErr] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const cls = 'w-full rounded-lg border border-line px-3 py-2 text-sm outline-none focus:border-brand'
+  const roleId = f.role_id || roles.data?.[0]?.id || ''
 
   async function submit() {
     setErr(null)
@@ -21,7 +24,12 @@ function AddUserForm({ onClose }: { onClose: () => void }) {
     setBusy(true)
     try {
       const { data, error } = await supabase.functions.invoke('create-user', {
-        body: { username: f.username.trim(), password: f.password, full_name: f.full_name.trim() },
+        body: {
+          username: f.username.trim(),
+          password: f.password,
+          full_name: f.full_name.trim(),
+          role_id: roleId || null,
+        },
       })
       if (error) {
         // supabase-js wraps non-2xx as a generic message; the real reason is in
@@ -56,6 +64,11 @@ function AddUserForm({ onClose }: { onClose: () => void }) {
           <input className={cls} placeholder={t('Username')} value={f.username} onChange={(e) => setF({ ...f, username: e.target.value })} />
           <input className={cls} placeholder={t('Full Name')} value={f.full_name} onChange={(e) => setF({ ...f, full_name: e.target.value })} />
           <input className={cls} type="password" placeholder={t('Password')} value={f.password} onChange={(e) => setF({ ...f, password: e.target.value })} />
+          <select className={cls} value={roleId} onChange={(e) => setF({ ...f, role_id: e.target.value })}>
+            {(roles.data ?? []).map((r) => (
+              <option key={r.id} value={r.id}>{r.name}</option>
+            ))}
+          </select>
         </div>
         {err && <div className="mt-2 rounded-lg bg-warning-bg px-3 py-2 text-sm text-warning">{t(err)}</div>}
         <div className="mt-4 flex justify-end gap-2">
@@ -72,6 +85,8 @@ function AddUserForm({ onClose }: { onClose: () => void }) {
 export function StaffPage() {
   const { t } = useI18n()
   const users = useUsers()
+  const roles = useRoles()
+  const updateRole = useUpdateUserRole()
   const [adding, setAdding] = useState(false)
 
   return (
@@ -114,7 +129,18 @@ export function StaffPage() {
               <tr key={u.id}>
                 <td className="px-4 py-2 font-medium">{u.username}</td>
                 <td className="px-4 py-2 text-muted">{u.full_name ?? '—'}</td>
-                <td className="px-4 py-2 text-muted">{u.roles?.name ?? '—'}</td>
+                <td className="px-4 py-2">
+                  <select
+                    value={u.role_id ?? ''}
+                    onChange={(e) => updateRole.mutate({ id: u.id, role_id: e.target.value || null })}
+                    className="rounded-lg border border-line bg-white px-2 py-1 text-sm outline-none focus:border-brand"
+                  >
+                    <option value="">—</option>
+                    {(roles.data ?? []).map((r) => (
+                      <option key={r.id} value={r.id}>{r.name}</option>
+                    ))}
+                  </select>
+                </td>
                 <td className="px-4 py-2 text-center">
                   {u.is_active === false ? (
                     <span className="text-faint">{t('Inactive')}</span>
