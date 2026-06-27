@@ -1,11 +1,13 @@
 import { useState } from 'react'
 import { usePOS } from '../POSContext'
+import { useI18n } from '../../../i18n/LanguageContext'
 
 function money(n: number) {
   return n.toFixed(2)
 }
 
 export function CartStep() {
+  const { t } = useI18n()
   const {
     state,
     totals,
@@ -17,8 +19,7 @@ export function CartStep() {
     goToAdditional,
     setDiscount,
     setAmountPaid,
-    setUseCustomPrice,
-    setCustomGross,
+    setGross,
     finishOrder,
   } = usePOS()
   const [quick, setQuick] = useState('')
@@ -33,36 +34,38 @@ export function CartStep() {
   return (
     <div className="mx-auto max-w-5xl p-6">
       <div className="mb-1 flex items-center justify-between">
-        <h2 className="text-xl font-bold text-brand-dark">Step 4: Cart &amp; Payment</h2>
-        <span className="text-sm font-semibold text-brand">Invoice #{state.invoiceNo}</span>
+        <h2 className="text-xl font-bold text-brand-dark">{t('Step 4: Cart & Payment')}</h2>
+        <span className="text-sm font-semibold text-brand">
+          {t('Invoice')} #{state.invoiceNo}
+        </span>
       </div>
-      <p className="mb-4 text-sm text-muted">{state.customer?.name ?? 'Walk-in'}</p>
+      <p className="mb-4 text-sm text-muted">{state.customer?.name ?? t('Walk-in')}</p>
 
       <div className="mb-4 flex gap-2">
         <input
           value={quick}
           onChange={(e) => setQuick(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && onQuickAdd()}
-          placeholder="Quick add by SKU or name…"
+          placeholder={t('Quick add by SKU or name…')}
           className="flex-1 rounded-lg border border-line bg-white px-3 py-2.5 outline-none focus:border-brand"
         />
         <button onClick={onQuickAdd} className="rounded-lg bg-brand px-4 py-2.5 font-semibold text-white">
-          Add
+          {t('Add')}
         </button>
         <button onClick={goToAdditional} className="rounded-lg border border-line px-4 py-2.5 text-muted hover:bg-surface">
-          Browse
+          {t('Browse')}
         </button>
       </div>
 
       {/* Cart table */}
       <div className="mb-4 overflow-hidden rounded-xl border border-line bg-white">
         <table className="w-full text-sm">
-          <thead className="bg-surface text-left text-muted">
+          <thead className="bg-surface text-start text-muted">
             <tr>
-              <th className="px-4 py-2">Product</th>
-              <th className="px-4 py-2 text-center">Qty</th>
-              <th className="px-4 py-2 text-right">Price</th>
-              <th className="px-4 py-2 text-right">Total</th>
+              <th className="px-4 py-2">{t('Product')}</th>
+              <th className="px-4 py-2 text-center">{t('Qty')}</th>
+              <th className="px-4 py-2 text-end">{t('Price')}</th>
+              <th className="px-4 py-2 text-end">{t('Total')}</th>
               <th className="px-4 py-2"></th>
             </tr>
           </thead>
@@ -70,7 +73,7 @@ export function CartStep() {
             {state.cartItems.length === 0 && (
               <tr>
                 <td colSpan={5} className="px-4 py-6 text-center text-faint">
-                  Cart is empty.
+                  {t('Cart is empty.')}
                 </td>
               </tr>
             )}
@@ -94,14 +97,14 @@ export function CartStep() {
                     </button>
                   </div>
                 </td>
-                <td className="px-4 py-2 text-right">{money(i.unit_price)}</td>
-                <td className="px-4 py-2 text-right">{money(i.total_price)}</td>
-                <td className="px-4 py-2 text-right">
+                <td className="px-4 py-2 text-end">{money(i.unit_price)}</td>
+                <td className="px-4 py-2 text-end">{money(i.total_price)}</td>
+                <td className="px-4 py-2 text-end">
                   <button
                     onClick={() => removeFromCart(i.product_id)}
                     className="text-danger hover:underline"
                   >
-                    Remove
+                    {t('Remove')}
                   </button>
                 </td>
               </tr>
@@ -113,28 +116,19 @@ export function CartStep() {
       {/* Pricing + totals */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div className="space-y-3 rounded-xl bg-white p-4 shadow-sm">
-          <div className="font-semibold">Pricing</div>
-          <label className="flex items-center gap-2 text-sm">
-            <input
-              type="checkbox"
-              checked={state.useCustomPrice}
-              onChange={(e) => setUseCustomPrice(e.target.checked)}
-            />
-            Use custom gross price
-          </label>
+          <div className="font-semibold">{t('Pricing')}</div>
           <div className="flex flex-wrap gap-3">
             <label className="flex flex-col text-xs text-faint">
-              Custom Gross
+              {t('Total Price')}
               <input
                 type="number"
                 className={field}
-                disabled={!state.useCustomPrice}
-                value={state.useCustomPrice ? state.customGross : totals.gross}
-                onChange={(e) => setCustomGross(Number(e.target.value))}
+                value={totals.gross}
+                onChange={(e) => setGross(Number(e.target.value))}
               />
             </label>
             <label className="flex flex-col text-xs text-faint">
-              Discount
+              {t('Discount')}
               <input
                 type="number"
                 className={field}
@@ -143,7 +137,7 @@ export function CartStep() {
               />
             </label>
             <label className="flex flex-col text-xs text-faint">
-              Amount Paid
+              {t('Amount Paid')}
               <input
                 type="number"
                 className={field}
@@ -155,14 +149,14 @@ export function CartStep() {
         </div>
 
         <div className="space-y-1.5 rounded-xl bg-white p-4 shadow-sm text-sm">
-          <Row label="Gross Total" value={money(totals.gross)} bold />
-          <Row label="Discount" value={`- ${money(totals.discount)}`} />
+          <Row label={t('Gross Total')} value={money(totals.gross)} bold />
+          <Row label={t('Discount')} value={`- ${money(totals.discount)}`} />
           <div className="my-1 border-t border-line/40" />
-          <Row label="Net Amount" value={money(totals.net)} big success />
-          <Row label="Amount Paid" value={money(totals.amountPaid)} />
+          <Row label={t('Net Amount')} value={money(totals.net)} big success />
+          <Row label={t('Amount Paid')} value={money(totals.amountPaid)} />
           <div className="my-1 border-t border-line/40" />
           <Row
-            label="Remaining Balance"
+            label={t('Remaining Balance')}
             value={money(totals.balance)}
             big
             danger={totals.balance > 0}
@@ -173,24 +167,24 @@ export function CartStep() {
 
       {state.error && (
         <div className="mt-4 whitespace-pre-line rounded-lg bg-warning-bg px-3 py-2 text-sm text-warning">
-          {state.error}
+          {t(state.error)}
         </div>
       )}
 
       <div className="mt-5 flex flex-wrap items-center justify-between gap-2">
         <button onClick={back} className="rounded-lg border border-line px-4 py-2.5 text-muted hover:bg-surface">
-          ← Back
+          {t('← Back')}
         </button>
         <div className="flex gap-2">
           <button onClick={clearCart} className="rounded-lg border border-line px-4 py-2.5 text-muted hover:bg-surface">
-            Clear Cart
+            {t('Clear Cart')}
           </button>
           <button
             onClick={() => finishOrder()}
             disabled={state.busy}
             className="rounded-lg bg-success px-5 py-2.5 font-semibold text-white disabled:opacity-60"
           >
-            {state.busy ? 'Saving…' : 'Finish Checkout →'}
+            {state.busy ? t('Saving…') : t('Finish Checkout →')}
           </button>
         </div>
       </div>

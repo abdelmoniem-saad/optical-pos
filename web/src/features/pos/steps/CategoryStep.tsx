@@ -1,4 +1,5 @@
 import { usePOS } from '../POSContext'
+import { useI18n } from '../../../i18n/LanguageContext'
 import type { Category } from '../types'
 
 const categories: { label: string; value: Category; color: string }[] = [
@@ -10,10 +11,11 @@ const categories: { label: string; value: Category; color: string }[] = [
 ]
 
 export function CategoryStep() {
+  const { t } = useI18n()
   const { selectCategory } = usePOS()
   return (
     <div className="mx-auto max-w-4xl p-6 text-center">
-      <h2 className="mb-6 text-2xl font-bold text-brand-dark">Select Product Category</h2>
+      <h2 className="mb-6 text-2xl font-bold text-brand-dark">{t('Select Product Category')}</h2>
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
         {categories.map((c) => (
           <button
@@ -22,7 +24,7 @@ export function CategoryStep() {
             style={{ backgroundColor: c.color }}
             className="flex h-40 flex-col items-center justify-center rounded-2xl p-6 font-bold text-white shadow-sm transition hover:scale-[1.03] hover:shadow-md"
           >
-            <span className="text-lg">{c.label}</span>
+            <span className="text-lg">{t(c.label)}</span>
           </button>
         ))}
       </div>

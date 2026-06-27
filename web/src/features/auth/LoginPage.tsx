@@ -1,10 +1,12 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../../lib/auth'
+import { useI18n } from '../../i18n/LanguageContext'
 
 /** Real Supabase Auth login. Staff enter a username; the AuthProvider maps it
  *  to an email behind the scenes. A full email also works. */
 export function LoginPage() {
+  const { t, lang, toggle } = useI18n()
   const navigate = useNavigate()
   const { signIn } = useAuth()
   const [username, setUsername] = useState('')
@@ -24,9 +26,7 @@ export function LoginPage() {
       await signIn(username, password)
       navigate('/', { replace: true })
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Sign in failed'
-      // Supabase returns "Invalid login credentials" for bad user/pass.
-      setError(msg)
+      setError(err instanceof Error ? err.message : 'Sign in failed')
     } finally {
       setBusy(false)
     }
@@ -43,17 +43,17 @@ export function LoginPage() {
             L
           </div>
           <h1 className="text-xl font-semibold text-brand-dark">LensyPOS</h1>
-          <p className="text-sm text-muted">Sign in to continue</p>
+          <p className="text-sm text-muted">{t('Sign in to continue')}</p>
         </div>
 
         {error && (
           <div className="mb-4 rounded-lg bg-warning-bg px-3 py-2 text-sm text-warning">
-            {error}
+            {t(error)}
           </div>
         )}
 
         <label className="mb-3 block">
-          <span className="mb-1 block text-sm font-medium text-muted">Username</span>
+          <span className="mb-1 block text-sm font-medium text-muted">{t('Username')}</span>
           <input
             value={username}
             onChange={(e) => setUsername(e.target.value)}
@@ -64,7 +64,7 @@ export function LoginPage() {
         </label>
 
         <label className="mb-5 block">
-          <span className="mb-1 block text-sm font-medium text-muted">Password</span>
+          <span className="mb-1 block text-sm font-medium text-muted">{t('Password')}</span>
           <input
             type="password"
             value={password}
@@ -79,7 +79,15 @@ export function LoginPage() {
           disabled={busy}
           className="w-full rounded-lg bg-brand py-2.5 font-semibold text-white transition hover:bg-brand-dark disabled:opacity-60"
         >
-          {busy ? 'Signing in…' : 'Sign in'}
+          {busy ? t('Signing in…') : t('Sign in')}
+        </button>
+
+        <button
+          type="button"
+          onClick={toggle}
+          className="mt-4 w-full text-center text-xs text-faint hover:text-muted"
+        >
+          {lang === 'ar' ? 'English' : 'العربية'}
         </button>
       </form>
     </div>

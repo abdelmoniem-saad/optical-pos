@@ -1,10 +1,12 @@
 import { useMemo, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import {
   useAddProduct,
   useAdjustStock,
   useInventory,
   useUpdateProduct,
 } from '../../data/inventory'
+import { useI18n } from '../../i18n/LanguageContext'
 import type { Product } from '../../lib/database.types'
 
 const CATEGORIES = ['Frame', 'Sunglasses', 'ContactLens', 'Lens', 'Accessory', 'Other']
@@ -30,6 +32,7 @@ function ProductModal({
   editing: Product | null
   onClose: () => void
 }) {
+  const { t } = useI18n()
   const add = useAddProduct()
   const update = useUpdateProduct()
   const [form, setForm] = useState<FormState>(
@@ -79,47 +82,47 @@ function ProductModal({
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
       <div className="w-full max-w-md rounded-2xl bg-white p-5 shadow-xl">
         <h2 className="mb-3 text-lg font-semibold text-brand-dark">
-          {editing ? 'Edit Product' : 'New Product'}
+          {editing ? t('Edit Product') : t('New Product')}
         </h2>
         <div className="space-y-2">
-          <input className={cls} placeholder="Name *" value={form.name} onChange={(e) => set('name', e.target.value)} />
+          <input className={cls} placeholder={t('Name *')} value={form.name} onChange={(e) => set('name', e.target.value)} />
           <div className="flex gap-2">
-            <input className={cls} placeholder="SKU" value={form.sku} onChange={(e) => set('sku', e.target.value)} />
-            <input className={cls} placeholder="Barcode" value={form.barcode} onChange={(e) => set('barcode', e.target.value)} />
+            <input className={cls} placeholder={t('SKU')} value={form.sku} onChange={(e) => set('sku', e.target.value)} />
+            <input className={cls} placeholder={t('Barcode')} value={form.barcode} onChange={(e) => set('barcode', e.target.value)} />
           </div>
           <select className={cls} value={form.category} onChange={(e) => set('category', e.target.value)}>
             {CATEGORIES.map((c) => (
-              <option key={c}>{c}</option>
+              <option key={c} value={c}>{t(c)}</option>
             ))}
           </select>
           <div className="flex gap-2">
             <label className="flex-1 text-xs text-faint">
-              Sale Price
+              {t('Sale Price')}
               <input type="number" className={cls} value={form.sale_price} onChange={(e) => set('sale_price', e.target.value)} />
             </label>
             <label className="flex-1 text-xs text-faint">
-              Cost Price
+              {t('Cost Price')}
               <input type="number" className={cls} value={form.cost_price} onChange={(e) => set('cost_price', e.target.value)} />
             </label>
             {!editing && (
               <label className="flex-1 text-xs text-faint">
-                Initial Stock
+                {t('Initial Stock')}
                 <input type="number" className={cls} value={form.stock_qty} onChange={(e) => set('stock_qty', e.target.value)} />
               </label>
             )}
           </div>
         </div>
-        {err && <div className="mt-2 rounded-lg bg-warning-bg px-3 py-2 text-sm text-warning">{err}</div>}
+        {err && <div className="mt-2 rounded-lg bg-warning-bg px-3 py-2 text-sm text-warning">{t(err)}</div>}
         <div className="mt-4 flex justify-end gap-2">
           <button onClick={onClose} className="rounded-lg border border-line px-4 py-2 text-muted hover:bg-surface">
-            Cancel
+            {t('Cancel')}
           </button>
           <button
             onClick={submit}
             disabled={add.isPending || update.isPending}
             className="rounded-lg bg-brand px-4 py-2 font-semibold text-white disabled:opacity-60"
           >
-            Save
+            {t('Save')}
           </button>
         </div>
       </div>
@@ -128,23 +131,25 @@ function ProductModal({
 }
 
 export function InventoryPage() {
+  const { t } = useI18n()
+  const [params] = useSearchParams()
   const inv = useInventory()
   const adjust = useAdjustStock()
-  const [term, setTerm] = useState('')
+  const [term, setTerm] = useState(params.get('q') ?? '')
   const [modal, setModal] = useState<{ open: boolean; editing: Product | null }>({
     open: false,
     editing: null,
   })
 
   const products = useMemo(() => {
-    const t = term.trim().toLowerCase()
+    const tt = term.trim().toLowerCase()
     const list = inv.data ?? []
-    if (!t) return list
+    if (!tt) return list
     return list.filter(
       (p) =>
-        (p.name ?? '').toLowerCase().includes(t) ||
-        (p.sku ?? '').toLowerCase().includes(t) ||
-        (p.barcode ?? '').toLowerCase().includes(t),
+        (p.name ?? '').toLowerCase().includes(tt) ||
+        (p.sku ?? '').toLowerCase().includes(tt) ||
+        (p.barcode ?? '').toLowerCase().includes(tt),
     )
   }, [inv.data, term])
 
@@ -155,36 +160,36 @@ export function InventoryPage() {
   return (
     <div className="mx-auto max-w-5xl p-6">
       <div className="mb-4 flex items-center justify-between">
-        <h1 className="text-2xl font-semibold text-brand-dark">Inventory</h1>
+        <h1 className="text-2xl font-semibold text-brand-dark">{t('Inventory')}</h1>
         <button
           onClick={() => setModal({ open: true, editing: null })}
           className="rounded-lg bg-brand px-4 py-2.5 font-semibold text-white"
         >
-          + New Product
+          {t('+ New Product')}
         </button>
       </div>
 
       <input
         value={term}
         onChange={(e) => setTerm(e.target.value)}
-        placeholder="Search name, SKU, barcode…"
+        placeholder={t('Search name, SKU, barcode…')}
         className="mb-4 w-full rounded-lg border border-line bg-white px-3 py-2.5 outline-none focus:border-brand"
       />
 
       {inv.isError && (
         <div className="rounded-lg bg-warning-bg px-3 py-2 text-sm text-warning">
-          Couldn't load inventory: {String(inv.error)}
+          {t("Couldn't load inventory:")} {String(inv.error)}
         </div>
       )}
 
       <div className="overflow-hidden rounded-xl border border-line bg-white">
         <table className="w-full text-sm">
-          <thead className="bg-surface text-left text-muted">
+          <thead className="bg-surface text-start text-muted">
             <tr>
-              <th className="px-4 py-2">Product</th>
-              <th className="px-4 py-2">Category</th>
-              <th className="px-4 py-2 text-right">Price</th>
-              <th className="px-4 py-2 text-center">Stock</th>
+              <th className="px-4 py-2">{t('Product')}</th>
+              <th className="px-4 py-2">{t('Category')}</th>
+              <th className="px-4 py-2 text-end">{t('Price')}</th>
+              <th className="px-4 py-2 text-center">{t('Stock')}</th>
               <th className="px-4 py-2"></th>
             </tr>
           </thead>
@@ -192,7 +197,7 @@ export function InventoryPage() {
             {products.length === 0 && !inv.isLoading && (
               <tr>
                 <td colSpan={5} className="px-4 py-6 text-center text-faint">
-                  No products.
+                  {t('No products.')}
                 </td>
               </tr>
             )}
@@ -202,8 +207,8 @@ export function InventoryPage() {
                   <div className="font-medium">{p.name}</div>
                   <div className="text-xs text-faint">{p.sku}</div>
                 </td>
-                <td className="px-4 py-2 text-muted">{p.category}</td>
-                <td className="px-4 py-2 text-right">{Number(p.sale_price ?? 0).toFixed(2)}</td>
+                <td className="px-4 py-2 text-muted">{t(String(p.category ?? ''))}</td>
+                <td className="px-4 py-2 text-end">{Number(p.sale_price ?? 0).toFixed(2)}</td>
                 <td className="px-4 py-2">
                   <div className="flex items-center justify-center gap-1.5">
                     <button onClick={() => quickAdjust(p, -1)} className="h-6 w-6 rounded border border-line text-muted hover:bg-surface">−</button>
@@ -213,9 +218,9 @@ export function InventoryPage() {
                     <button onClick={() => quickAdjust(p, 1)} className="h-6 w-6 rounded border border-line text-muted hover:bg-surface">+</button>
                   </div>
                 </td>
-                <td className="px-4 py-2 text-right">
+                <td className="px-4 py-2 text-end">
                   <button onClick={() => setModal({ open: true, editing: p })} className="text-brand hover:underline">
-                    Edit
+                    {t('Edit')}
                   </button>
                 </td>
               </tr>

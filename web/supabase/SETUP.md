@@ -49,6 +49,35 @@ creates `create_sale_order(...)`, which writes the sale + items + stock movement
 installed the app falls back to separate inserts (which work, but aren't atomic —
 a mid-checkout failure could leave a partial order). Running this closes that gap.
 
+## Step 4 — Prescription image uploads (for the exam "attach" button)
+
+1. Dashboard → **Storage → New bucket** → name **`prescriptions`**, mark it **Public**.
+2. Re-run [`002_create_sale_rpc.sql`](./002_create_sale_rpc.sql) (it was updated to
+   also save the exam `image_path`).
+
+The 📎 button on each exam row uploads to this bucket and stores the path on the
+examination.
+
+## Step 5 — In-app user creation (the "Add Staff" button)
+
+Creating Supabase Auth users needs the service-role key, which can't live in the
+browser, so it runs in an Edge Function. Deploy it once (needs the
+[Supabase CLI](https://supabase.com/docs/guides/cli) + `supabase login`):
+
+```bash
+# from the repo root
+supabase link --project-ref qhbprvavoudetjbyxrsn
+supabase functions deploy create-user --project-ref qhbprvavoudetjbyxrsn
+```
+
+The function source is [`functions/create-user/index.ts`](./functions/create-user/index.ts).
+`SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` are injected automatically; nothing
+else to configure. After deploy, **Staff → + Add Staff** creates real logins
+(it also mirrors them into `public.users` so they show in the list).
+
+> Until this function is deployed, the "Add Staff" form will return a "function not
+> found" error — everything else works without it.
+
 ## Migrating existing staff (later)
 
 Your old `public.users` table (bcrypt `password_hash`) is now **legacy** — Supabase

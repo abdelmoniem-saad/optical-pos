@@ -2,16 +2,10 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "flet-desktop",
-      "runtimeExecutable": "flet",
-      "runtimeArgs": ["run", "main.py"],
-      "port": 8550
-    },
-    {
-      "name": "flet-web",
-      "runtimeExecutable": "flet",
-      "runtimeArgs": ["run", "--web", "--port", "8551", "main.py"],
-      "port": 8551
+      "name": "lensy-web (React POS)",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "web", "run", "dev"],
+      "autoPort": true
     }
   ]
 }

@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 
 export type NamedRow = { id: string; name: string }
@@ -23,3 +23,32 @@ function useNamedTable(table: string) {
 export const useLensTypes = () => useNamedTable('lens_types')
 export const useFrameColors = () => useNamedTable('frame_colors')
 export const useFrameTypes = () => useNamedTable('frame_types')
+
+/** Add a row to a metadata table (lens_types, frame_types, frame_colors). */
+export function useAddMetadata(table: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (name: string): Promise<NamedRow> => {
+      const { data, error } = await supabase
+        .from(table)
+        .insert({ name: name.trim() })
+        .select()
+        .single<NamedRow>()
+      if (error) throw error
+      return data
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: [table] }),
+  })
+}
+
+/** Delete a row from a metadata table by id. */
+export function useDeleteMetadata(table: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (id: string): Promise<void> => {
+      const { error } = await supabase.from(table).delete().eq('id', id)
+      if (error) throw error
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: [table] }),
+  })
+}

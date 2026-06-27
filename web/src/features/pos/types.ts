@@ -30,6 +30,7 @@ export function emptyExam(): Exam {
     frame_info: '',
     frame_color: '',
     frame_status: 'New',
+    image_path: '',
   }
 }
 

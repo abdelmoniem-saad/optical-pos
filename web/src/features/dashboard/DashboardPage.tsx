@@ -1,23 +1,21 @@
+import { Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '../../lib/supabase'
+import { useI18n } from '../../i18n/LanguageContext'
 
-/**
- * Dashboard placeholder + live backend probe. Runs as the signed-in
- * (authenticated) user, so with the Phase 2 RLS policies applied it should
- * return real table counts — confirming auth + RLS are wired correctly.
- * If you somehow reach here without a session, RLS returns errors/0.
- */
+/** Dashboard overview + a live backend probe (counts a few tables as the
+ *  signed-in user, confirming auth + RLS are wired). */
 function useBackendProbe() {
   return useQuery({
     queryKey: ['backend-probe'],
     queryFn: async () => {
       const tables = ['customers', 'inventory', 'sales'] as const
       const results: Record<string, number | string> = {}
-      for (const t of tables) {
+      for (const tbl of tables) {
         const { count, error } = await supabase
-          .from(t)
+          .from(tbl)
           .select('*', { count: 'exact', head: true })
-        results[t] = error ? `err: ${error.message}` : (count ?? 0)
+        results[tbl] = error ? `err` : (count ?? 0)
       }
       return results
     },
@@ -25,44 +23,43 @@ function useBackendProbe() {
 }
 
 const cards = [
-  { label: 'New Sale', hint: 'POS wizard', accent: 'bg-brand' },
-  { label: 'Customers', hint: 'Manage', accent: 'bg-success' },
-  { label: 'Inventory', hint: 'Stock', accent: 'bg-warning' },
-  { label: 'Reports', hint: 'Insights', accent: 'bg-brand-dark' },
+  { to: '/pos', label: 'New Sale', hint: 'POS wizard', accent: 'bg-brand' },
+  { to: '/customers', label: 'Customers', hint: 'Manage', accent: 'bg-success' },
+  { to: '/inventory', label: 'Inventory', hint: 'Stock', accent: 'bg-warning' },
+  { to: '/reports', label: 'Reports', hint: 'Insights', accent: 'bg-brand-dark' },
 ]
 
 export function DashboardPage() {
+  const { t } = useI18n()
   const probe = useBackendProbe()
 
   return (
     <div className="mx-auto max-w-5xl p-6">
-      <h1 className="mb-1 text-2xl font-semibold text-brand-dark">Dashboard</h1>
-      <p className="mb-6 text-sm text-muted">Phase 1 shell — screens land in later phases.</p>
+      <h1 className="mb-1 text-2xl font-semibold text-brand-dark">{t('Dashboard')}</h1>
+      <p className="mb-6 text-sm text-muted">{t('Quick actions')}</p>
 
       <div className="mb-8 grid grid-cols-2 gap-4 sm:grid-cols-4">
         {cards.map((c) => (
-          <div
+          <Link
             key={c.label}
-            className="cursor-pointer rounded-xl bg-white p-5 shadow-sm transition hover:shadow-md"
+            to={c.to}
+            className="block rounded-xl bg-white p-5 shadow-sm transition hover:shadow-md"
           >
             <div className={`mb-3 h-10 w-10 rounded-lg ${c.accent}`} />
-            <div className="font-semibold">{c.label}</div>
-            <div className="text-sm text-faint">{c.hint}</div>
-          </div>
+            <div className="font-semibold">{t(c.label)}</div>
+            <div className="text-sm text-faint">{t(c.hint)}</div>
+          </Link>
         ))}
       </div>
 
       <div className="rounded-xl bg-white p-5 shadow-sm">
-        <h2 className="mb-3 font-semibold">Backend connectivity (live Supabase)</h2>
-        {probe.isLoading && <p className="text-sm text-muted">Probing…</p>}
-        {probe.isError && (
-          <p className="text-sm text-danger">Probe failed: {String(probe.error)}</p>
-        )}
+        <h2 className="mb-3 font-semibold">{t('Overview')}</h2>
+        {probe.isLoading && <p className="text-sm text-muted">{t('Loading…')}</p>}
         {probe.data && (
           <ul className="space-y-1 text-sm">
             {Object.entries(probe.data).map(([table, val]) => (
               <li key={table} className="flex justify-between border-b border-line/40 py-1">
-                <span className="text-muted">{table}</span>
+                <span className="text-muted">{t(table.charAt(0).toUpperCase() + table.slice(1))}</span>
                 <span className="font-mono">{String(val)}</span>
               </li>
             ))}

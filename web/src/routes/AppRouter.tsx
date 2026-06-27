@@ -14,8 +14,10 @@ const DashboardPage = named(() => import('../features/dashboard/DashboardPage'),
 const POSPage = named(() => import('../features/pos/POSPage'), 'POSPage')
 const CustomersPage = named(() => import('../features/customers/CustomersPage'), 'CustomersPage')
 const InventoryPage = named(() => import('../features/inventory/InventoryPage'), 'InventoryPage')
+const LabPage = named(() => import('../features/lab/LabPage'), 'LabPage')
 const HistoryPage = named(() => import('../features/history/HistoryPage'), 'HistoryPage')
 const ReportsPage = named(() => import('../features/reports/ReportsPage'), 'ReportsPage')
+const SuppliersPage = named(() => import('../features/suppliers/SuppliersPage'), 'SuppliersPage')
 const StaffPage = named(() => import('../features/staff/StaffPage'), 'StaffPage')
 const SettingsPage = named(() => import('../features/settings/SettingsPage'), 'SettingsPage')
 
@@ -29,8 +31,10 @@ const router = createBrowserRouter([
       { path: 'pos', element: <POSPage /> },
       { path: 'customers', element: <CustomersPage /> },
       { path: 'inventory', element: <InventoryPage /> },
+      { path: 'lab', element: <LabPage /> },
       { path: 'history', element: <HistoryPage /> },
       { path: 'reports', element: <ReportsPage /> },
+      { path: 'suppliers', element: <SuppliersPage /> },
       { path: 'staff', element: <StaffPage /> },
       { path: 'settings', element: <SettingsPage /> },
     ],

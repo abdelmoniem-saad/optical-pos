@@ -1,13 +1,13 @@
 import { useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { useCustomers, useCustomerSearch } from '../../data/customers'
+import { useI18n } from '../../i18n/LanguageContext'
 
-/**
- * First real data-driven screen — proves the Phase 3 data layer works
- * (typed Query hooks → Supabase). Read-only for now; add/edit lands in Phase 5.
- * Returns data only once RLS + a signed-in session are set up (Phase 2 runbook).
- */
+/** Customers list + search (read-only for now). */
 export function CustomersPage() {
-  const [term, setTerm] = useState('')
+  const { t } = useI18n()
+  const [params] = useSearchParams()
+  const [term, setTerm] = useState(params.get('q') ?? '')
   const all = useCustomers()
   const search = useCustomerSearch(term)
 
@@ -17,32 +17,32 @@ export function CustomersPage() {
 
   return (
     <div className="mx-auto max-w-4xl p-6">
-      <h1 className="mb-1 text-2xl font-semibold text-brand-dark">Customers</h1>
+      <h1 className="mb-1 text-2xl font-semibold text-brand-dark">{t('Customers')}</h1>
       <p className="mb-5 text-sm text-muted">
-        {all.data ? `${all.data.length} total` : 'Loading…'}
+        {all.data ? `${all.data.length} ${t('total')}` : t('Loading…')}
       </p>
 
       <input
         value={term}
         onChange={(e) => setTerm(e.target.value)}
-        placeholder="Search by name…"
+        placeholder={t('Search by name…')}
         className="mb-4 w-full rounded-lg border border-line bg-white px-3 py-2.5 outline-none focus:border-brand"
       />
 
-      {active.isLoading && <p className="text-sm text-muted">Loading customers…</p>}
+      {active.isLoading && <p className="text-sm text-muted">{t('Loading…')}</p>}
 
       {active.isError && (
         <div className="rounded-lg bg-warning-bg px-3 py-2 text-sm text-warning">
-          Couldn't load customers: {String(active.error)}
+          {t("Couldn't load customers:")} {String(active.error)}
           <div className="mt-1 text-xs text-muted">
-            Expected until you finish the Phase 2 Supabase setup (RLS + login).
+            {t('Expected until you finish the Phase 2 Supabase setup (RLS + login).')}
           </div>
         </div>
       )}
 
       {!active.isLoading && !active.isError && customers.length === 0 && (
         <p className="text-sm text-faint">
-          {searching ? 'No matches.' : 'No customers yet.'}
+          {searching ? t('No matches.') : t('No customers yet.')}
         </p>
       )}
 

@@ -6,7 +6,6 @@ import {
   type ReactNode,
 } from 'react'
 import { supabase } from '../../lib/supabase'
-import { useAuth } from '../../lib/auth'
 import { getNextInvoiceNo, useCreateSale, type CartLine } from '../../data/sales'
 import { useAddCustomer } from '../../data/customers'
 import type { Customer, Product, Sale } from '../../lib/database.types'
@@ -44,8 +43,7 @@ type State = {
   examinations: Exam[]
   discount: number
   amountPaid: number
-  useCustomPrice: boolean
-  customGross: number
+  grossOverride: number | null
   doctorName: string
   deliveryDate: string
   invoiceNo: string
@@ -63,8 +61,7 @@ function initialState(): State {
     examinations: [],
     discount: 0,
     amountPaid: 0,
-    useCustomPrice: false,
-    customGross: 0,
+    grossOverride: null,
     doctorName: '',
     deliveryDate: plusDays(3),
     invoiceNo: '',
@@ -110,8 +107,7 @@ type POSApi = {
   // pricing
   setDiscount: (n: number) => void
   setAmountPaid: (n: number) => void
-  setUseCustomPrice: (b: boolean) => void
-  setCustomGross: (n: number) => void
+  setGross: (n: number) => void
   // checkout
   finishOrder: () => Promise<void>
   closeReceiptAndReset: () => void
@@ -124,7 +120,6 @@ export function POSProvider({ children }: { children: ReactNode }) {
   const ref = useRef(state)
   ref.current = state
 
-  const { user } = useAuth()
   const createSale = useCreateSale()
   const addCustomer = useAddCustomer()
 
@@ -132,8 +127,7 @@ export function POSProvider({ children }: { children: ReactNode }) {
   const totals = computeTotals(state.cartItems, {
     discount: state.discount,
     amountPaid: state.amountPaid,
-    useCustomPrice: state.useCustomPrice,
-    customGross: state.customGross,
+    grossOverride: state.grossOverride,
   })
 
   // ---- navigation ----
@@ -290,14 +284,8 @@ export function POSProvider({ children }: { children: ReactNode }) {
   // ---- pricing ----
   const setDiscount = (n: number) => patch({ discount: Math.max(0, n || 0) })
   const setAmountPaid = (n: number) => patch({ amountPaid: Math.max(0, n || 0) })
-  const setUseCustomPrice = (b: boolean) =>
-    patch({
-      useCustomPrice: b,
-      customGross: b
-        ? ref.current.cartItems.reduce((s, i) => s + i.total_price, 0)
-        : ref.current.customGross,
-    })
-  const setCustomGross = (n: number) => patch({ customGross: Math.max(0, n || 0) })
+  // The gross total is always editable; null means "track the items total".
+  const setGross = (n: number) => patch({ grossOverride: Math.max(0, n || 0) })
 
   /** Sum stock movements for the cart's products; returns shortfall messages. */
   async function checkStock(items: CartLine[]): Promise<string[]> {
@@ -325,8 +313,7 @@ export function POSProvider({ children }: { children: ReactNode }) {
     const t = computeTotals(s.cartItems, {
       discount: s.discount,
       amountPaid: s.amountPaid,
-      useCustomPrice: s.useCustomPrice,
-      customGross: s.customGross,
+      grossOverride: s.grossOverride,
     })
     if (!s.cartItems.length && !s.examinations.length) {
       patch({ error: 'Cart is empty and no examinations. Cannot checkout.' })
@@ -340,8 +327,11 @@ export function POSProvider({ children }: { children: ReactNode }) {
         return
       }
       const sale = await createSale.mutateAsync({
+        // sales.user_id has a FK to the legacy public.users table, which does
+        // NOT contain Supabase Auth UUIDs — passing one fails the insert. Leave
+        // it null until cashier identity is migrated to auth (see follow-up).
         customerId: s.customer?.id ?? null,
-        userId: user?.id ?? null,
+        userId: null,
         invoiceNo: s.invoiceNo || undefined,
         items: s.cartItems,
         examinations: s.examinations.length ? s.examinations : undefined,
@@ -394,8 +384,7 @@ export function POSProvider({ children }: { children: ReactNode }) {
     clearCart,
     setDiscount,
     setAmountPaid,
-    setUseCustomPrice,
-    setCustomGross,
+    setGross,
     finishOrder,
     closeReceiptAndReset,
   }

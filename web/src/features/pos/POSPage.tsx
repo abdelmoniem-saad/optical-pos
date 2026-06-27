@@ -1,4 +1,5 @@
 import { POSProvider, usePOS } from './POSContext'
+import { useI18n } from '../../i18n/LanguageContext'
 import { needsExamination, type POSStep } from './types'
 import { CategoryStep } from './steps/CategoryStep'
 import { CustomerStep } from './steps/CustomerStep'
@@ -7,7 +8,7 @@ import { AdditionalItemsStep } from './steps/AdditionalItemsStep'
 import { CartStep } from './steps/CartStep'
 import { ReceiptDialog } from './ReceiptDialog'
 
-const labels: Record<POSStep, string> = {
+const labelKey: Record<POSStep, string> = {
   category: 'Category',
   customer: 'Customer',
   examination: 'Exam',
@@ -16,6 +17,7 @@ const labels: Record<POSStep, string> = {
 }
 
 function Stepper() {
+  const { t } = useI18n()
   const { state } = usePOS()
   const flow: POSStep[] = needsExamination(state.category)
     ? ['category', 'customer', 'examination', 'cart']
@@ -35,7 +37,7 @@ function Stepper() {
                   : 'bg-surface text-faint'
             }`}
           >
-            {labels[s]}
+            {t(labelKey[s])}
           </span>
           {i < flow.length - 1 && <span className="text-faint">›</span>}
         </div>

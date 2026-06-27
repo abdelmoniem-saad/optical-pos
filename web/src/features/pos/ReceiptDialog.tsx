@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { usePOS, type CompletedOrder } from './POSContext'
+import { useI18n } from '../../i18n/LanguageContext'
 import { useSettings } from '../../data/settings'
 import {
   buildCustomerCopy,
@@ -13,6 +14,7 @@ import {
 type CopyKey = 'shop' | 'customer' | 'lab'
 
 export function ReceiptDialog({ order }: { order: CompletedOrder }) {
+  const { t } = useI18n()
   const { closeReceiptAndReset } = usePOS()
   const navigate = useNavigate()
   const settings = useSettings()
@@ -51,17 +53,17 @@ export function ReceiptDialog({ order }: { order: CompletedOrder }) {
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
       <div className="w-full max-w-md rounded-2xl bg-white p-5 shadow-xl">
         <div className="mb-3 text-center">
-          <div className="text-lg font-bold text-success">✓ Order Saved</div>
-          <div className="text-sm text-muted">Invoice #{order.invoiceNo}</div>
+          <div className="text-lg font-bold text-success">✓ {t('Order Saved')}</div>
+          <div className="text-sm text-muted">{t('Invoice')} #{order.invoiceNo}</div>
         </div>
 
         <div className="mb-3 flex justify-center gap-2">
-          {tab('shop', 'Shop')}
-          {tab('customer', 'Customer')}
-          {tab('lab', 'Lab')}
+          {tab('shop', t('Shop'))}
+          {tab('customer', t('Customer'))}
+          {tab('lab', t('Lab'))}
         </div>
 
-        <pre className="mb-3 max-h-72 overflow-auto rounded-lg border border-line bg-surface p-3 font-mono text-[11px] leading-tight">
+        <pre dir="ltr" className="mb-3 max-h-72 overflow-auto rounded-lg border border-line bg-surface p-3 text-start font-mono text-[11px] leading-tight">
           {builders[copy]}
         </pre>
 
@@ -70,13 +72,13 @@ export function ReceiptDialog({ order }: { order: CompletedOrder }) {
             onClick={() => printReceipts([builders[copy]])}
             className="rounded-lg border border-line px-3 py-2 text-sm text-muted hover:bg-surface"
           >
-            Print {copy}
+            {t('Print')}
           </button>
           <button
             onClick={() => printReceipts([builders.shop, builders.customer, builders.lab])}
             className="rounded-lg bg-brand px-3 py-2 text-sm font-semibold text-white"
           >
-            Print all 3
+            {t('Print all 3')}
           </button>
         </div>
 
@@ -84,7 +86,7 @@ export function ReceiptDialog({ order }: { order: CompletedOrder }) {
           onClick={done}
           className="mt-2 w-full rounded-lg bg-success py-2.5 font-semibold text-white"
         >
-          Done
+          {t('Done')}
         </button>
       </div>
     </div>

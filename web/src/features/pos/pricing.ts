@@ -3,8 +3,9 @@ import type { CartLine } from '../../data/sales'
 export type PricingInput = {
   discount: number
   amountPaid: number
-  useCustomPrice: boolean
-  customGross: number
+  // The gross is ALWAYS editable in the cart. null = "use the items total";
+  // a number = the seller typed a custom total (for negotiations / round prices).
+  grossOverride: number | null
 }
 
 export type Totals = {
@@ -17,13 +18,13 @@ export type Totals = {
 }
 
 /**
- * Order totals. Mirrors update_totals_display() in the Flet cart step:
- * gross is either the items total or a custom override; discount is clamped
- * to gross; amount paid is clamped to net; balance is net − paid.
+ * Order totals. gross defaults to the items total but the seller can always
+ * override it with a custom price. Discount is clamped to gross; amount paid is
+ * clamped to net; balance is net − paid.
  */
 export function computeTotals(items: CartLine[], p: PricingInput): Totals {
   const itemsTotal = items.reduce((sum, i) => sum + (i.total_price || 0), 0)
-  const gross = p.useCustomPrice ? Math.max(0, p.customGross) : itemsTotal
+  const gross = p.grossOverride !== null ? Math.max(0, p.grossOverride) : itemsTotal
   const discount = Math.min(Math.max(0, p.discount), gross)
   const net = Math.max(0, gross - discount)
   const amountPaid = Math.min(Math.max(0, p.amountPaid), net)

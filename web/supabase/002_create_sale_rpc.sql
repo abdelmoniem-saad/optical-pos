@@ -48,10 +48,10 @@ begin
   insert into public.order_examinations
     (sale_id, exam_type, sphere_od, cylinder_od, axis_od,
      sphere_os, cylinder_os, axis_os, ipd, lens_info, frame_info,
-     frame_color, frame_status)
+     frame_color, frame_status, image_path)
   select v_sale.id, r.exam_type, r.sphere_od, r.cylinder_od, r.axis_od,
          r.sphere_os, r.cylinder_os, r.axis_os, r.ipd, r.lens_info,
-         r.frame_info, r.frame_color, r.frame_status
+         r.frame_info, r.frame_color, r.frame_status, r.image_path
   from jsonb_populate_recordset(null::public.order_examinations, p_exams) r;
 
   return v_sale;

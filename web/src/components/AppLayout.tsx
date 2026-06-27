@@ -1,14 +1,19 @@
-import { Suspense } from 'react'
+import { Suspense, useState } from 'react'
 import { Navigate, NavLink, Outlet } from 'react-router-dom'
 import { displayName, useAuth } from '../lib/auth'
+import { useI18n } from '../i18n/LanguageContext'
+import { GlobalSearch } from './GlobalSearch'
+import { Calculator } from './Calculator'
 
 const nav = [
   { to: '/', label: 'Dashboard', end: true },
   { to: '/pos', label: 'New Sale' },
   { to: '/customers', label: 'Customers' },
   { to: '/inventory', label: 'Inventory' },
+  { to: '/lab', label: 'Lab' },
   { to: '/history', label: 'History' },
   { to: '/reports', label: 'Reports' },
+  { to: '/suppliers', label: 'Suppliers' },
   { to: '/staff', label: 'Staff' },
   { to: '/settings', label: 'Settings' },
 ]
@@ -16,11 +21,13 @@ const nav = [
 /** Protected shell: redirects to /login when there's no Supabase session. */
 export function AppLayout() {
   const { user, loading, signOut } = useAuth()
+  const { t, lang, toggle } = useI18n()
+  const [calcOpen, setCalcOpen] = useState(false)
 
   if (loading) {
     return (
       <div className="flex min-h-full items-center justify-center text-muted">
-        Loading…
+        {t('Loading…')}
       </div>
     )
   }
@@ -35,7 +42,7 @@ export function AppLayout() {
           </div>
           <span className="font-semibold text-brand-dark">LensyPOS</span>
         </div>
-        <nav className="flex-1 px-2 py-2">
+        <nav className="flex-1 overflow-auto px-2 py-2">
           {nav.map((item) => (
             <NavLink
               key={item.to}
@@ -47,26 +54,52 @@ export function AppLayout() {
                 }`
               }
             >
-              {item.label}
+              {t(item.label)}
             </NavLink>
           ))}
+          <button
+            onClick={() => setCalcOpen(true)}
+            className="mb-1 block w-full rounded-lg px-3 py-2 text-start text-sm font-medium text-muted transition hover:bg-surface"
+          >
+            🧮 {t('Calculator')}
+          </button>
         </nav>
-        <div className="border-t border-line/40 px-4 py-3 text-sm">
-          <div className="mb-2 truncate text-muted">{displayName(user)}</div>
+        <div className="space-y-2 border-t border-line/40 px-4 py-3 text-sm">
+          <button
+            onClick={toggle}
+            className="w-full rounded-lg border border-line px-3 py-2 text-muted hover:bg-surface"
+          >
+            {lang === 'ar' ? 'English' : 'العربية'}
+          </button>
+          <div className="truncate text-muted">{displayName(user)}</div>
           <button
             onClick={() => signOut()}
             className="w-full rounded-lg border border-line px-3 py-2 text-muted hover:bg-surface"
           >
-            Sign out
+            {t('Sign out')}
           </button>
         </div>
       </aside>
 
-      <main className="min-w-0 flex-1 overflow-auto">
-        <Suspense fallback={<div className="p-6 text-sm text-muted">Loading…</div>}>
-          <Outlet />
-        </Suspense>
+      <main className="flex min-w-0 flex-1 flex-col overflow-hidden">
+        <header className="flex items-center gap-3 border-b border-line/40 bg-white px-4 py-2.5">
+          <GlobalSearch />
+          <button
+            onClick={() => setCalcOpen(true)}
+            className="ms-auto rounded-lg border border-line px-3 py-2 text-sm text-muted hover:bg-surface"
+            title={t('Calculator')}
+          >
+            🧮
+          </button>
+        </header>
+        <div className="flex-1 overflow-auto">
+          <Suspense fallback={<div className="p-6 text-sm text-muted">{t('Loading…')}</div>}>
+            <Outlet />
+          </Suspense>
+        </div>
       </main>
+
+      {calcOpen && <Calculator onClose={() => setCalcOpen(false)} />}
     </div>
   )
 }
