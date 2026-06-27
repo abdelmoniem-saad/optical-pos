@@ -135,7 +135,6 @@ export function StaffPage() {
                     onChange={(e) => updateRole.mutate({ id: u.id, role_id: e.target.value || null })}
                     className="rounded-lg border border-line bg-white px-2 py-1 text-sm outline-none focus:border-brand"
                   >
-                    <option value="">—</option>
                     {(roles.data ?? []).map((r) => (
                       <option key={r.id} value={r.id}>{r.name}</option>
                     ))}
