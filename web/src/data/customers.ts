@@ -20,6 +20,23 @@ export function useCustomers() {
   })
 }
 
+/** A single customer by id. */
+export function useCustomer(id: string | null) {
+  return useQuery({
+    queryKey: [...KEY, id],
+    enabled: !!id,
+    queryFn: async (): Promise<Customer | null> => {
+      const { data, error } = await supabase
+        .from('customers')
+        .select('*')
+        .eq('id', id as string)
+        .maybeSingle<Customer>()
+      if (error) throw error
+      return data
+    },
+  })
+}
+
 /** Server-side name search. Mirrors repo.search_customers(). Pass a >=2 char term. */
 export function useCustomerSearch(term: string) {
   const trimmed = term.trim()

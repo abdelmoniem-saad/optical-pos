@@ -33,6 +33,25 @@ export function useSales() {
   })
 }
 
+/** All of one customer's orders, with line items AND examinations embedded.
+ *  Powers the customer detail page (orders + prescription history). */
+export function useCustomerOrders(customerId: string | null) {
+  return useQuery({
+    queryKey: ['customer-orders', customerId],
+    enabled: !!customerId,
+    queryFn: async (): Promise<Sale[]> => {
+      const { data, error } = await supabase
+        .from('sales')
+        .select('*, sale_items(*), order_examinations(*)')
+        .eq('customer_id', customerId as string)
+        .order('order_date', { ascending: false })
+        .returns<Sale[]>()
+      if (error) throw error
+      return data ?? []
+    },
+  })
+}
+
 /** Next zero-padded invoice number. Mirrors repo.get_next_invoice_no(). */
 export async function getNextInvoiceNo(): Promise<string> {
   const { data } = await supabase

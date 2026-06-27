@@ -94,8 +94,10 @@ export interface Sale {
   lab_status: LabStatus | null
   // Present when selected with `*, sale_items(*)`.
   sale_items?: SaleItem[]
+  // Present when selected with `*, order_examinations(*)`.
+  order_examinations?: OrderExamination[]
 }
-export type SaleInsert = Omit<Sale, 'id' | 'sale_items'>
+export type SaleInsert = Omit<Sale, 'id' | 'sale_items' | 'order_examinations'>
 
 export interface SaleItem {
   id: string

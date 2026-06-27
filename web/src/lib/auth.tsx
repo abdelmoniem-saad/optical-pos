@@ -9,6 +9,10 @@ import type { Session, User } from '@supabase/supabase-js'
 import { supabase } from './supabase'
 import { queryClient } from './queryClient'
 
+// This module intentionally co-locates the AuthProvider with its hook/helpers
+// (useAuth, usernameToEmail, displayName).
+/* eslint-disable react-refresh/only-export-components */
+
 // Staff log in with a username, but Supabase Auth keys on email. We map
 // "admin" -> "admin@<domain>" unless the input already looks like an email.
 // The admin sets this same domain when creating users in the Supabase dashboard.

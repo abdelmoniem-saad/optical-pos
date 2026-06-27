@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router-dom'
 import { useSales } from '../../data/sales'
 import { useCustomers } from '../../data/customers'
 import { useI18n } from '../../i18n/LanguageContext'
+import { OrderExamsLazy } from '../../components/ExamView'
 
 type Range = 'all' | 'today' | 'month'
 
@@ -134,6 +135,7 @@ export function HistoryPage() {
                     <span>{t('Paid')} {fmt(paid)}</span>
                     <span>{t('Balance')} {fmt(balance)}</span>
                   </div>
+                  <OrderExamsLazy saleId={s.id} />
                 </div>
               )}
             </div>

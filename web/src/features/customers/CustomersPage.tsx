@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { useCustomers, useCustomerSearch } from '../../data/customers'
 import { useI18n } from '../../i18n/LanguageContext'
 
@@ -48,12 +48,17 @@ export function CustomersPage() {
 
       <ul className="divide-y divide-line/40 overflow-hidden rounded-xl bg-white shadow-sm">
         {customers.map((c) => (
-          <li key={c.id} className="flex items-center justify-between px-4 py-3">
-            <div>
-              <div className="font-medium">{c.name}</div>
-              <div className="text-sm text-faint">{c.city || '—'}</div>
-            </div>
-            <div className="text-sm text-muted">{c.phone || ''}</div>
+          <li key={c.id}>
+            <Link
+              to={`/customers/${c.id}`}
+              className="flex items-center justify-between px-4 py-3 hover:bg-surface"
+            >
+              <div>
+                <div className="font-medium">{c.name}</div>
+                <div className="text-sm text-faint">{c.city || '—'}</div>
+              </div>
+              <div className="text-sm text-muted">{c.phone || ''}</div>
+            </Link>
           </li>
         ))}
       </ul>

@@ -269,6 +269,14 @@ export const ar: Record<string, string> = {
   'Select a supplier to view shipments.': 'اختر مورداً لعرض الشحنات.',
   Error: 'خطأ',
 
+  // Customer detail / prescriptions
+  Orders: 'الطلبات',
+  'No orders.': 'لا توجد طلبات.',
+  Prescriptions: 'الوصفات الطبية',
+  'No prescriptions.': 'لا توجد وصفات.',
+  Prescription: 'وصفة',
+  'View Image': 'عرض الصورة',
+
   // Language
   'العربية': 'العربية',
   English: 'English',

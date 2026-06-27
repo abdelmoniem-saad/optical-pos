@@ -13,6 +13,7 @@ const named = <T extends Record<string, unknown>, K extends keyof T>(
 const DashboardPage = named(() => import('../features/dashboard/DashboardPage'), 'DashboardPage')
 const POSPage = named(() => import('../features/pos/POSPage'), 'POSPage')
 const CustomersPage = named(() => import('../features/customers/CustomersPage'), 'CustomersPage')
+const CustomerDetailPage = named(() => import('../features/customers/CustomerDetailPage'), 'CustomerDetailPage')
 const InventoryPage = named(() => import('../features/inventory/InventoryPage'), 'InventoryPage')
 const LabPage = named(() => import('../features/lab/LabPage'), 'LabPage')
 const HistoryPage = named(() => import('../features/history/HistoryPage'), 'HistoryPage')
@@ -30,6 +31,7 @@ const router = createBrowserRouter([
       { index: true, element: <DashboardPage /> },
       { path: 'pos', element: <POSPage /> },
       { path: 'customers', element: <CustomersPage /> },
+      { path: 'customers/:id', element: <CustomerDetailPage /> },
       { path: 'inventory', element: <InventoryPage /> },
       { path: 'lab', element: <LabPage /> },
       { path: 'history', element: <HistoryPage /> },

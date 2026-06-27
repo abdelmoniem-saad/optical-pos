@@ -22,6 +22,14 @@
   --color-line: #bdbdbd;           /* GREY_400 */
 }
 
+html {
+  /* Global UI scale. The whole app uses rem-based sizing, so changing this one
+     value scales every text size, button, input and spacing together — sized up
+     for staff using the app on tablets / touch screens. Bump to 20px for even
+     bigger. */
+  font-size: 18px;
+}
+
 html,
 body,
 #root {
