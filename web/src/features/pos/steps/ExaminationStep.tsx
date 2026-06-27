@@ -68,7 +68,9 @@ function ExamRow({ index }: { index: number }) {
   )
 
   return (
-    <div ref={rowRef} className="rounded-xl border border-brand-faint bg-brand-bg/40 p-3">
+    // Prescriptions are always entered left-to-right (R eye left, L eye right,
+    // numbers LTR) even when the app is in Arabic/RTL — force LTR on this row.
+    <div ref={rowRef} dir="ltr" className="rounded-xl border border-brand-faint bg-brand-bg/40 p-3">
       <div className="flex flex-wrap items-end gap-2">
         <label className="flex flex-col">
           <span className="mb-0.5 text-[10px] font-semibold text-faint">{t('Exam Type')}</span>
