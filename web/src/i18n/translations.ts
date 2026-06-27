@@ -256,6 +256,7 @@ export const ar: Record<string, string> = {
   Calculator: 'الآلة الحاسبة',
   'Quick search (customers, products, invoices)…': 'بحث سريع (عملاء، منتجات، فواتير)…',
   'No results.': 'لا توجد نتائج.',
+  'Search Results': 'نتائج البحث',
   Products: 'المنتجات',
   Invoices: 'الفواتير',
 
