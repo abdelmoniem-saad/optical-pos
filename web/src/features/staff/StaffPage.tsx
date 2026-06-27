@@ -23,7 +23,21 @@ function AddUserForm({ onClose }: { onClose: () => void }) {
       const { data, error } = await supabase.functions.invoke('create-user', {
         body: { username: f.username.trim(), password: f.password, full_name: f.full_name.trim() },
       })
-      if (error) throw error
+      if (error) {
+        // supabase-js wraps non-2xx as a generic message; the real reason is in
+        // the response body (error.context is the Response). Pull it out.
+        let detail = error.message
+        const ctx = (error as { context?: Response }).context
+        if (ctx && typeof ctx.json === 'function') {
+          try {
+            const b = await ctx.json()
+            if (b?.error) detail = b.error
+          } catch {
+            /* body wasn't JSON */
+          }
+        }
+        throw new Error(detail)
+      }
       if (data?.error) throw new Error(data.error)
       await qc.invalidateQueries({ queryKey: ['users'] })
       onClose()
