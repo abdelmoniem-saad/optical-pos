@@ -115,7 +115,7 @@ export const ar: Record<string, string> = {
   Color: 'اللون',
   Status: 'الحالة',
   New: 'جديد',
-  Old: 'خارجي',
+  Old: 'عميل',
   IPD: 'المسافة بين الحدقتين',
   '+ Add Another Exam': '+ إضافة فحص آخر',
   'Add More Items': 'إضافة المزيد من الأصناف',
@@ -160,7 +160,7 @@ export const ar: Record<string, string> = {
   // Receipt
   'Order Saved': 'تم حفظ الطلب',
   Shop: 'المحل',
-  Lab: 'المختبر',
+  Lab: 'المعمل',
   'Print all 3': 'طباعة الثلاث نسخ',
 
   // Customers screen
@@ -208,7 +208,7 @@ export const ar: Record<string, string> = {
   'Balance Due': 'الرصيد المستحق',
   'Total Orders': 'إجمالي الطلبات',
   "Today's Revenue": 'إيرادات اليوم',
-  'Pending Lab': 'قيد المختبر',
+  'Pending Lab': 'قيد المعمل',
   'Ready for Pickup': 'جاهز للاستلام',
   'Low Stock Alert': 'تنبيه نقص المخزون',
   'All products in stock.': 'جميع المنتجات متوفرة.',
@@ -247,9 +247,9 @@ export const ar: Record<string, string> = {
   'Frame Colors': 'ألوان الإطارات',
 
   // Lab
-  'Lab Orders': 'طلبات المختبر',
+  'Lab Orders': 'طلبات المعمل',
   'No lab orders.': 'لا توجد طلبات مختبر.',
-  'In Lab': 'في المختبر',
+  'In Lab': 'في المعمل',
   Received: 'تم الاستلام',
 
   // Calculator + search

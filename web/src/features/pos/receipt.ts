@@ -2,6 +2,9 @@ import type { CompletedOrder } from './POSContext'
 
 export type Shop = { name: string; address: string; phone: string; currency: string }
 
+// The receipt body is ALWAYS printed in Arabic, regardless of the app language.
+// Optical abbreviations (SPH/CYL/AXIS/OD/OS/IPD) stay as universal notation.
+
 const W = 44
 
 const repeat = (ch: string) => ch.repeat(W)
@@ -13,7 +16,7 @@ function center(text: string): string {
   return ' '.repeat(left) + t + ' '.repeat(pad - left)
 }
 
-/** "Label...........  value" with a label dot-leader of `labelWidth`. */
+/** "value  ...........القيمة" — label padded with a dot-leader to labelWidth. */
 function labelRow(label: string, value: string, labelWidth = 30): string {
   const l = (label + ' ').padEnd(labelWidth, '.')
   return `${l} ${value.padStart(10)}`
@@ -26,7 +29,7 @@ function now(): string {
 }
 
 function fmtDate(iso: string): string {
-  if (!iso) return 'N/A'
+  if (!iso) return '—'
   const d = new Date(iso)
   const p = (n: number) => String(n).padStart(2, '0')
   return `${p(d.getDate())}/${p(d.getMonth() + 1)}/${d.getFullYear()}`
@@ -49,46 +52,46 @@ function totalsBlock(o: CompletedOrder, shop: Shop): string[] {
   const t = o.totals
   return [
     repeat('-'),
-    labelRow('Gross Total', `${t.gross.toFixed(2)} ${c}`),
-    labelRow('Discount', `${t.discount.toFixed(2)} ${c}`),
-    labelRow('Net Amount', `${t.net.toFixed(2)} ${c}`),
-    labelRow('Amount Paid', `${t.amountPaid.toFixed(2)} ${c}`),
-    labelRow('Balance', `${t.balance.toFixed(2)} ${c}`),
+    labelRow('الإجمالي', `${t.gross.toFixed(2)} ${c}`),
+    labelRow('الخصم', `${t.discount.toFixed(2)} ${c}`),
+    labelRow('الصافي', `${t.net.toFixed(2)} ${c}`),
+    labelRow('المدفوع', `${t.amountPaid.toFixed(2)} ${c}`),
+    labelRow('المتبقي', `${t.balance.toFixed(2)} ${c}`),
     repeat('='),
   ]
 }
 
 function customerName(o: CompletedOrder): string {
-  return o.customer?.name ?? 'Walk-in'
+  return o.customer?.name ?? 'عميل عابر'
 }
 
 export function buildShopCopy(o: CompletedOrder, shop: Shop): string {
   const lines = [
-    ...header('SHOP COPY', shop),
-    `Invoice: #${o.invoiceNo}`,
-    `Date: ${now()}`,
-    `Delivery Date: ${fmtDate(o.deliveryDate)}`,
+    ...header('نسخة المحل', shop),
+    `فاتورة: #${o.invoiceNo}`,
+    `التاريخ: ${now()}`,
+    `تاريخ التسليم: ${fmtDate(o.deliveryDate)}`,
     repeat('-'),
-    `Customer: ${customerName(o)}`,
-    o.customer?.phone ? `Phone: ${o.customer.phone}` : '',
-    o.doctorName ? `Doctor: ${o.doctorName}` : '',
+    `العميل: ${customerName(o)}`,
+    o.customer?.phone ? `الهاتف: ${o.customer.phone}` : '',
+    o.doctorName ? `الطبيب: ${o.doctorName}` : '',
     repeat('-'),
   ]
   if (o.cartItems.length) {
-    lines.push('Items:')
+    lines.push('الأصناف:')
     for (const i of o.cartItems) {
       lines.push(`  ${i.name.slice(0, 28).padEnd(28)} x${i.qty} ${i.total_price.toFixed(2).padStart(8)}`)
     }
   }
   if (o.examinations.length) {
-    lines.push(repeat('-'), 'Examinations:')
+    lines.push(repeat('-'), 'الفحوصات:')
     o.examinations.forEach((e, idx) => {
-      lines.push(`  [${idx + 1}] ${e.exam_type ?? 'N/A'}`)
+      lines.push(`  [${idx + 1}] ${e.exam_type ?? '—'}`)
       lines.push(`      OD: ${e.sphere_od || '-'}/${e.cylinder_od || '-'}x${e.axis_od || '-'}`)
       lines.push(`      OS: ${e.sphere_os || '-'}/${e.cylinder_os || '-'}x${e.axis_os || '-'}`)
       lines.push(`      IPD: ${e.ipd || '-'}`)
-      lines.push(`      Lens: ${e.lens_info || '-'}`)
-      lines.push(`      Frame: ${e.frame_info || '-'} (${e.frame_color || '-'})`)
+      lines.push(`      العدسة: ${e.lens_info || '-'}`)
+      lines.push(`      الإطار: ${e.frame_info || '-'} (${e.frame_color || '-'})`)
     })
   }
   lines.push(...totalsBlock(o, shop))
@@ -97,54 +100,54 @@ export function buildShopCopy(o: CompletedOrder, shop: Shop): string {
 
 export function buildCustomerCopy(o: CompletedOrder, shop: Shop): string {
   const lines = [
-    ...header('CUSTOMER COPY', shop),
-    `Invoice: #${o.invoiceNo}`,
-    `Date: ${now()}`,
-    `Delivery Date: ${fmtDate(o.deliveryDate)}`,
+    ...header('نسخة العميل', shop),
+    `فاتورة: #${o.invoiceNo}`,
+    `التاريخ: ${now()}`,
+    `تاريخ التسليم: ${fmtDate(o.deliveryDate)}`,
     repeat('-'),
-    `Customer: ${customerName(o)}`,
-    o.customer?.phone ? `Phone: ${o.customer.phone}` : '',
+    `العميل: ${customerName(o)}`,
+    o.customer?.phone ? `الهاتف: ${o.customer.phone}` : '',
     repeat('-'),
   ]
   if (o.cartItems.length) {
-    lines.push('Items:')
+    lines.push('الأصناف:')
     for (const i of o.cartItems) {
       lines.push(`  ${i.name.slice(0, 28).padEnd(28)} x${i.qty} ${i.total_price.toFixed(2).padStart(8)}`)
     }
   }
-  lines.push(...totalsBlock(o, shop), center('Thank you for your purchase!'), repeat('='))
+  lines.push(...totalsBlock(o, shop), center('شكراً لتسوقكم معنا'), repeat('='))
   return lines.filter(Boolean).join('\n')
 }
 
 export function buildLabCopy(o: CompletedOrder, shop: Shop): string {
   const lines = [
-    ...header('LAB COPY', shop),
-    `Invoice: #${o.invoiceNo}`,
-    `Date: ${fmtDate(new Date().toISOString())}`,
-    `Delivery Date: ${fmtDate(o.deliveryDate)}`,
-    o.doctorName ? `Doctor: ${o.doctorName}` : '',
+    ...header('نسخة المعمل', shop),
+    `فاتورة: #${o.invoiceNo}`,
+    `التاريخ: ${fmtDate(new Date().toISOString())}`,
+    `تاريخ التسليم: ${fmtDate(o.deliveryDate)}`,
+    o.doctorName ? `الطبيب: ${o.doctorName}` : '',
     repeat('='),
   ]
   if (o.examinations.length) {
     o.examinations.forEach((e, idx) => {
-      lines.push(repeat('-'), `Exam #${idx + 1}: ${e.exam_type ?? 'N/A'}`, repeat('='))
-      lines.push('  OD (Right Eye)')
+      lines.push(repeat('-'), `فحص #${idx + 1}: ${e.exam_type ?? '—'}`, repeat('='))
+      lines.push('  العين اليمنى (OD)')
       lines.push(`    SPH: ${String(e.sphere_od || '-').padStart(8)}`)
       lines.push(`    CYL: ${String(e.cylinder_od || '-').padStart(8)}`)
       lines.push(`    AXIS: ${String(e.axis_od || '-').padStart(7)}`)
-      lines.push('  OS (Left Eye)')
+      lines.push('  العين اليسرى (OS)')
       lines.push(`    SPH: ${String(e.sphere_os || '-').padStart(8)}`)
       lines.push(`    CYL: ${String(e.cylinder_os || '-').padStart(8)}`)
       lines.push(`    AXIS: ${String(e.axis_os || '-').padStart(7)}`)
       lines.push(`  IPD: ${e.ipd || '-'}`)
       lines.push(repeat('-'))
-      lines.push(`  Lens Type: ${e.lens_info || '-'}`)
-      lines.push(`  Frame: ${e.frame_info || '-'}`)
-      lines.push(`  Color: ${e.frame_color || '-'}`)
-      lines.push(`  Frame Status: ${e.frame_status || '-'}`)
+      lines.push(`  نوع العدسة: ${e.lens_info || '-'}`)
+      lines.push(`  الإطار: ${e.frame_info || '-'}`)
+      lines.push(`  اللون: ${e.frame_color || '-'}`)
+      lines.push(`  حالة الإطار: ${e.frame_status || '-'}`)
     })
   } else {
-    lines.push('No examination data')
+    lines.push('لا توجد بيانات فحص')
   }
   lines.push(repeat('='))
   return lines.filter(Boolean).join('\n')

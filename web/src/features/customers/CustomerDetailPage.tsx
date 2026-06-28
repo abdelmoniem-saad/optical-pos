@@ -26,6 +26,7 @@ export function CustomerDetailPage() {
   const prescriptions = orderList.flatMap((o) =>
     (o.order_examinations ?? []).map((exam) => ({
       exam,
+      order: o,
       date: o.order_date ?? '',
       invoice: o.invoice_no,
     })),
@@ -111,10 +112,17 @@ export function CustomerDetailPage() {
         <p className="text-sm text-faint">{t('No prescriptions.')}</p>
       ) : (
         <div className="space-y-3">
-          {prescriptions.map(({ exam, date, invoice }) => (
+          {prescriptions.map(({ exam, order, date, invoice }) => (
             <div key={exam.id}>
-              <div className="mb-1 text-xs text-faint">
-                {(date || '').slice(0, 10)} · #{invoice}
+              <div className="mb-1 flex items-center justify-between text-xs text-faint">
+                <span>{(date || '').slice(0, 10)} · #{invoice}</span>
+                <button
+                  onClick={() => setReprint(order)}
+                  title={t('Print')}
+                  className="rounded-lg border border-line px-2 py-1 hover:bg-surface"
+                >
+                  🖨 {t('Print')}
+                </button>
               </div>
               <ExamList exams={[exam]} />
             </div>
