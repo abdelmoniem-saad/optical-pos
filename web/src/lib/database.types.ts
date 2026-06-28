@@ -90,6 +90,7 @@ export interface Sale {
   amount_paid: number | null
   payment_method: string | null
   order_date: string | null
+  delivery_date: string | null
   doctor_name: string | null
   lab_status: LabStatus | null
   // Present when selected with `*, sale_items(*)`.

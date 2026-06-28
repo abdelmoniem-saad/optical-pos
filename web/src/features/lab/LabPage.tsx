@@ -3,6 +3,8 @@ import { useSales, useUpdateLabStatus } from '../../data/sales'
 import { useCustomers } from '../../data/customers'
 import { useOrderExaminations } from '../../data/examinations'
 import { useI18n } from '../../i18n/LanguageContext'
+import { OrderReceiptDialog } from '../../components/OrderReceiptDialog'
+import type { Sale } from '../../lib/database.types'
 
 const STATUSES = ['Not Started', 'In Lab', 'Ready', 'Received']
 
@@ -35,6 +37,7 @@ export function LabPage() {
   const customers = useCustomers()
   const updateStatus = useUpdateLabStatus()
   const [filter, setFilter] = useState<string>('All')
+  const [reprint, setReprint] = useState<Sale | null>(null)
 
   const nameById = useMemo(() => {
     const m = new Map<string, string>()
@@ -98,6 +101,13 @@ export function LabPage() {
                       <option key={st} value={st}>{t(st)}</option>
                     ))}
                   </select>
+                  <button
+                    onClick={() => setReprint(s)}
+                    title={t('Print')}
+                    className="rounded-lg border border-line px-2 py-1.5 text-sm hover:bg-surface"
+                  >
+                    🖨
+                  </button>
                 </div>
               </div>
               <div className="mt-2 border-t border-line/40 pt-2">
@@ -107,6 +117,8 @@ export function LabPage() {
           ))}
         </div>
       )}
+
+      {reprint && <OrderReceiptDialog sale={reprint} onClose={() => setReprint(null)} />}
     </div>
   )
 }

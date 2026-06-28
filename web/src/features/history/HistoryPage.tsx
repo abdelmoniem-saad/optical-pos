@@ -4,6 +4,8 @@ import { useSales } from '../../data/sales'
 import { useCustomers } from '../../data/customers'
 import { useI18n } from '../../i18n/LanguageContext'
 import { OrderExamsLazy } from '../../components/ExamView'
+import { OrderReceiptDialog } from '../../components/OrderReceiptDialog'
+import type { Sale } from '../../lib/database.types'
 
 type Range = 'all' | 'today' | 'month'
 
@@ -26,6 +28,7 @@ export function HistoryPage() {
   const [term, setTerm] = useState(params.get('q') ?? '')
   const [range, setRange] = useState<Range>((params.get('range') as Range) || 'all')
   const [open, setOpen] = useState<string | null>(null)
+  const [reprint, setReprint] = useState<Sale | null>(null)
 
   const nameById = useMemo(() => {
     const m = new Map<string, string>()
@@ -136,12 +139,20 @@ export function HistoryPage() {
                     <span>{t('Balance')} {fmt(balance)}</span>
                   </div>
                   <OrderExamsLazy saleId={s.id} />
+                  <button
+                    onClick={() => setReprint(s)}
+                    className="mt-3 rounded-lg border border-line px-3 py-1.5 text-sm text-muted hover:bg-surface"
+                  >
+                    🖨 {t('Print')}
+                  </button>
                 </div>
               )}
             </div>
           )
         })}
       </div>
+
+      {reprint && <OrderReceiptDialog sale={reprint} onClose={() => setReprint(null)} />}
     </div>
   )
 }

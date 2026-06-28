@@ -4,6 +4,8 @@ import { useCustomer } from '../../data/customers'
 import { useCustomerOrders } from '../../data/sales'
 import { useI18n } from '../../i18n/LanguageContext'
 import { ExamList } from '../../components/ExamView'
+import { OrderReceiptDialog } from '../../components/OrderReceiptDialog'
+import type { Sale } from '../../lib/database.types'
 
 function fmt(n: number | null | undefined) {
   return Number(n ?? 0).toFixed(2)
@@ -15,6 +17,7 @@ export function CustomerDetailPage() {
   const customer = useCustomer(id ?? null)
   const orders = useCustomerOrders(id ?? null)
   const [open, setOpen] = useState<string | null>(null)
+  const [reprint, setReprint] = useState<Sale | null>(null)
 
   const c = customer.data
   const orderList = orders.data ?? []
@@ -87,6 +90,12 @@ export function CustomerDetailPage() {
                     <span>{t('Balance')} {fmt(bal)}</span>
                   </div>
                   <ExamList exams={o.order_examinations ?? []} />
+                  <button
+                    onClick={() => setReprint(o)}
+                    className="mt-3 rounded-lg border border-line px-3 py-1.5 text-sm text-muted hover:bg-surface"
+                  >
+                    🖨 {t('Print')}
+                  </button>
                 </div>
               )}
             </div>
@@ -112,6 +121,8 @@ export function CustomerDetailPage() {
           ))}
         </div>
       )}
+
+      {reprint && <OrderReceiptDialog sale={reprint} onClose={() => setReprint(null)} />}
     </div>
   )
 }
