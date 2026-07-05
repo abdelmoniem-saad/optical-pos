@@ -1,12 +1,7 @@
 import type { Customer, OrderExaminationInsert } from '../../lib/database.types'
 import type { CartLine } from '../../data/sales'
 
-export type POSStep =
-  | 'category'
-  | 'customer'
-  | 'examination'
-  | 'additional'
-  | 'cart'
+export type POSStep = 'category' | 'customer' | 'additional' | 'cart'
 
 export type Category = 'Frame' | 'Sunglasses' | 'ContactLens' | 'Accessory' | 'Other'
 

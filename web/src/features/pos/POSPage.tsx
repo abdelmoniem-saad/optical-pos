@@ -3,7 +3,6 @@ import { useI18n } from '../../i18n/LanguageContext'
 import { needsExamination, type POSStep } from './types'
 import { CategoryStep } from './steps/CategoryStep'
 import { CustomerStep } from './steps/CustomerStep'
-import { ExaminationStep } from './steps/ExaminationStep'
 import { AdditionalItemsStep } from './steps/AdditionalItemsStep'
 import { CartStep } from './steps/CartStep'
 import { ReceiptDialog } from './ReceiptDialog'
@@ -11,18 +10,16 @@ import { ReceiptDialog } from './ReceiptDialog'
 const labelKey: Record<POSStep, string> = {
   category: 'Category',
   customer: 'Customer',
-  examination: 'Exam',
   additional: 'Items',
-  cart: 'Payment',
+  cart: 'Order',
 }
 
 function Stepper() {
   const { t } = useI18n()
   const { state } = usePOS()
-  const flow: POSStep[] = needsExamination(state.category)
-    ? ['category', 'customer', 'examination', 'cart']
-    : ['category', 'customer', 'cart']
-  const currentIdx = flow.indexOf(state.step === 'additional' ? 'examination' : state.step)
+  const flow: POSStep[] = ['category', 'customer', 'cart']
+  const currentIdx = flow.indexOf(state.step === 'additional' ? 'cart' : state.step)
+  const orderLabel = needsExamination(state.category) ? 'Order' : 'Payment'
 
   return (
     <div className="flex items-center justify-center gap-2 border-b border-line/40 bg-white px-4 py-3 text-sm">
@@ -37,7 +34,7 @@ function Stepper() {
                   : 'bg-surface text-faint'
             }`}
           >
-            {t(labelKey[s])}
+            {t(s === 'cart' ? orderLabel : labelKey[s])}
           </span>
           {i < flow.length - 1 && <span className="text-faint">›</span>}
         </div>
@@ -53,8 +50,6 @@ function CurrentStep() {
       return <CategoryStep />
     case 'customer':
       return <CustomerStep />
-    case 'examination':
-      return <ExaminationStep />
     case 'additional':
       return <AdditionalItemsStep />
     case 'cart':

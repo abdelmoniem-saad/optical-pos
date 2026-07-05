@@ -77,6 +77,7 @@ export const ar: Record<string, string> = {
   Customer: 'العميل',
   Exam: 'الفحص',
   Items: 'الأصناف',
+  Order: 'الطلب',
   Payment: 'الدفع',
 
   // Customer step
@@ -131,10 +132,12 @@ export const ar: Record<string, string> = {
   'Search products…': 'البحث عن منتجات…',
   'No products.': 'لا توجد منتجات.',
   'Add +1': 'إضافة +1',
-  '← Back to Examination': '← العودة للفحص',
-  'Continue to Payment →': 'متابعة للدفع ←',
+  '← Back to Order': '← العودة للطلب',
 
   // Cart & payment
+  'Step 3: Order & Payment': 'الخطوة 3: الطلب والدفع',
+  'Step 3: Cart & Payment': 'الخطوة 3: السلة والدفع',
+  'Cart & Payment': 'السلة والدفع',
   'Step 4: Cart & Payment': 'الخطوة 4: السلة والدفع',
   Invoice: 'فاتورة',
   'Quick add by SKU or name…': 'إضافة سريعة بالكود أو الاسم…',

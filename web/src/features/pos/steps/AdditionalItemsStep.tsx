@@ -7,7 +7,7 @@ const cats = ['All', 'Frame', 'Sunglasses', 'Accessory', 'Other'] as const
 
 export function AdditionalItemsStep() {
   const { t } = useI18n()
-  const { addProduct, back, saveExamsAndProceed, state } = usePOS()
+  const { addProduct, back, state } = usePOS()
   const [cat, setCat] = useState<(typeof cats)[number]>('All')
   const [term, setTerm] = useState('')
 
@@ -80,14 +80,7 @@ export function AdditionalItemsStep() {
 
       <div className="flex items-center justify-between">
         <button onClick={back} className="rounded-lg border border-line px-4 py-2.5 text-muted hover:bg-surface">
-          {t('← Back to Examination')}
-        </button>
-        <button
-          onClick={() => saveExamsAndProceed()}
-          disabled={state.busy}
-          className="rounded-lg bg-success px-4 py-2.5 font-semibold text-white disabled:opacity-60"
-        >
-          {t('Continue to Payment →')}
+          {t('← Back to Order')}
         </button>
       </div>
     </div>

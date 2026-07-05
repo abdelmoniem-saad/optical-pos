@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import { usePOS } from '../POSContext'
 import { useI18n } from '../../../i18n/LanguageContext'
+import { needsExamination } from '../types'
+import { ExamSection } from './ExamSection'
 
 function money(n: number) {
   return n.toFixed(2)
@@ -23,6 +25,7 @@ export function CartStep() {
     finishOrder,
   } = usePOS()
   const [quick, setQuick] = useState('')
+  const showExam = needsExamination(state.category)
 
   async function onQuickAdd() {
     await quickAdd(quick)
@@ -30,90 +33,95 @@ export function CartStep() {
   }
 
   const field = 'w-32 rounded-lg border border-line bg-white px-3 py-2 outline-none focus:border-brand'
+  const stepTitle = showExam ? t('Step 3: Order & Payment') : t('Step 3: Cart & Payment')
 
   return (
-    <div className="mx-auto max-w-5xl p-6">
+    <div className="mx-auto max-w-6xl p-6">
       <div className="mb-1 flex items-center justify-between">
-        <h2 className="text-xl font-bold text-brand-dark">{t('Step 4: Cart & Payment')}</h2>
+        <h2 className="text-xl font-bold text-brand-dark">{stepTitle}</h2>
         <span className="text-sm font-semibold text-brand">
           {t('Invoice')} #{state.invoiceNo}
         </span>
       </div>
       <p className="mb-4 text-sm text-muted">{state.customer?.name ?? t('Walk-in')}</p>
 
-      <div className="mb-4 flex gap-2">
-        <input
-          value={quick}
-          onChange={(e) => setQuick(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && onQuickAdd()}
-          placeholder={t('Quick add by SKU or name…')}
-          className="flex-1 rounded-lg border border-line bg-white px-3 py-2.5 outline-none focus:border-brand"
-        />
-        <button onClick={onQuickAdd} className="rounded-lg bg-brand px-4 py-2.5 font-semibold text-white">
-          {t('Add')}
-        </button>
-        <button onClick={goToAdditional} className="rounded-lg border border-line px-4 py-2.5 text-muted hover:bg-surface">
-          {t('Browse')}
-        </button>
-      </div>
+      {showExam && <ExamSection />}
 
-      {/* Cart table */}
-      <div className="mb-4 overflow-hidden rounded-xl border border-line bg-white">
-        <table className="w-full text-sm">
-          <thead className="bg-surface text-start text-muted">
-            <tr>
-              <th className="px-4 py-2">{t('Product')}</th>
-              <th className="px-4 py-2 text-center">{t('Qty')}</th>
-              <th className="px-4 py-2 text-end">{t('Price')}</th>
-              <th className="px-4 py-2 text-end">{t('Total')}</th>
-              <th className="px-4 py-2"></th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-line/40">
-            {state.cartItems.length === 0 && (
-              <tr>
-                <td colSpan={5} className="px-4 py-6 text-center text-faint">
-                  {t('Cart is empty.')}
-                </td>
-              </tr>
-            )}
-            {state.cartItems.map((i) => (
-              <tr key={i.product_id}>
-                <td className="px-4 py-2">{i.name}</td>
-                <td className="px-4 py-2">
-                  <div className="flex items-center justify-center gap-2">
-                    <button
-                      onClick={() => changeQty(i.product_id, i.qty - 1)}
-                      className="h-7 w-7 rounded-md border border-line text-muted hover:bg-surface"
-                    >
-                      −
-                    </button>
-                    <span className="w-6 text-center font-semibold">{i.qty}</span>
-                    <button
-                      onClick={() => changeQty(i.product_id, i.qty + 1)}
-                      className="h-7 w-7 rounded-md border border-line text-muted hover:bg-surface"
-                    >
-                      +
-                    </button>
-                  </div>
-                </td>
-                <td className="px-4 py-2 text-end">{money(i.unit_price)}</td>
-                <td className="px-4 py-2 text-end">{money(i.total_price)}</td>
-                <td className="px-4 py-2 text-end">
-                  <button
-                    onClick={() => removeFromCart(i.product_id)}
-                    className="text-danger hover:underline"
-                  >
-                    {t('Remove')}
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      {!showExam && (
+        <>
+          <div className="mb-4 flex gap-2">
+            <input
+              value={quick}
+              onChange={(e) => setQuick(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && onQuickAdd()}
+              placeholder={t('Quick add by SKU or name…')}
+              className="flex-1 rounded-lg border border-line bg-white px-3 py-2.5 outline-none focus:border-brand"
+            />
+            <button onClick={onQuickAdd} className="rounded-lg bg-brand px-4 py-2.5 font-semibold text-white">
+              {t('Add')}
+            </button>
+            <button onClick={goToAdditional} className="rounded-lg border border-line px-4 py-2.5 text-muted hover:bg-surface">
+              {t('Browse')}
+            </button>
+          </div>
 
-      {/* Pricing + totals */}
+          <div className="mb-4 overflow-hidden rounded-xl border border-line bg-white">
+            <table className="w-full text-sm">
+              <thead className="bg-surface text-start text-muted">
+                <tr>
+                  <th className="px-4 py-2">{t('Product')}</th>
+                  <th className="px-4 py-2 text-center">{t('Qty')}</th>
+                  <th className="px-4 py-2 text-end">{t('Price')}</th>
+                  <th className="px-4 py-2 text-end">{t('Total')}</th>
+                  <th className="px-4 py-2"></th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-line/40">
+                {state.cartItems.length === 0 && (
+                  <tr>
+                    <td colSpan={5} className="px-4 py-6 text-center text-faint">
+                      {t('Cart is empty.')}
+                    </td>
+                  </tr>
+                )}
+                {state.cartItems.map((i) => (
+                  <tr key={i.product_id}>
+                    <td className="px-4 py-2">{i.name}</td>
+                    <td className="px-4 py-2">
+                      <div className="flex items-center justify-center gap-2">
+                        <button
+                          onClick={() => changeQty(i.product_id, i.qty - 1)}
+                          className="h-7 w-7 rounded-md border border-line text-muted hover:bg-surface"
+                        >
+                          −
+                        </button>
+                        <span className="w-6 text-center font-semibold">{i.qty}</span>
+                        <button
+                          onClick={() => changeQty(i.product_id, i.qty + 1)}
+                          className="h-7 w-7 rounded-md border border-line text-muted hover:bg-surface"
+                        >
+                          +
+                        </button>
+                      </div>
+                    </td>
+                    <td className="px-4 py-2 text-end">{money(i.unit_price)}</td>
+                    <td className="px-4 py-2 text-end">{money(i.total_price)}</td>
+                    <td className="px-4 py-2 text-end">
+                      <button
+                        onClick={() => removeFromCart(i.product_id)}
+                        className="text-danger hover:underline"
+                      >
+                        {t('Remove')}
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
+
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div className="space-y-3 rounded-xl bg-white p-4 shadow-sm">
           <div className="font-semibold">{t('Pricing')}</div>

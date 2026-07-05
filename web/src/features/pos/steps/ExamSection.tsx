@@ -1,8 +1,7 @@
-import { useEffect, useRef } from 'react'
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { usePOS } from '../POSContext'
 import { useI18n } from '../../../i18n/LanguageContext'
-import { useLensTypes, useFrameColors } from '../../../data/metadata'
+import { useLensTypes, useFrameColors, useAddMetadata } from '../../../data/metadata'
 import { useInventory } from '../../../data/inventory'
 import { usePastExaminations, type PastExam } from '../../../data/examinations'
 import { uploadPrescriptionImage } from '../../../lib/storage'
@@ -11,6 +10,9 @@ import { emptyExam, type Exam } from '../types'
 const small =
   'rounded-md border border-line bg-white px-2 py-1.5 text-sm outline-none focus:border-brand'
 
+const field =
+  'rounded-lg border border-line bg-white px-3 py-2 outline-none focus:border-brand'
+
 function ExamRow({ index }: { index: number }) {
   const { t } = useI18n()
   const { state, updateExam, removeExam } = usePOS()
@@ -18,7 +20,23 @@ function ExamRow({ index }: { index: number }) {
   const lensTypes = useLensTypes()
   const frameColors = useFrameColors()
   const frames = useInventory('Frame')
+  const addLensType = useAddMetadata('lens_types')
+  const addFrameColor = useAddMetadata('frame_colors')
   const rowRef = useRef<HTMLDivElement>(null)
+
+  /** Persist a free-typed value into a metadata table when it's new. */
+  function maybeAddOption(
+    value: string | undefined,
+    known: readonly { name: string }[] | undefined,
+    add: (name: string) => void,
+  ) {
+    const v = (value ?? '').trim()
+    if (!v) return
+    const exists = (known ?? []).some(
+      (o) => o.name.trim().toLowerCase() === v.toLowerCase(),
+    )
+    if (!exists) add(v)
+  }
 
   const upd = (p: Partial<Exam>) => updateExam(index, p)
 
@@ -39,8 +57,6 @@ function ExamRow({ index }: { index: number }) {
     }
   }
 
-  // Enter moves to the next Rx field (in addition to Tab). Mirrors the Flet
-  // focus_next_field behaviour so opticians can fly through SPH/CYL/AXIS/IPD.
   function onRxKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
     if (e.key !== 'Enter') return
     e.preventDefault()
@@ -68,8 +84,6 @@ function ExamRow({ index }: { index: number }) {
   )
 
   return (
-    // Prescriptions are always entered left-to-right (R eye left, L eye right,
-    // numbers LTR) even when the app is in Arabic/RTL — force LTR on this row.
     <div ref={rowRef} dir="ltr" className="rounded-xl border border-brand-faint bg-brand-bg/40 p-3">
       <div className="flex flex-wrap items-end gap-2">
         <label className="flex flex-col">
@@ -106,6 +120,11 @@ function ExamRow({ index }: { index: number }) {
             value={String(exam.lens_info ?? '')}
             onChange={(e) => upd({ lens_info: e.target.value })}
             onKeyDown={onRxKeyDown}
+            onBlur={(e) =>
+              maybeAddOption(e.target.value, lensTypes.data, (name) =>
+                addLensType.mutate(name),
+              )
+            }
           />
           <datalist id="lens-types">
             {(lensTypes.data ?? []).map((l) => (
@@ -140,6 +159,11 @@ function ExamRow({ index }: { index: number }) {
             value={String(exam.frame_color ?? '')}
             onChange={(e) => upd({ frame_color: e.target.value })}
             onKeyDown={onRxKeyDown}
+            onBlur={(e) =>
+              maybeAddOption(e.target.value, frameColors.data, (name) =>
+                addFrameColor.mutate(name),
+              )
+            }
           />
           <datalist id="frame-colors">
             {(frameColors.data ?? []).map((c) => (
@@ -229,8 +253,12 @@ function PastPrescriptions({ customerId }: { customerId: string }) {
                 {(p.sale.order_date ?? '').slice(0, 10) || 'N/A'}
                 {p.sale.invoice_no ? ` · #${p.sale.invoice_no}` : ''}
               </div>
-              <div>OD: {p.sphere_od || '-'}/{p.cylinder_od || '-'}x{p.axis_od || '-'}</div>
-              <div>OS: {p.sphere_os || '-'}/{p.cylinder_os || '-'}x{p.axis_os || '-'}</div>
+              <div>
+                OD: {p.sphere_od || '-'}/{p.cylinder_od || '-'}x{p.axis_od || '-'}
+              </div>
+              <div>
+                OS: {p.sphere_os || '-'}/{p.cylinder_os || '-'}x{p.axis_os || '-'}
+              </div>
               <div className="text-muted">IPD: {p.ipd || '-'}</div>
               <button
                 onClick={() => use(p)}
@@ -246,37 +274,18 @@ function PastPrescriptions({ customerId }: { customerId: string }) {
   )
 }
 
-export function ExaminationStep() {
+/** Examination fields embedded in the combined order step. */
+export function ExamSection() {
   const { t } = useI18n()
-  const {
-    state,
-    addExam,
-    back,
-    goToAdditional,
-    saveExamsAndProceed,
-    setDoctorName,
-    setDeliveryDate,
-  } = usePOS()
+  const { state, addExam, setDoctorName, setDeliveryDate } = usePOS()
 
-  // Ensure there's always at least one row.
   useEffect(() => {
     if (state.examinations.length === 0) addExam()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  const field =
-    'rounded-lg border border-line bg-white px-3 py-2 outline-none focus:border-brand'
-
   return (
-    <div className="mx-auto max-w-6xl p-6">
-      <div className="mb-1 flex items-center justify-between">
-        <h2 className="text-xl font-bold text-brand-dark">{t('Step 2: Order & Examination')}</h2>
-        <span className="text-sm text-success">#{state.invoiceNo}</span>
-      </div>
-      <p className="mb-4 text-sm text-muted">
-        {state.customer?.name ?? t('Walk-in Customer')}
-      </p>
-
+    <section className="mb-6">
       {state.customer && <PastPrescriptions customerId={state.customer.id} />}
 
       <div className="mb-4 flex flex-wrap gap-3">
@@ -307,37 +316,10 @@ export function ExaminationStep() {
 
       <button
         onClick={() => addExam()}
-        className="mb-4 rounded-lg bg-brand-bg px-3 py-2 text-sm font-semibold text-brand-dark"
+        className="rounded-lg bg-brand-bg px-3 py-2 text-sm font-semibold text-brand-dark"
       >
         {t('+ Add Another Exam')}
       </button>
-
-      {state.error && (
-        <div className="mb-3 whitespace-pre-line rounded-lg bg-warning-bg px-3 py-2 text-sm text-warning">
-          {t(state.error)}
-        </div>
-      )}
-
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <button onClick={back} className="rounded-lg border border-line px-4 py-2.5 text-muted hover:bg-surface">
-          {t('← Back')}
-        </button>
-        <div className="flex gap-2">
-          <button
-            onClick={goToAdditional}
-            className="rounded-lg bg-warning px-4 py-2.5 font-semibold text-white"
-          >
-            {t('Add More Items')}
-          </button>
-          <button
-            onClick={() => saveExamsAndProceed()}
-            disabled={state.busy}
-            className="rounded-lg bg-success px-4 py-2.5 font-semibold text-white disabled:opacity-60"
-          >
-            {state.busy ? t('Working…') : t('Next: Payment →')}
-          </button>
-        </div>
-      </div>
-    </div>
+    </section>
   )
 }

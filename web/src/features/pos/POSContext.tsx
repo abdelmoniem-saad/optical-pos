@@ -12,7 +12,6 @@ import type { Customer, Product, Sale } from '../../lib/database.types'
 import { addLine, computeTotals, removeLine, setQty, type Totals } from './pricing'
 import {
   emptyExam,
-  needsExamination,
   type Category,
   type Exam,
   type POSStep,
@@ -97,7 +96,6 @@ type POSApi = {
   removeExam: (index: number) => void
   setDoctorName: (v: string) => void
   setDeliveryDate: (v: string) => void
-  saveExamsAndProceed: () => Promise<void>
   // cart
   quickAdd: (term: string) => Promise<void>
   addProduct: (p: Product) => void
@@ -138,9 +136,8 @@ export function POSProvider({ children }: { children: ReactNode }) {
     const map: Record<POSStep, POSStep> = {
       category: 'category',
       customer: 'category',
-      examination: 'customer',
-      additional: 'examination',
-      cart: needsExamination(s.category) ? 'examination' : 'customer',
+      additional: 'cart',
+      cart: 'customer',
     }
     patch({ step: map[s.step] })
   }
@@ -150,11 +147,7 @@ export function POSProvider({ children }: { children: ReactNode }) {
   // ---- customer ----
   async function enterAfterCustomer(customer: Customer | null) {
     const invoiceNo = await getNextInvoiceNo()
-    patch({
-      customer,
-      invoiceNo,
-      step: needsExamination(ref.current.category) ? 'examination' : 'cart',
-    })
+    patch({ customer, invoiceNo, step: 'cart' })
   }
 
   const chooseWalkIn = () => enterAfterCustomer(null)
@@ -226,24 +219,21 @@ export function POSProvider({ children }: { children: ReactNode }) {
     return created
   }
 
-  async function saveExamsAndProceed() {
-    patch({ busy: true, error: null })
-    try {
-      let cart = [...ref.current.cartItems]
-      for (const exam of ref.current.examinations) {
-        if (exam.frame_status === 'New' && exam.frame_info) {
-          const frame = await findOrCreateFrame(String(exam.frame_info))
-          if (frame && !cart.some((i) => i.product_id === frame.id)) {
-            cart = addLine(cart, frame)
-          }
+  /** Add New-frame lines from examinations into the cart (runs at checkout). */
+  async function addNewFramesFromExams(
+    cart: CartLine[],
+    examinations: Exam[],
+  ): Promise<CartLine[]> {
+    let next = [...cart]
+    for (const exam of examinations) {
+      if (exam.frame_status === 'New' && exam.frame_info) {
+        const frame = await findOrCreateFrame(String(exam.frame_info))
+        if (frame && !next.some((i) => i.product_id === frame.id)) {
+          next = addLine(next, frame)
         }
       }
-      patch({ cartItems: cart, step: 'cart' })
-    } catch (e) {
-      patch({ error: e instanceof Error ? e.message : 'Could not prepare order' })
-    } finally {
-      patch({ busy: false })
     }
+    return next
   }
 
   // ---- cart ----
@@ -287,45 +277,24 @@ export function POSProvider({ children }: { children: ReactNode }) {
   // The gross total is always editable; null means "track the items total".
   const setGross = (n: number) => patch({ grossOverride: Math.max(0, n || 0) })
 
-  /** Sum stock movements for the cart's products; returns shortfall messages. */
-  async function checkStock(items: CartLine[]): Promise<string[]> {
-    if (!items.length) return []
-    const ids = items.map((i) => i.product_id)
-    const { data } = await supabase
-      .from('stock_movements')
-      .select('product_id, qty')
-      .in('product_id', ids)
-      .returns<{ product_id: string; qty: number }[]>()
-    const stock = new Map<string, number>()
-    for (const m of data ?? [])
-      stock.set(m.product_id, (stock.get(m.product_id) ?? 0) + (m.qty ?? 0))
-    const short: string[] = []
-    for (const i of items) {
-      const have = stock.get(i.product_id) ?? 0
-      if (have < i.qty) short.push(`${i.name} (need ${i.qty}, have ${have})`)
-    }
-    return short
-  }
-
   // ---- checkout ----
   async function finishOrder() {
     const s = ref.current
-    const t = computeTotals(s.cartItems, {
-      discount: s.discount,
-      amountPaid: s.amountPaid,
-      grossOverride: s.grossOverride,
-    })
     if (!s.cartItems.length && !s.examinations.length) {
       patch({ error: 'Cart is empty and no examinations. Cannot checkout.' })
       return
     }
     patch({ busy: true, error: null })
     try {
-      const short = await checkStock(s.cartItems)
-      if (short.length) {
-        patch({ busy: false, error: 'Insufficient stock for:\n' + short.join('\n') })
-        return
-      }
+      const cartItems = await addNewFramesFromExams(s.cartItems, s.examinations)
+      const t = computeTotals(cartItems, {
+        discount: s.discount,
+        amountPaid: s.amountPaid,
+        grossOverride: s.grossOverride,
+      })
+      // Allow overselling: stock movements will make inventory go negative,
+      // which is intentional per the workflow (record the sale even when
+      // qty-on-hand is zero or below).
       const sale = await createSale.mutateAsync({
         // sales.user_id has a FK to the legacy public.users table, which does
         // NOT contain Supabase Auth UUIDs — passing one fails the insert. Leave
@@ -333,7 +302,7 @@ export function POSProvider({ children }: { children: ReactNode }) {
         customerId: s.customer?.id ?? null,
         userId: null,
         invoiceNo: s.invoiceNo || undefined,
-        items: s.cartItems,
+        items: cartItems,
         examinations: s.examinations.length ? s.examinations : undefined,
         totals: {
           total_amount: t.gross,
@@ -348,7 +317,7 @@ export function POSProvider({ children }: { children: ReactNode }) {
         completed: {
           sale,
           customer: s.customer,
-          cartItems: s.cartItems,
+          cartItems,
           examinations: s.examinations,
           totals: t,
           invoiceNo: sale.invoice_no || s.invoiceNo,
@@ -376,7 +345,6 @@ export function POSProvider({ children }: { children: ReactNode }) {
     removeExam,
     setDoctorName,
     setDeliveryDate,
-    saveExamsAndProceed,
     quickAdd,
     addProduct,
     changeQty,

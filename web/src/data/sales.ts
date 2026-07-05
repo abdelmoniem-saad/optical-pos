@@ -196,3 +196,67 @@ export function useUpdateLabStatus() {
     onSuccess: () => qc.invalidateQueries({ queryKey: KEY }),
   })
 }
+
+/** Patch header fields of an existing sale (doctor, totals, status, dates…). */
+export function useUpdateSale() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({
+      id,
+      patch,
+    }: {
+      id: string
+      patch: Partial<Sale>
+    }): Promise<void> => {
+      // Strip embedded relations so PostgREST doesn't try to write them.
+      const { sale_items: _si, order_examinations: _oe, id: _id, ...clean } = patch as Partial<Sale> & {
+        sale_items?: unknown
+        order_examinations?: unknown
+      }
+      void _si
+      void _oe
+      void _id
+      const { error } = await supabase.from('sales').update(clean).eq('id', id)
+      if (error) throw error
+    },
+    onSuccess: (_data, vars) => {
+      qc.invalidateQueries({ queryKey: KEY })
+      qc.invalidateQueries({ queryKey: ['customer-orders'] })
+      void vars
+    },
+  })
+}
+
+/** Insert a standalone prescription for a customer with no cart items.
+ *  Creates a zero-total sale (invoice `PRESC-<epoch>`) and attaches the exam. */
+export function useAddStandalonePrescription() {
+  const qc = useQueryClient()
+  const create = useCreateSale()
+  return useMutation({
+    mutationFn: async ({
+      customerId,
+      exam,
+      doctorName,
+    }: {
+      customerId: string
+      exam: Omit<OrderExaminationInsert, 'sale_id'>
+      doctorName?: string
+    }): Promise<Sale> => {
+      const invoiceNo = 'PRESC-' + Date.now().toString(36).toUpperCase()
+      return create.mutateAsync({
+        customerId,
+        userId: null,
+        invoiceNo,
+        items: [],
+        examinations: [exam],
+        totals: { total_amount: 0, discount: 0, net_amount: 0, amount_paid: 0 },
+        doctorName: doctorName ?? '',
+      })
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: KEY })
+      qc.invalidateQueries({ queryKey: ['customer-orders'] })
+      qc.invalidateQueries({ queryKey: ['past_examinations'] })
+    },
+  })
+}
