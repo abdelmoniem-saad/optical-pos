@@ -155,25 +155,80 @@ export function useUpdateCustomer() {
   })
 }
 
+/** Thrown by useDeleteCustomer when the customer still has related rows
+ *  (sales / prescriptions). Callers should confirm with the user and retry
+ *  with `cascade: true` to delete the customer along with their orders and
+ *  prescriptions. */
+export class CustomerHasRelatedRecordsError extends Error {
+  readonly orderCount: number
+  readonly prescriptionCount: number
+  constructor(orderCount: number, prescriptionCount: number) {
+    super(
+      'Cannot delete this customer because they have existing orders or prescriptions.',
+    )
+    this.name = 'CustomerHasRelatedRecordsError'
+    this.orderCount = orderCount
+    this.prescriptionCount = prescriptionCount
+  }
+}
+
+async function countRelated(customerId: string) {
+  const [salesRes, presRes] = await Promise.all([
+    supabase
+      .from('sales')
+      .select('id', { count: 'exact', head: true })
+      .eq('customer_id', customerId),
+    supabase
+      .from('prescriptions')
+      .select('id', { count: 'exact', head: true })
+      .eq('customer_id', customerId),
+  ])
+  return {
+    orderCount: salesRes.count ?? 0,
+    prescriptionCount: presRes.count ?? 0,
+  }
+}
+
+export type DeleteCustomerInput = { id: string; cascade?: boolean }
+
 export function useDeleteCustomer() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: async (id: string): Promise<void> => {
+    mutationFn: async (input: DeleteCustomerInput | string): Promise<void> => {
+      const { id, cascade } =
+        typeof input === 'string' ? { id: input, cascade: false } : input
+
+      // When cascading, remove the child rows that don't cascade automatically
+      // from `customers` (sales are ON DELETE NO ACTION in the schema, while
+      // prescriptions and sale_items/order_examinations do cascade). Deleting
+      // the sales rows first triggers ON DELETE CASCADE for sale_items and
+      // order_examinations, then deleting the customer cascades prescriptions.
+      if (cascade) {
+        const { error: salesErr } = await supabase
+          .from('sales')
+          .delete()
+          .eq('customer_id', id)
+        if (salesErr) throw salesErr
+      }
+
       const { error } = await supabase.from('customers').delete().eq('id', id)
       if (error) {
-        // Postgres FK violation → customer still referenced by sales /
-        // prescriptions. Translate to something the shop staff can act on
-        // instead of dumping the raw SQLSTATE.
         const code = (error as { code?: string }).code
         const msg = error.message?.toLowerCase() ?? ''
-        if (code === '23503' || msg.includes('foreign key') || msg.includes('violates')) {
-          throw new Error(
-            'Cannot delete this customer because they have existing orders or prescriptions.',
-          )
+        const isFk =
+          code === '23503' ||
+          msg.includes('foreign key') ||
+          msg.includes('violates')
+        if (isFk && !cascade) {
+          const { orderCount, prescriptionCount } = await countRelated(id)
+          throw new CustomerHasRelatedRecordsError(orderCount, prescriptionCount)
         }
         throw error
       }
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: KEY }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: KEY })
+      qc.invalidateQueries({ queryKey: ['customer-orders'] })
+    },
   })
 }

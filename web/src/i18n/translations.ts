@@ -62,6 +62,12 @@ export const ar: Record<string, string> = {
   'Search by name, city, phone or doctor…': 'ابحث بالاسم أو المدينة أو الجوال أو الطبيب…',
   'Cannot delete this customer because they have existing orders or prescriptions.':
     'لا يمكن حذف هذا العميل لوجود طلبات أو وصفات مرتبطة به.',
+  'Delete customer': 'حذف العميل',
+  'This customer has': 'هذا العميل لديه',
+  prescriptions: 'وصفات',
+  and: 'و',
+  'Deleting the customer will also permanently delete their orders and prescriptions. Continue?':
+    'سيؤدي حذف العميل إلى حذف جميع طلباته ووصفاته نهائياً. هل تريد المتابعة؟',
 
   // Categories
   'Select Product Category': 'اختر فئة المنتج',
