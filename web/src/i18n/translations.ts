@@ -58,6 +58,10 @@ export const ar: Record<string, string> = {
   Saved: 'تم الحفظ',
   Loading: 'جارٍ التحميل',
   'No matches.': 'لا توجد نتائج.',
+  'Edit Customer': 'تعديل العميل',
+  'Search by name, city, phone or doctor…': 'ابحث بالاسم أو المدينة أو الجوال أو الطبيب…',
+  'Cannot delete this customer because they have existing orders or prescriptions.':
+    'لا يمكن حذف هذا العميل لوجود طلبات أو وصفات مرتبطة به.',
 
   // Categories
   'Select Product Category': 'اختر فئة المنتج',

@@ -1,6 +1,34 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
+import { useAuth } from '../lib/auth'
 import type { User } from '../lib/database.types'
+
+/** Fetches the currently signed-in staff user (with role joined). Returns
+ *  `null` while unauthenticated or the row hasn't propagated yet. */
+export function useCurrentUser() {
+  const { user } = useAuth()
+  return useQuery({
+    queryKey: ['current-user', user?.id ?? null],
+    enabled: !!user?.id,
+    queryFn: async (): Promise<User | null> => {
+      const { data, error } = await supabase
+        .from('users')
+        .select('*, roles(*)')
+        .eq('id', user!.id)
+        .maybeSingle<User>()
+      if (error) throw error
+      return data
+    },
+  })
+}
+
+/** True when the signed-in user has a privileged role (Admin/Owner).
+ *  Used to gate destructive actions like customer deletion. */
+export function useIsAdmin(): boolean {
+  const me = useCurrentUser()
+  const name = me.data?.roles?.name?.toLowerCase() ?? ''
+  return name === 'admin' || name === 'owner'
+}
 
 /** Staff users with their role joined. Mirrors repo.get_users().
  *  Note: creating/editing auth users is done via the Supabase dashboard or a
