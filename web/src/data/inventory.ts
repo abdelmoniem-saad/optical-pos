@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
+import { queryClient } from '../lib/queryClient'
 import type { Product, ProductInsert } from '../lib/database.types'
 
 const KEY = ['inventory'] as const
@@ -35,8 +36,35 @@ export function useInventory(category?: string) {
   })
 }
 
-/** Current stock for a single product. Mirrors repo.get_product_stock(). */
-export function useProductStock(productId: string | null) {
+/**
+ * Find an existing Frame product by name (case-insensitive) or create a
+ * zero-priced one, so a free-typed frame name becomes a first-class option in
+ * every frame dropdown afterwards. Mirrors what POS checkout does for New
+ * frames — exposed here so other screens (History order editor) reuse it.
+ */
+export async function ensureFrameProduct(name: string): Promise<Product | null> {
+  const clean = name.trim()
+  if (!clean) return null
+  const { data: existing } = await supabase
+    .from('inventory')
+    .select('*')
+    .eq('category', 'Frame')
+    .ilike('name', clean)
+    .limit(1)
+    .returns<Product[]>()
+  if (existing && existing.length) return existing[0]
+  const { data: created, error } = await supabase
+    .from('inventory')
+    .insert({ name: clean, category: 'Frame', sale_price: 0, cost_price: 0 })
+    .select()
+    .single<Product>()
+  if (error) throw error
+  // Refresh every frame list/datalist in the app.
+  void queryClient.invalidateQueries({ queryKey: KEY })
+  return created
+}
+
+/** Current stock for a single product. Mirrors repo.get_product_stock(). */export function useProductStock(productId: string | null) {
   return useQuery({
     queryKey: ['stock', productId],
     enabled: !!productId,

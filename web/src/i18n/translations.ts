@@ -215,6 +215,8 @@ export const ar: Record<string, string> = {
   'In Progress': 'قيد التنفيذ',
   Ready: 'جاهز',
   Delivered: 'تم التسليم',
+  'Lab Status': 'حالة المعمل',
+  'Edit Prescriptions': 'تعديل الوصفات',
 
   // Reports screen
   'Reports & Analytics': 'التقارير والتحليلات',

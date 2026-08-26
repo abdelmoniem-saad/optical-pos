@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import type { OrderExamination, Sale } from '../lib/database.types'
 
@@ -20,6 +20,38 @@ export function useOrderExaminations(saleId: string | null) {
 }
 
 export type PastExam = OrderExamination & { sale: Partial<Sale> }
+
+/**
+ * Replace ALL of one sale's examinations (History order editor). Non-atomic
+ * delete+reinsert — same parity as the rest of the multi-step flows until the
+ * RPC hardening lands. The customer profile reads these same rows, so edits
+ * here are reflected there automatically.
+ */
+export function useReplaceOrderExaminations(saleId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (
+      exams: Omit<OrderExamination, 'id' | 'sale_id'>[],
+    ): Promise<void> => {
+      const { error: delErr } = await supabase
+        .from('order_examinations')
+        .delete()
+        .eq('sale_id', saleId)
+      if (delErr) throw delErr
+      if (exams.length) {
+        const rows = exams.map((e) => ({ ...e, sale_id: saleId }))
+        const { error: insErr } = await supabase.from('order_examinations').insert(rows)
+        if (insErr) throw insErr
+      }
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['order_examinations', saleId] })
+      qc.invalidateQueries({ queryKey: ['customer-orders'] })
+      qc.invalidateQueries({ queryKey: ['past_examinations'] })
+      qc.invalidateQueries({ queryKey: ['sales'] })
+    },
+  })
+}
 
 /**
  * A customer's recent examinations with sale info attached.

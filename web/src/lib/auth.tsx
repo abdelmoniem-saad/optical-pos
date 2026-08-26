@@ -50,6 +50,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => sub.subscription.unsubscribe()
   }, [])
 
+  // Keep a `users` row linked to the signed-in auth user so invoices can be
+  // attributed (sales.user_id → users.id, keyed BY the auth UUID — the same
+  // convention staff.ts::useCurrentUser relies on).
+  useEffect(() => {
+    const u = session?.user
+    if (u) void ensureStaffRecord(u)
+  }, [session])
+
   async function signIn(username: string, password: string) {
     const email = usernameToEmail(username)
     const { error } = await supabase.auth.signInWithPassword({ email, password })
@@ -92,4 +100,42 @@ export function displayName(user: User | null): string {
     user.email?.split('@')[0] ||
     'User'
   )
+}
+
+/**
+ * Ensure a public.users row exists for the signed-in auth user so new sales
+ * can reference it (sales.user_id FK). The row's id IS the auth UUID, matching
+ * how staff.ts resolves the current user. A legacy desktop-era row may already
+ * own the desired unique username — in that case we skip silently and sales
+ * simply stay unattributed rather than touching historical records.
+ */
+async function ensureStaffRecord(user: User): Promise<void> {
+  try {
+    const meta = user.user_metadata ?? {}
+    const fullName = (meta.full_name as string) || ''
+    const username = (meta.username as string) || user.email?.split('@')[0] || 'staff'
+
+    const { data: existing } = await supabase
+      .from('users')
+      .select('id')
+      .eq('id', user.id)
+      .maybeSingle<{ id: string }>()
+
+    if (existing) {
+      // Keep the display name fresh if the auth metadata changed.
+      if (fullName) {
+        await supabase.from('users').update({ full_name: fullName }).eq('id', user.id)
+      }
+      return
+    }
+
+    await supabase.from('users').insert({
+      id: user.id,
+      username,
+      full_name: fullName || null,
+      is_active: true,
+    })
+  } catch {
+    // Attribution is best-effort — never block login over it.
+  }
 }

@@ -413,13 +413,13 @@ export function POSProvider({ children }: { children: ReactNode }) {
           ...payload,
         })
       } else {
-        // First checkout: sales.user_id has a FK to the legacy public.users
-        // table, which does NOT contain Supabase Auth UUIDs — passing one
-        // fails the insert. Leave it null until cashier identity is migrated
-        // to auth (see follow-up).
+        // First checkout: attribute the invoice to the signed-in staff member
+        // (users row keyed by the auth UUID — ensured at login by auth.tsx).
+        // Older/unknown accounts stay null rather than failing the FK.
+        const { data: sessionData } = await supabase.auth.getSession()
         sale = await createSale.mutateAsync({
           customerId: s.customer?.id ?? null,
-          userId: null,
+          userId: sessionData.session?.user?.id ?? null,
           invoiceNo: s.invoiceNo || undefined,
           ...payload,
         })

@@ -1,19 +1,12 @@
 import { useMemo, useState } from 'react'
-import { useSales, useUpdateLabStatus } from '../../data/sales'
+import { useSales, useUpdateLabStatus, LAB_STATUSES, LAB_STATUS_COLORS } from '../../data/sales'
 import { useCustomers } from '../../data/customers'
 import { useOrderExaminations } from '../../data/examinations'
 import { useI18n } from '../../i18n/LanguageContext'
 import { OrderReceiptDialog } from '../../components/OrderReceiptDialog'
 import type { Sale } from '../../lib/database.types'
 
-const STATUSES = ['Not Started', 'In Lab', 'Ready', 'Received']
-
-const statusColor: Record<string, string> = {
-  'Not Started': 'bg-surface text-muted',
-  'In Lab': 'bg-warning-bg text-warning',
-  Ready: 'bg-success-bg text-success',
-  Received: 'bg-brand-bg text-brand-dark',
-}
+const statusColor = LAB_STATUS_COLORS
 
 function ExamLines({ saleId }: { saleId: string }) {
   const exams = useOrderExaminations(saleId)
@@ -60,7 +53,7 @@ export function LabPage() {
           className="rounded-lg border border-line bg-white px-3 py-2 outline-none focus:border-brand"
         >
           <option value="All">{t('All')}</option>
-          {STATUSES.map((s) => (
+          {LAB_STATUSES.map((s) => (
             <option key={s} value={s}>{t(s)}</option>
           ))}
         </select>
@@ -97,7 +90,7 @@ export function LabPage() {
                     onChange={(e) => updateStatus.mutate({ id: s.id, status: e.target.value })}
                     className="rounded-lg border border-line bg-white px-2 py-1.5 text-sm outline-none focus:border-brand"
                   >
-                    {STATUSES.map((st) => (
+                    {LAB_STATUSES.map((st) => (
                       <option key={st} value={st}>{t(st)}</option>
                     ))}
                   </select>

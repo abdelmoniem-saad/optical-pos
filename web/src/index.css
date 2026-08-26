@@ -34,6 +34,17 @@ html {
      crisp. Firefox 126+ / all Chromium support it; older browsers gracefully
      render the unscaled UI. */
   zoom: 1.25;
+  /* The app is hard-coded light-themed. Without this, an OS in dark mode makes
+     native widgets (select dropdowns, date pickers) render dark/white-on-white
+     inside our white UI — reported as invisible Arabic <option> texts. */
+  color-scheme: light;
+}
+
+/* Belt-and-braces for the same widget-theme problem: option rows keep the
+   app's palette no matter what the OS prefers. */
+select option {
+  color: #1a1a1a;
+  background: #ffffff;
 }
 
 html,

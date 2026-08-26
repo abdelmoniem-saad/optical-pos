@@ -1,10 +1,11 @@
 import { useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { useSales, useUpdateSale } from '../../data/sales'
+import { useSales, LAB_STATUS_COLORS } from '../../data/sales'
 import { useCustomers } from '../../data/customers'
 import { useI18n } from '../../i18n/LanguageContext'
 import { OrderExamsLazy } from '../../components/ExamView'
 import { OrderReceiptDialog } from '../../components/OrderReceiptDialog'
+import { EditOrderForm } from './EditOrderForm'
 import type { Sale } from '../../lib/database.types'
 
 type Range = 'all' | 'today' | 'month'
@@ -13,10 +14,11 @@ function fmt(n: number | null | undefined) {
   return Number(n ?? 0).toFixed(2)
 }
 
+// Same palette as the Lab tab, plus aliases for values written by older
+// builds so legacy badges still render sensibly.
 const labColor: Record<string, string> = {
-  'Not Started': 'bg-surface text-muted',
+  ...LAB_STATUS_COLORS,
   'In Progress': 'bg-warning-bg text-warning',
-  Ready: 'bg-success-bg text-success',
   Delivered: 'bg-brand-bg text-brand-dark',
 }
 
@@ -104,7 +106,13 @@ export function HistoryPage() {
                       {s.customer_id ? nameById.get(s.customer_id) ?? t('Customer') : t('Walk-in')}
                     </span>
                   </div>
-                  <div className="text-xs text-faint">{(s.order_date ?? '').slice(0, 16).replace('T', ' ')}</div>
+                  <div className="text-xs text-faint">
+                    {(s.order_date ?? '').slice(0, 16).replace('T', ' ')}
+                    {/* Staff member who made the invoice (when known). */}
+                    {s.users ? (
+                      <span title={t('Staff')}> · 👤 {s.users.full_name || s.users.username}</span>
+                    ) : null}
+                  </div>
                 </div>
                 <div className="flex items-center gap-3">
                   {s.lab_status && (
@@ -120,22 +128,9 @@ export function HistoryPage() {
               </button>
               {expanded && (
                 <div className="border-t border-line/40 bg-surface/40 px-4 py-3 text-sm">
-                  {(s.sale_items?.length ?? 0) === 0 ? (
-                    <div className="text-faint">{t('No line items.')}</div>
-                  ) : (
-                    <table className="w-full">
-                      <tbody>
-                        {s.sale_items!.map((it) => (
-                          <tr key={it.id}>
-                            <td className="py-1">{it.name}</td>
-                            <td className="py-1 text-center text-muted">×{it.qty}</td>
-                            <td className="py-1 text-end">{fmt(it.total_price)}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  )}
-                  <div className="mt-2 flex justify-between text-muted">
+                  {/* Line items are intentionally not shown here: frame
+                      purchases already live on the prescription row below. */}
+                  <div className="flex justify-between text-muted">
                     <span>{t('Paid')} {fmt(paid)}</span>
                     <span>{t('Balance')} {fmt(balance)}</span>
                   </div>
@@ -163,123 +158,6 @@ export function HistoryPage() {
       </div>
 
       {reprint && <OrderReceiptDialog sale={reprint} onClose={() => setReprint(null)} />}
-    </div>
-  )
-}
-
-/** Inline editor for a subset of sale header fields. Item-level edits and
- *  stock-movement reversal are intentionally out of scope. */
-function EditOrderForm({ sale, onDone }: { sale: Sale; onDone: () => void }) {
-  const { t } = useI18n()
-  const update = useUpdateSale()
-  const [form, setForm] = useState({
-    doctor_name: sale.doctor_name ?? '',
-    discount: Number(sale.discount ?? 0),
-    amount_paid: Number(sale.amount_paid ?? 0),
-    lab_status: sale.lab_status ?? '',
-    delivery_date: (sale.delivery_date ?? '').slice(0, 10),
-  })
-  const [error, setError] = useState<string | null>(null)
-
-  const gross = Number(sale.total_amount ?? 0)
-  const net = Math.max(0, gross - (form.discount || 0))
-
-  const field = 'w-full rounded-lg border border-line bg-white px-3 py-2 outline-none focus:border-brand'
-
-  async function submit() {
-    setError(null)
-    try {
-      await update.mutateAsync({
-        id: sale.id,
-        patch: {
-          doctor_name: form.doctor_name,
-          discount: form.discount,
-          amount_paid: form.amount_paid,
-          net_amount: net,
-          lab_status: form.lab_status || null,
-          delivery_date: form.delivery_date || null,
-        },
-      })
-      onDone()
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e))
-    }
-  }
-
-  return (
-    <div className="mt-3 rounded-lg border border-brand-faint bg-white p-3">
-      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-        <label className="flex flex-col">
-          <span className="mb-0.5 text-xs text-faint">{t('Doctor Name')}</span>
-          <input
-            className={field}
-            value={form.doctor_name}
-            onChange={(e) => setForm({ ...form, doctor_name: e.target.value })}
-          />
-        </label>
-        <label className="flex flex-col">
-          <span className="mb-0.5 text-xs text-faint">{t('Delivery Date')}</span>
-          <input
-            type="date"
-            className={field}
-            value={form.delivery_date}
-            onChange={(e) => setForm({ ...form, delivery_date: e.target.value })}
-          />
-        </label>
-        <label className="flex flex-col">
-          <span className="mb-0.5 text-xs text-faint">{t('Discount')}</span>
-          <input
-            type="number"
-            className={field}
-            value={form.discount}
-            onChange={(e) => setForm({ ...form, discount: Number(e.target.value) })}
-          />
-        </label>
-        <label className="flex flex-col">
-          <span className="mb-0.5 text-xs text-faint">{t('Amount Paid')}</span>
-          <input
-            type="number"
-            className={field}
-            value={form.amount_paid}
-            onChange={(e) => setForm({ ...form, amount_paid: Number(e.target.value) })}
-          />
-        </label>
-        <label className="flex flex-col">
-          <span className="mb-0.5 text-xs text-faint">{t('Lab Status')}</span>
-          <select
-            className={field}
-            value={form.lab_status ?? ''}
-            onChange={(e) => setForm({ ...form, lab_status: e.target.value })}
-          >
-            <option value="">—</option>
-            <option value="Not Started">{t('Not Started')}</option>
-            <option value="In Progress">{t('In Progress')}</option>
-            <option value="Ready">{t('Ready')}</option>
-            <option value="Delivered">{t('Delivered')}</option>
-          </select>
-        </label>
-        <div className="flex flex-col justify-end text-xs text-muted">
-          {t('Net Amount')}: <span className="text-base font-semibold text-brand-dark">{fmt(net)}</span>
-        </div>
-      </div>
-      {error && (
-        <div className="mt-2 rounded-lg bg-warning-bg px-3 py-2 text-sm text-warning">{error}</div>
-      )}
-      <div className="mt-3 flex justify-end gap-2">
-        <button
-          onClick={onDone}
-          className="rounded-lg border border-line px-3 py-1.5 text-sm text-muted hover:bg-surface"
-        >
-          {t('Cancel')}
-        </button>
-        <button
-          onClick={submit}
-          disabled={update.isPending}
-          className="rounded-lg bg-brand px-4 py-1.5 text-sm font-semibold text-white disabled:opacity-60"
-        >
-          {update.isPending ? t('Saving…') : t('Save')}
-        </button>
-      </div>
     </div>
   )
 }

@@ -97,8 +97,11 @@ export interface Sale {
   sale_items?: SaleItem[]
   // Present when selected with `*, order_examinations(*)`.
   order_examinations?: OrderExamination[]
+  // Present when selected with `*, users(full_name, username)` — the staff
+  // member who made the sale (null on legacy/unattributed invoices).
+  users?: Pick<User, 'id' | 'username' | 'full_name'> | null
 }
-export type SaleInsert = Omit<Sale, 'id' | 'sale_items' | 'order_examinations'>
+export type SaleInsert = Omit<Sale, 'id' | 'sale_items' | 'order_examinations' | 'users'>
 
 export interface SaleItem {
   id: string

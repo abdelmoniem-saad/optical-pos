@@ -24,7 +24,7 @@ export function useSales() {
     queryFn: async (): Promise<Sale[]> => {
       const { data, error } = await supabase
         .from('sales')
-        .select('*, sale_items(*)')
+        .select('*, sale_items(*), users(full_name, username)')
         .order('order_date', { ascending: false })
         .returns<Sale[]>()
       if (error) throw error
@@ -310,6 +310,20 @@ export function useUpdateLabStatus() {
   })
 }
 
+// ---- lab workflow vocabulary (single source of truth) ----
+
+/** The ONLY lab statuses the Lab tab understands. Every editor/badge/filter
+ *  must use these so colors and filters stay aligned across screens. */
+export const LAB_STATUSES = ['Not Started', 'In Lab', 'Ready', 'Received'] as const
+
+/** Badge classes per status — kept next to the vocabulary so they can't drift. */
+export const LAB_STATUS_COLORS: Record<string, string> = {
+  'Not Started': 'bg-surface text-muted',
+  'In Lab': 'bg-warning-bg text-warning',
+  Ready: 'bg-success-bg text-success',
+  Received: 'bg-brand-bg text-brand-dark',
+}
+
 /** Patch header fields of an existing sale (doctor, totals, status, dates…). */
 export function useUpdateSale() {
   const qc = useQueryClient()
@@ -322,12 +336,20 @@ export function useUpdateSale() {
       patch: Partial<Sale>
     }): Promise<void> => {
       // Strip embedded relations so PostgREST doesn't try to write them.
-      const { sale_items: _si, order_examinations: _oe, id: _id, ...clean } = patch as Partial<Sale> & {
+      const {
+        sale_items: _si,
+        order_examinations: _oe,
+        users: _u,
+        id: _id,
+        ...clean
+      } = patch as Partial<Sale> & {
         sale_items?: unknown
         order_examinations?: unknown
+        users?: unknown
       }
       void _si
       void _oe
+      void _u
       void _id
       const { error } = await supabase.from('sales').update(clean).eq('id', id)
       if (error) throw error
