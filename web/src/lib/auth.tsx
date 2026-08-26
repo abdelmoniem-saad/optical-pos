@@ -103,36 +103,69 @@ export function displayName(user: User | null): string {
 }
 
 /**
- * Ensure a public.users row exists for the signed-in auth user so new sales
- * can reference it (sales.user_id FK). The row's id IS the auth UUID, matching
- * how staff.ts resolves the current user. A legacy desktop-era row may already
- * own the desired unique username — in that case we skip silently and sales
- * simply stay unattributed rather than touching historical records.
+ * Ensure a public.users row exists for the signed-in auth user so invoices can
+ * be attributed and roles/permissions apply.
+ *
+ * Resolution order (mirrors staff.ts):
+ *   1. A row keyed by the auth UID — keep its display name fresh.
+ *   2. A LEGACY row whose username equals the email local-part — leave it as
+ *      is; it already carries the correct role (this is what makes the seeded
+ *      'admin' account work).
+ *   3. Otherwise create one, auto-assigning the Admin position when the
+ *      account looks administrative or when it's the very first staff member.
  */
 async function ensureStaffRecord(user: User): Promise<void> {
   try {
     const meta = user.user_metadata ?? {}
     const fullName = (meta.full_name as string) || ''
-    const username = (meta.username as string) || user.email?.split('@')[0] || 'staff'
+    const username =
+      (meta.username as string) || user.email?.split('@')[0] || 'staff'
 
-    const { data: existing } = await supabase
+    // 1) Already linked by id?
+    const { data: byId } = await supabase
       .from('users')
       .select('id')
       .eq('id', user.id)
       .maybeSingle<{ id: string }>()
-
-    if (existing) {
-      // Keep the display name fresh if the auth metadata changed.
+    if (byId) {
       if (fullName) {
         await supabase.from('users').update({ full_name: fullName }).eq('id', user.id)
       }
       return
     }
 
+    // 2) Legacy row with the same username? Adopt silently — its role is the
+    //    source of truth and sales can reference its existing PK safely.
+    const { data: byName } = await supabase
+      .from('users')
+      .select('id')
+      .eq('username', username)
+      .maybeSingle<{ id: string }>()
+    if (byName) return
+
+    // 3) Brand-new staff record. Default to the Admin position for
+    //    administrative-looking accounts or the very first team member.
+    let role_id: string | null = null
+    const wantsAdmin = /admin|owner/i.test(username)
+    const { count } = await supabase
+      .from('users')
+      .select('*', { count: 'exact', head: true })
+    const isFirst = (count ?? 0) === 0
+    if (wantsAdmin || isFirst) {
+      const { data: adminRole } = await supabase
+        .from('roles')
+        .select('id')
+        .ilike('name', 'admin')
+        .limit(1)
+        .returns<{ id: string }[]>()
+      role_id = adminRole?.[0]?.id ?? null
+    }
+
     await supabase.from('users').insert({
       id: user.id,
       username,
       full_name: fullName || null,
+      role_id,
       is_active: true,
     })
   } catch {

@@ -14,6 +14,7 @@ import {
   type CartLine,
 } from '../../data/sales'
 import { useAddCustomer, useUpdateCustomer } from '../../data/customers'
+import { resolveStaffUserId } from '../../data/staff'
 import type { Customer, CustomerInsert, Product, Sale } from '../../lib/database.types'
 import { addLine, computeTotals, removeLine, setQty, type Totals } from './pricing'
 import {
@@ -413,13 +414,13 @@ export function POSProvider({ children }: { children: ReactNode }) {
           ...payload,
         })
       } else {
-        // First checkout: attribute the invoice to the signed-in staff member
-        // (users row keyed by the auth UUID — ensured at login by auth.tsx).
-        // Older/unknown accounts stay null rather than failing the FK.
-        const { data: sessionData } = await supabase.auth.getSession()
+        // First checkout: attribute the invoice to the signed-in staff member.
+        // Resolution understands BOTH auth-keyed users rows and legacy rows
+        // linked by username (databases migrated from the desktop version).
+        const staffId = await resolveStaffUserId()
         sale = await createSale.mutateAsync({
           customerId: s.customer?.id ?? null,
-          userId: sessionData.session?.user?.id ?? null,
+          userId: staffId,
           invoiceNo: s.invoiceNo || undefined,
           ...payload,
         })

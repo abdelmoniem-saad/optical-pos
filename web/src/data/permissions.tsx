@@ -206,10 +206,21 @@ export function PermissionsProvider({ children }: { children: ReactNode }) {
     // Admin/owner positions bypass everything.
     if (isAdmin) return { loading: false, isAdmin: true, can: () => true }
 
+    if (!user) return { loading: false, isAdmin: false, can: () => false }
+
     // While loading stay permissive so the UI doesn't flash locked; this is a
     // UI-level gate by design (the DB keeps its authenticated-trust model).
-    if (!user || me.isLoading || grants.isLoading || overrides.isLoading) {
+    if (me.isLoading || grants.isLoading || overrides.isLoading) {
       return { loading: true, isAdmin: false, can: () => true }
+    }
+
+    // Break-glass #1: no staff record could be resolved for this account
+    // (lookup failure / never linked). Never brick a login over bookkeeping.
+    // Break-glass #2: an account WITHOUT any position is treated as fully
+    // trusted too — access control applies to people actually placed in a
+    // position by the admin.
+    if (!me.data || me.isError || !me.data.role_id) {
+      return { loading: false, isAdmin: false, can: () => true }
     }
 
     const granted = new Set(grants.data ?? [])
@@ -223,7 +234,7 @@ export function PermissionsProvider({ children }: { children: ReactNode }) {
         return granted.has(c) // else exactly what the position grants
       },
     }
-  }, [isAdmin, user, me.isLoading, grants.isLoading, grants.data, overrides.isLoading, overrides.data])
+  }, [isAdmin, user, me.isLoading, me.isError, me.data, grants.isLoading, grants.data, overrides.isLoading, overrides.data])
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>
 }
