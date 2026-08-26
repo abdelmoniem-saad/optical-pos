@@ -28,6 +28,12 @@ html {
      for staff using the app on tablets / touch screens. Bump to 20px for even
      bigger. */
   font-size: 18px;
+  /* Site-wide density, matched to what the New Sale tab looked like with its
+     old local zoom. Behaves like standard browser page-zoom: native date
+     pickers scale along, fixed dialogs stay viewport-anchored, text stays
+     crisp. Firefox 126+ / all Chromium support it; older browsers gracefully
+     render the unscaled UI. */
+  zoom: 1.25;
 }
 
 html,

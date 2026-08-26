@@ -1,14 +1,20 @@
 import {
   createContext,
   useContext,
+  useEffect,
   useReducer,
   useRef,
   type ReactNode,
 } from 'react'
 import { supabase } from '../../lib/supabase'
-import { getNextInvoiceNo, useCreateSale, type CartLine } from '../../data/sales'
-import { useAddCustomer } from '../../data/customers'
-import type { Customer, Product, Sale } from '../../lib/database.types'
+import {
+  getNextInvoiceNo,
+  useCreateSale,
+  useUpdateSaleFull,
+  type CartLine,
+} from '../../data/sales'
+import { useAddCustomer, useUpdateCustomer } from '../../data/customers'
+import type { Customer, CustomerInsert, Product, Sale } from '../../lib/database.types'
 import { addLine, computeTotals, removeLine, setQty, type Totals } from './pricing'
 import {
   emptyExam,
@@ -17,11 +23,30 @@ import {
   type POSStep,
 } from './types'
 
+// Co-locating this helper with the wizard state is intentional; see the note
+// by usePOS below. The fast-refresh rule only matters during HMR edits.
+// eslint-disable-next-line react-refresh/only-export-components
+export function localDateISO(d: Date = new Date()): string {
+  const p = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`
+}
+
 function plusDays(days: number): string {
   const d = new Date()
   d.setDate(d.getDate() + days)
-  return d.toISOString().slice(0, 10)
+  return localDateISO(d)
 }
+
+/** Editable customer info, shared by the customer step and the order step. */
+export type CustomerDraft = {
+  name: string
+  phone: string
+  city: string
+  email: string
+  address: string
+}
+
+const emptyDraft: CustomerDraft = { name: '', phone: '', city: '', email: '', address: '' }
 
 export type CompletedOrder = {
   sale: Sale
@@ -32,12 +57,15 @@ export type CompletedOrder = {
   invoiceNo: string
   doctorName: string
   deliveryDate: string
+  /** True when this checkout OVERWROTE an existing invoice (re-checkout). */
+  isUpdate: boolean
 }
 
 type State = {
   step: POSStep
   category: Category | null
   customer: Customer | null
+  customerDraft: CustomerDraft
   cartItems: CartLine[]
   examinations: Exam[]
   discount: number
@@ -46,6 +74,9 @@ type State = {
   doctorName: string
   deliveryDate: string
   invoiceNo: string
+  /** Sale created by the FIRST Finish Checkout; later checkouts update it. */
+  savedSale: Sale | null
+  savedHadExams: boolean
   completed: CompletedOrder | null
   busy: boolean
   error: string | null
@@ -56,6 +87,7 @@ function initialState(): State {
     step: 'category',
     category: null,
     customer: null,
+    customerDraft: { ...emptyDraft },
     cartItems: [],
     examinations: [],
     discount: 0,
@@ -64,6 +96,8 @@ function initialState(): State {
     doctorName: '',
     deliveryDate: plusDays(3),
     invoiceNo: '',
+    savedSale: null,
+    savedHadExams: false,
     completed: null,
     busy: false,
     error: null,
@@ -77,6 +111,13 @@ function reducer(state: State, action: Action): State {
   return { ...state, ...action.patch }
 }
 
+// The New Sale wizard intentionally SURVIVES tab switches: navigating to
+// another tab unmounts this route, so the latest state is mirrored into a
+// module-level snapshot and re-hydrated when the tab is opened again. Every
+// other screen reloads fresh by design; only this wizard continues where it
+// left off. "startNewSale" (receipt dialog) is the explicit way to reset.
+let memoryState: State | null = null
+
 type POSApi = {
   state: State
   totals: Totals
@@ -84,8 +125,9 @@ type POSApi = {
   selectCategory: (c: Category) => void
   back: () => void
   goToAdditional: () => void
-  // customer
-  chooseWalkIn: () => Promise<void>
+  // customer (draft is shared with the order-step editors)
+  setCustomerDraft: (patch: Partial<CustomerDraft>) => void
+  saveCustomerEdits: (patch: Partial<CustomerDraft>) => Promise<void>
   continueWithCustomer: (
     form: Partial<Customer> & { name: string },
     selected: Customer | null,
@@ -101,25 +143,34 @@ type POSApi = {
   addProduct: (p: Product) => void
   changeQty: (productId: string, qty: number) => void
   removeFromCart: (productId: string) => void
-  clearCart: () => void
   // pricing
   setDiscount: (n: number) => void
   setAmountPaid: (n: number) => void
   setGross: (n: number) => void
   // checkout
   finishOrder: () => Promise<void>
-  closeReceiptAndReset: () => void
+  /** Close the receipt dialog but KEEP the order open for further edits. */
+  closeReceipt: () => void
+  /** Throw the whole wizard away and start a brand-new sale. */
+  startNewSale: () => void
 }
 
 const Ctx = createContext<POSApi | undefined>(undefined)
 
 export function POSProvider({ children }: { children: ReactNode }) {
-  const [state, dispatch] = useReducer(reducer, undefined, initialState)
+  const [state, dispatch] = useReducer(reducer, undefined, () => memoryState ?? initialState())
   const ref = useRef(state)
   ref.current = state
 
+  // Mirror every change into the module-level snapshot (tab-switch survival).
+  useEffect(() => {
+    memoryState = state
+  }, [state])
+
   const createSale = useCreateSale()
+  const updateSale = useUpdateSaleFull()
   const addCustomer = useAddCustomer()
+  const updateCustomer = useUpdateCustomer()
 
   const patch = (p: Partial<State>) => dispatch({ type: 'PATCH', patch: p })
   const totals = computeTotals(state.cartItems, {
@@ -145,12 +196,41 @@ export function POSProvider({ children }: { children: ReactNode }) {
   const goToAdditional = () => patch({ step: 'additional' })
 
   // ---- customer ----
-  async function enterAfterCustomer(customer: Customer | null) {
-    const invoiceNo = await getNextInvoiceNo()
-    patch({ customer, invoiceNo, step: 'cart' })
+  /** Keystroke-level draft updates (shared with the order-step editors). */
+  const setCustomerDraft = (p: Partial<CustomerDraft>) =>
+    patch({ customerDraft: { ...ref.current.customerDraft, ...p } })
+
+  /**
+   * Persist customer-field edits (order-step editors / customer step).
+   * Edits ALWAYS update the SAME customer record — renaming here never
+   * spawns a duplicate customer.
+   */
+  async function saveCustomerEdits(p: Partial<CustomerDraft>) {
+    const draft = { ...ref.current.customerDraft, ...p }
+    patch({ customerDraft: draft })
+    const c = ref.current.customer
+    if (!c) return
+    const changes: Partial<CustomerInsert> = {}
+    const name = p.name?.trim()
+    if (name && name !== c.name) changes.name = name
+    for (const k of ['phone', 'city', 'email', 'address'] as const) {
+      const v = p[k]
+      if (v !== undefined && (c[k] ?? '') !== v) changes[k] = v
+    }
+    if (!Object.keys(changes).length) return
+    try {
+      await updateCustomer.mutateAsync({ id: c.id, patch: changes })
+      patch({ customer: { ...c, ...changes } as Customer, error: null })
+    } catch (e) {
+      patch({ error: e instanceof Error ? e.message : 'Could not save customer' })
+    }
   }
 
-  const chooseWalkIn = () => enterAfterCustomer(null)
+  /** Entering the cart keeps the SAME invoice number — never burn a new one. */
+  async function enterAfterCustomer(customer: Customer) {
+    const invoiceNo = ref.current.invoiceNo || (await getNextInvoiceNo())
+    patch({ customer, invoiceNo, step: 'cart' })
+  }
 
   async function continueWithCustomer(
     form: Partial<Customer> & { name: string },
@@ -164,7 +244,20 @@ export function POSProvider({ children }: { children: ReactNode }) {
     patch({ busy: true, error: null })
     try {
       let customer = selected
-      if (!customer || customer.name !== name) {
+      if (customer && customer.name === name) {
+        // Picking the same customer again (e.g. Back from the order step):
+        // push changed contact fields to the DB instead of dropping them.
+        const changes: Partial<CustomerInsert> = {}
+        if ((customer.phone ?? '') !== form.phone) changes.phone = form.phone
+        if ((customer.city ?? '') !== form.city) changes.city = form.city
+        if ((customer.email ?? '') !== form.email) changes.email = form.email
+        if ((customer.address ?? '') !== form.address) changes.address = form.address
+        if (Object.keys(changes).length) {
+          await updateCustomer.mutateAsync({ id: customer.id, patch: changes })
+          customer = { ...customer, ...form } as Customer
+        }
+      } else {
+        // Different/edited name → treat as a new customer (existing behaviour).
         customer = await addCustomer.mutateAsync({
           name,
           phone: form.phone ?? '',
@@ -269,7 +362,6 @@ export function POSProvider({ children }: { children: ReactNode }) {
     patch({ cartItems: setQty(ref.current.cartItems, productId, qty) })
   const removeFromCart = (productId: string) =>
     patch({ cartItems: removeLine(ref.current.cartItems, productId) })
-  const clearCart = () => patch({ cartItems: [] })
 
   // ---- pricing ----
   const setDiscount = (n: number) => patch({ discount: Math.max(0, n || 0) })
@@ -295,13 +387,7 @@ export function POSProvider({ children }: { children: ReactNode }) {
       // Allow overselling: stock movements will make inventory go negative,
       // which is intentional per the workflow (record the sale even when
       // qty-on-hand is zero or below).
-      const sale = await createSale.mutateAsync({
-        // sales.user_id has a FK to the legacy public.users table, which does
-        // NOT contain Supabase Auth UUIDs — passing one fails the insert. Leave
-        // it null until cashier identity is migrated to auth (see follow-up).
-        customerId: s.customer?.id ?? null,
-        userId: null,
-        invoiceNo: s.invoiceNo || undefined,
+      const payload = {
         items: cartItems,
         examinations: s.examinations.length ? s.examinations : undefined,
         totals: {
@@ -311,9 +397,37 @@ export function POSProvider({ children }: { children: ReactNode }) {
           amount_paid: t.amountPaid,
         },
         doctorName: s.doctorName,
-      })
+        deliveryDate: s.deliveryDate,
+      }
+      const isUpdate = !!s.savedSale
+      let sale: Sale
+      if (s.savedSale) {
+        // Re-checkout: overwrite the SAME invoice (items, exams, totals and
+        // stock movements) instead of creating a duplicate one.
+        sale = await updateSale.mutateAsync({
+          saleId: s.savedSale.id,
+          invoiceNo: s.savedSale.invoice_no || s.invoiceNo,
+          previousHadExams: s.savedHadExams,
+          customerId: s.customer?.id ?? null,
+          userId: null,
+          ...payload,
+        })
+      } else {
+        // First checkout: sales.user_id has a FK to the legacy public.users
+        // table, which does NOT contain Supabase Auth UUIDs — passing one
+        // fails the insert. Leave it null until cashier identity is migrated
+        // to auth (see follow-up).
+        sale = await createSale.mutateAsync({
+          customerId: s.customer?.id ?? null,
+          userId: null,
+          invoiceNo: s.invoiceNo || undefined,
+          ...payload,
+        })
+      }
       patch({
         busy: false,
+        savedSale: sale,
+        savedHadExams: s.examinations.length > 0,
         completed: {
           sale,
           customer: s.customer,
@@ -323,6 +437,7 @@ export function POSProvider({ children }: { children: ReactNode }) {
           invoiceNo: sale.invoice_no || s.invoiceNo,
           doctorName: s.doctorName,
           deliveryDate: s.deliveryDate,
+          isUpdate,
         },
       })
     } catch (e) {
@@ -330,7 +445,11 @@ export function POSProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  const closeReceiptAndReset = () => dispatch({ type: 'RESET' })
+  // Done closes the receipt but leaves the finished order OPEN on the order
+  // tab: every field stays editable and Finish Checkout can be pressed again
+  // to update the SAME invoice.
+  const closeReceipt = () => patch({ completed: null })
+  const startNewSale = () => dispatch({ type: 'RESET' })
 
   const api: POSApi = {
     state,
@@ -338,7 +457,8 @@ export function POSProvider({ children }: { children: ReactNode }) {
     selectCategory,
     back,
     goToAdditional,
-    chooseWalkIn,
+    setCustomerDraft,
+    saveCustomerEdits,
     continueWithCustomer,
     addExam,
     updateExam,
@@ -349,12 +469,12 @@ export function POSProvider({ children }: { children: ReactNode }) {
     addProduct,
     changeQty,
     removeFromCart,
-    clearCart,
     setDiscount,
     setAmountPaid,
     setGross,
     finishOrder,
-    closeReceiptAndReset,
+    closeReceipt,
+    startNewSale,
   }
 
   return <Ctx.Provider value={api}>{children}</Ctx.Provider>

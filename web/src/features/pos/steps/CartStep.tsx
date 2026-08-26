@@ -1,8 +1,9 @@
 import { useState } from 'react'
-import { usePOS } from '../POSContext'
+import { usePOS, type CustomerDraft } from '../POSContext'
 import { useI18n } from '../../../i18n/LanguageContext'
 import { needsExamination } from '../types'
 import { ExamSection } from './ExamSection'
+import { enterMovesNext } from '../enterNav'
 
 function money(n: number) {
   return n.toFixed(2)
@@ -17,7 +18,6 @@ export function CartStep() {
     quickAdd,
     changeQty,
     removeFromCart,
-    clearCart,
     goToAdditional,
     setDiscount,
     setAmountPaid,
@@ -36,14 +36,34 @@ export function CartStep() {
   const stepTitle = showExam ? t('Step 3: Order & Payment') : t('Step 3: Cart & Payment')
 
   return (
-    <div className="mx-auto max-w-6xl p-6">
-      <div className="mb-1 flex items-center justify-between">
+    <div className="mx-auto max-w-6xl p-6" onKeyDown={enterMovesNext}>
+      <div className="mb-1 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
         <h2 className="text-xl font-bold text-brand-dark">{stepTitle}</h2>
-        <span className="text-sm font-semibold text-brand">
-          {t('Invoice')} #{state.invoiceNo}
-        </span>
+        <div className="flex items-baseline gap-3">
+          {/* The customer's name stays visible while selling — highlighted,
+              no longer the tiny muted line it used to be. */}
+          {state.customer && (
+            <span className="text-lg font-bold text-brand-dark">
+              {state.customerDraft.name.trim() || state.customer.name}
+            </span>
+          )}
+          <span className="text-sm font-semibold text-brand">
+            {t('Invoice')} #{state.invoiceNo}
+          </span>
+        </div>
       </div>
-      <p className="mb-4 text-sm text-muted">{state.customer?.name ?? t('Walk-in')}</p>
+
+      {/* Editable customer details: changes save straight to the SAME
+          customer record (on blur) and reflect everywhere instantly. */}
+      {state.customer && (
+        <div className="mb-4 grid grid-cols-2 gap-2 rounded-xl border border-line bg-white p-3 shadow-sm sm:grid-cols-3 lg:grid-cols-5">
+          <CustomerField label={t('Name')} field="name" />
+          <CustomerField label={t('Mobile Phone')} field="phone" />
+          <CustomerField label={t('City')} field="city" />
+          <CustomerField label={t('Email')} field="email" />
+          <CustomerField label={t('Address')} field="address" />
+        </div>
+      )}
 
       {showExam && <ExamSection />}
 
@@ -51,6 +71,7 @@ export function CartStep() {
         <>
           <div className="mb-4 flex gap-2">
             <input
+              data-skip-enter
               value={quick}
               onChange={(e) => setQuick(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && onQuickAdd()}
@@ -184,9 +205,6 @@ export function CartStep() {
           {t('← Back')}
         </button>
         <div className="flex gap-2">
-          <button onClick={clearCart} className="rounded-lg border border-line px-4 py-2.5 text-muted hover:bg-surface">
-            {t('Clear Cart')}
-          </button>
           <button
             onClick={() => finishOrder()}
             disabled={state.busy}
@@ -228,5 +246,21 @@ function Row({
         {value}
       </span>
     </div>
+  )
+}
+
+/** Inline editable customer detail for the order step; saves to the DB on blur. */
+function CustomerField({ label, field }: { label: string; field: keyof CustomerDraft }) {
+  const { state, setCustomerDraft, saveCustomerEdits } = usePOS()
+  return (
+    <label className="flex flex-col">
+      <span className="mb-0.5 text-[10px] font-semibold text-faint">{label}</span>
+      <input
+        className="rounded-md border border-line bg-white px-2 py-1.5 text-sm outline-none focus:border-brand"
+        value={state.customerDraft[field]}
+        onChange={(e) => setCustomerDraft({ [field]: e.target.value } as Partial<CustomerDraft>)}
+        onBlur={(e) => saveCustomerEdits({ [field]: e.target.value } as Partial<CustomerDraft>)}
+      />
+    </label>
   )
 }

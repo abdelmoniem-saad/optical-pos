@@ -57,14 +57,69 @@ function CurrentStep() {
   }
 }
 
+/** Corner escape hatch: abandon the in-progress order and restart the wizard
+ *  at the category screen — for when a new customer walks in mid-order.
+ *  Hidden while the wizard is pristine; asks before discarding progress. */
+function RestartButton() {
+  const { t } = useI18n()
+  const { state, startNewSale } = usePOS()
+  const s = state
+  // An auto-added empty exam row doesn't count as progress on its own.
+  const dirty =
+    s.step !== 'category' ||
+    !!s.customer ||
+    s.customerDraft.name.trim() !== '' ||
+    s.cartItems.length > 0 ||
+    s.examinations.some((e) =>
+      Boolean(
+        e.sphere_od ||
+          e.cylinder_od ||
+          e.axis_od ||
+          e.sphere_os ||
+          e.cylinder_os ||
+          e.axis_os ||
+          e.ipd ||
+          e.lens_info ||
+          e.frame_info ||
+          e.frame_color ||
+          e.image_path,
+      ),
+    ) ||
+    s.doctorName.trim() !== '' ||
+    s.discount > 0 ||
+    s.amountPaid > 0 ||
+    s.grossOverride !== null ||
+    !!s.savedSale ||
+    !!s.completed
+
+  if (!dirty) return null
+
+  return (
+    <button
+      onClick={() => {
+        if (window.confirm(t('Discard the current order and start a new sale?'))) {
+          startNewSale()
+        }
+      }}
+      title={t('New Sale')}
+      className="fixed bottom-4 end-4 z-40 rounded-full border border-line bg-white px-4 py-2.5 text-sm font-semibold text-danger shadow-lg transition hover:bg-surface"
+    >
+      ↺ {t('New Sale')}
+    </button>
+  )
+}
+
 function POSInner() {
   const { state } = usePOS()
   return (
     <div className="flex min-h-full flex-col">
+      {/* The site-wide 1.25× scale now lives on <html> (index.css), so no local
+          zoom here — it would compound into 1.56×. */}
       <Stepper />
       <div className="flex-1">
         <CurrentStep />
       </div>
+      <RestartButton />
       {state.completed && <ReceiptDialog order={state.completed} />}
     </div>
   )

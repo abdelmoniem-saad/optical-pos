@@ -1,35 +1,29 @@
 import { useState } from 'react'
-import { usePOS } from '../POSContext'
+import { usePOS, type CustomerDraft } from '../POSContext'
 import { useI18n } from '../../../i18n/LanguageContext'
 import { useCustomerSearch } from '../../../data/customers'
+import { enterMovesNext } from '../enterNav'
 import type { Customer } from '../../../lib/database.types'
-
-type Form = {
-  name: string
-  phone: string
-  city: string
-  email: string
-  address: string
-}
-
-const empty: Form = { name: '', phone: '', city: '', email: '', address: '' }
 
 export function CustomerStep() {
   const { t } = useI18n()
-  const { back, chooseWalkIn, continueWithCustomer, state } = usePOS()
-  const [form, setForm] = useState<Form>(empty)
-  const [selected, setSelected] = useState<Customer | null>(null)
+  const { back, continueWithCustomer, setCustomerDraft, state } = usePOS()
+  // The draft lives in POS state (NOT local useState), so coming Back from the
+  // order step shows exactly the details that were being worked on — never a
+  // blank form. Default the picked customer to the one already chosen.
+  const form = state.customerDraft
+  const [selected, setSelected] = useState<Customer | null>(state.customer)
 
   const results = useCustomerSearch(form.name)
 
-  function set<K extends keyof Form>(key: K, value: string) {
-    setForm((f) => ({ ...f, [key]: value }))
+  function set<K extends keyof CustomerDraft>(key: K, value: string) {
+    setCustomerDraft({ [key]: value } as Partial<CustomerDraft>)
     if (key === 'name') setSelected(null)
   }
 
   function pick(c: Customer) {
     setSelected(c)
-    setForm({
+    setCustomerDraft({
       name: c.name ?? '',
       phone: c.phone ?? '',
       city: c.city ?? '',
@@ -42,10 +36,10 @@ export function CustomerStep() {
     'rounded-lg border border-line bg-white px-3 py-2.5 outline-none focus:border-brand'
 
   return (
-    <div className="mx-auto max-w-4xl p-6">
+    <div className="mx-auto max-w-4xl p-6" onKeyDown={enterMovesNext}>
       <h2 className="text-xl font-bold text-brand-dark">{t('Step 1: Customer Selection')}</h2>
       <p className="mb-4 text-sm text-muted">
-        {t('Enter customer info or pick a match below. Leave as-is for a walk-in.')}
+        {t('Enter customer info or pick a match below.')}
       </p>
 
       <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -96,13 +90,6 @@ export function CustomerStep() {
           {t('← Back')}
         </button>
         <div className="flex gap-2">
-          <button
-            onClick={() => chooseWalkIn()}
-            disabled={state.busy}
-            className="rounded-lg bg-warning px-4 py-2.5 font-semibold text-white disabled:opacity-60"
-          >
-            {t('Walk-in →')}
-          </button>
           <button
             onClick={() => continueWithCustomer(form, selected)}
             disabled={state.busy}

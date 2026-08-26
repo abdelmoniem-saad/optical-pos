@@ -35,8 +35,11 @@ export function AppLayout() {
 
   return (
     <div className="flex min-h-full">
-      <aside className="hidden w-56 shrink-0 flex-col bg-white shadow-sm sm:flex">
-        <div className="flex items-center gap-2 px-5 py-4">
+      {/* Sidebar kept visually slim (~214px on screen) under the global 1.25×
+          zoom: w-38 layout px ≈ the width the order step was tuned against,
+          so its rows still fit on one line. */}
+      <aside className="hidden w-38 shrink-0 flex-col bg-white shadow-sm sm:flex">
+        <div className="flex items-center gap-2 px-4 py-4">
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand font-bold text-white">
             L
           </div>
@@ -64,7 +67,7 @@ export function AppLayout() {
             🧮 {t('Calculator')}
           </button>
         </nav>
-        <div className="space-y-2 border-t border-line/40 px-4 py-3 text-sm">
+        <div className="space-y-2 border-t border-line/40 px-3 py-3 text-sm">
           <button
             onClick={toggle}
             className="w-full rounded-lg border border-line px-3 py-2 text-muted hover:bg-surface"

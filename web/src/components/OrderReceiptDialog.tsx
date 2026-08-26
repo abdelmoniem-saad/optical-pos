@@ -72,6 +72,8 @@ export function OrderReceiptDialog({ sale, onClose }: { sale: Sale; onClose: () 
     invoiceNo: sale.invoice_no,
     doctorName: sale.doctor_name ?? '',
     deliveryDate: sale.delivery_date ?? '',
+    // Reprint of an already-saved order — not an in-place re-checkout.
+    isUpdate: false,
   }
 
   const builders: Record<CopyKey, string> = {

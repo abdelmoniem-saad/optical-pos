@@ -92,8 +92,7 @@ export const ar: Record<string, string> = {
 
   // Customer step
   'Step 1: Customer Selection': 'الخطوة 1: اختيار العميل',
-  'Enter customer info or pick a match below. Leave as-is for a walk-in.':
-    'أدخل بيانات العميل أو اختر من النتائج. اتركه فارغاً لعميل عابر.',
+  'Enter customer info or pick a match below.': 'أدخل بيانات العميل أو اختر من النتائج أدناه.',
   Name: 'الاسم',
   'Name *': 'الاسم *',
   'Mobile Phone': 'رقم الجوال',
@@ -108,7 +107,6 @@ export const ar: Record<string, string> = {
     'لا يوجد تطابق — سيتم إنشاء عميل جديد عند المتابعة.',
   'Please enter customer name.': 'يرجى إدخال اسم العميل.',
   'Could not save customer': 'تعذّر حفظ العميل',
-  'Walk-in →': 'عميل عابر ←',
   'Walk-in': 'عميل عابر',
   'Saving…': 'جارٍ الحفظ…',
   'Continue with Customer →': 'استمر مع العميل ←',
@@ -134,6 +132,11 @@ export const ar: Record<string, string> = {
   'Working…': 'جارٍ العمل…',
   'Could not prepare order': 'تعذّر تجهيز الطلب',
   'Previous Prescriptions': 'الوصفات السابقة',
+  'Order Date': 'تاريخ الطلب',
+  'This frame quantity is 0 or below — you can still sell it.':
+    'كمية هذا الإطار صفر أو أقل — لا يزال بإمكانك بيعها.',
+  'Frame not found in inventory — it will be recorded with 0 quantity.':
+    'الإطار غير موجود في المخزون — سيتم تسجيله بكمية صفر.',
 
   // Additional items
   'Step 3: Add More Items': 'الخطوة 3: إضافة المزيد من الأصناف',
@@ -165,6 +168,7 @@ export const ar: Record<string, string> = {
   'Remaining Balance': 'المبلغ المتبقي',
   'Clear Cart': 'مسح السلة',
   'Finish Checkout →': 'إنهاء الطلب ←',
+  'Discard the current order and start a new sale?': 'إلغاء الطلب الحالي والبدء ببيع جديد؟',
   'Cart is empty and no examinations. Cannot checkout.':
     'السلة فارغة ولا توجد فحوصات. لا يمكن إتمام الطلب.',
   'Insufficient stock for:': 'مخزون غير كافٍ لـ:',
@@ -172,6 +176,7 @@ export const ar: Record<string, string> = {
 
   // Receipt
   'Order Saved': 'تم حفظ الطلب',
+  'Order Updated': 'تم تحديث الطلب',
   Shop: 'المحل',
   Lab: 'المعمل',
   'Print all 3': 'طباعة الثلاث نسخ',

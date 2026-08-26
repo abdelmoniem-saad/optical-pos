@@ -1,5 +1,4 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { usePOS, type CompletedOrder } from './POSContext'
 import { useI18n } from '../../i18n/LanguageContext'
 import { useSettings } from '../../data/settings'
@@ -15,8 +14,10 @@ type CopyKey = 'shop' | 'customer' | 'lab'
 
 export function ReceiptDialog({ order }: { order: CompletedOrder }) {
   const { t } = useI18n()
-  const { closeReceiptAndReset } = usePOS()
-  const navigate = useNavigate()
+  // "Done" closes the dialog but KEEPS the order open on the order tab: every
+  // field stays editable and pressing Finish Checkout again UPDATES the same
+  // invoice. Only "+ New Sale" throws the wizard away and starts fresh.
+  const { closeReceipt, startNewSale } = usePOS()
   const settings = useSettings()
   const [copy, setCopy] = useState<CopyKey>('shop')
 
@@ -31,11 +32,6 @@ export function ReceiptDialog({ order }: { order: CompletedOrder }) {
     shop: buildShopCopy(order, shop),
     customer: buildCustomerCopy(order, shop),
     lab: buildLabCopy(order, shop),
-  }
-
-  function done() {
-    closeReceiptAndReset()
-    navigate('/')
   }
 
   const tab = (k: CopyKey, label: string) => (
@@ -53,7 +49,9 @@ export function ReceiptDialog({ order }: { order: CompletedOrder }) {
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
       <div className="w-full max-w-md rounded-2xl bg-white p-5 shadow-xl">
         <div className="mb-3 text-center">
-          <div className="text-lg font-bold text-success">✓ {t('Order Saved')}</div>
+          <div className="text-lg font-bold text-success">
+            ✓ {order.isUpdate ? t('Order Updated') : t('Order Saved')}
+          </div>
           <div className="text-sm text-muted">{t('Invoice')} #{order.invoiceNo}</div>
         </div>
 
@@ -83,10 +81,16 @@ export function ReceiptDialog({ order }: { order: CompletedOrder }) {
         </div>
 
         <button
-          onClick={done}
+          onClick={closeReceipt}
           className="mt-2 w-full rounded-lg bg-success py-2.5 font-semibold text-white"
         >
           {t('Done')}
+        </button>
+        <button
+          onClick={startNewSale}
+          className="mt-2 w-full rounded-lg border border-line py-2.5 font-semibold text-muted hover:bg-surface"
+        >
+          + {t('New Sale')}
         </button>
       </div>
     </div>

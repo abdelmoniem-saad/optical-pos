@@ -91,6 +91,8 @@ export type CreateSaleInput = {
   }
   doctorName?: string
   paymentMethod?: string
+  // Expected delivery date shown on receipts/lab copy (YYYY-MM-DD).
+  deliveryDate?: string
   // If provided (assigned earlier in the wizard), reuse it instead of generating.
   invoiceNo?: string
 }
@@ -119,6 +121,7 @@ export function useCreateSale() {
         amount_paid: input.totals.amount_paid,
         payment_method: input.paymentMethod ?? 'Cash',
         order_date: new Date().toISOString(),
+        delivery_date: input.deliveryDate ?? null,
         doctor_name: input.doctorName ?? '',
         lab_status: input.examinations?.length ? 'Not Started' : null,
       }
@@ -179,6 +182,116 @@ export function useCreateSale() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: KEY })
       qc.invalidateQueries({ queryKey: ['inventory'] })
+    },
+  })
+}
+
+export type UpdateSaleFullInput = CreateSaleInput & {
+  saleId: string
+  invoiceNo: string
+  /** Whether the sale had examinations BEFORE this re-checkout. */
+  previousHadExams: boolean
+}
+
+/**
+ * Replace an existing sale's contents after an in-place re-checkout: updates
+ * the header, then swaps out sale_items / order_examinations and the sale's
+ * stock movements (delete + reinsert). Like the create fallback this is NOT
+ * atomic — a mid-way failure could leave partial rows; acceptable parity with
+ * the legacy Flet flow until everything moves into a Postgres RPC.
+ */
+export function useUpdateSaleFull() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({
+      saleId,
+      invoiceNo,
+      previousHadExams,
+      items,
+      examinations,
+      totals,
+      doctorName,
+      deliveryDate,
+      paymentMethod,
+    }: UpdateSaleFullInput): Promise<Sale> => {
+      // 1) Header. lab_status only changes when the exam set appears/vanishes;
+      //    an in-progress lab status must never be reset by a re-checkout.
+      const headerPatch: Partial<Sale> = {
+        total_amount: totals.total_amount,
+        discount: totals.discount,
+        net_amount: totals.net_amount,
+        amount_paid: totals.amount_paid,
+        payment_method: paymentMethod ?? 'Cash',
+        delivery_date: deliveryDate ?? null,
+        doctor_name: doctorName ?? '',
+      }
+      const exams = examinations ?? []
+      if (exams.length) headerPatch.lab_status = 'Not Started'
+      else if (previousHadExams) headerPatch.lab_status = null
+
+      const { data: sale, error: hdrErr } = await supabase
+        .from('sales')
+        .update(headerPatch)
+        .eq('id', saleId)
+        .select()
+        .single<Sale>()
+      if (hdrErr) throw hdrErr
+
+      // 2) Line items: replace.
+      const { error: delItemsErr } = await supabase
+        .from('sale_items')
+        .delete()
+        .eq('sale_id', saleId)
+      if (delItemsErr) throw delItemsErr
+      if (items.length) {
+        const rows: SaleItemInsert[] = items.map((i) => ({ ...i, sale_id: saleId }))
+        const { error: itemsErr } = await supabase.from('sale_items').insert(rows)
+        if (itemsErr) throw itemsErr
+      }
+
+      // 3) Examinations: replace.
+      const { error: delExErr } = await supabase
+        .from('order_examinations')
+        .delete()
+        .eq('sale_id', saleId)
+      if (delExErr) throw delExErr
+      if (exams.length) {
+        const exRows: OrderExaminationInsert[] = exams.map((e) => ({
+          ...e,
+          sale_id: saleId,
+        }))
+        const { error: exErr } = await supabase.from('order_examinations').insert(exRows)
+        if (exErr) throw exErr
+      }
+
+      // 4) Stock movements: replace THIS sale's movements. They carry no
+      //    sale_id column — ref_no holds the invoice number and type='sale'.
+      const { error: delMovErr } = await supabase
+        .from('stock_movements')
+        .delete()
+        .eq('type', 'sale')
+        .eq('ref_no', invoiceNo)
+      if (delMovErr) throw delMovErr
+      if (items.length) {
+        const movements = items.map((i) => ({
+          product_id: i.product_id,
+          qty: -i.qty,
+          type: 'sale',
+          ref_no: invoiceNo,
+          note: `POS Sale: ${invoiceNo}`,
+          created_at: new Date().toISOString(),
+        }))
+        const { error: movErr } = await supabase.from('stock_movements').insert(movements)
+        if (movErr) throw movErr
+      }
+
+      return sale
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: KEY })
+      qc.invalidateQueries({ queryKey: ['inventory'] })
+      qc.invalidateQueries({ queryKey: ['customer-orders'] })
+      qc.invalidateQueries({ queryKey: ['past_examinations'] })
     },
   })
 }
