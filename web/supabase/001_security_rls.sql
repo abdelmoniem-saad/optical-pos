@@ -36,7 +36,12 @@ declare
     'frame_types',
     'frame_colors',
     'suppliers',
-    'warehouses'
+    'warehouses',
+    -- purchasing (was missed in the original baseline — secured here so
+    -- re-running this file closes the gap on existing projects)
+    'purchases',
+    'purchase_items',
+    'purchase_payments'
   ];
 begin
   foreach t in array tables loop

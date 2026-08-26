@@ -286,6 +286,17 @@ export const ar: Record<string, string> = {
   'No shipments.': 'لا توجد شحنات.',
   'Select a supplier to view shipments.': 'اختر مورداً لعرض الشحنات.',
   Error: 'خطأ',
+  Date: 'التاريخ',
+  Payments: 'الدفعات',
+  Remaining: 'المتبقي',
+  'Add Payment': 'إضافة دفعة',
+  'Down payment': 'دفعة أولى',
+  'No payments yet.': 'لا توجد دفعات بعد.',
+  'Record each payment inside the shipment below.':
+    'سجّل كل دفعة داخل الشحنة أدناه.',
+  'Delete supplier and all their shipments?': 'حذف المورد وجميع شحناته؟',
+  'Payments ledger missing — run web/supabase/003_purchase_payments.sql in the Supabase SQL editor.':
+    'جدول الدفعات غير موجود — نفّذ ملف web/supabase/003_purchase_payments.sql في محرر SQL بـ Supabase.',
 
   // Customer detail / prescriptions
   Orders: 'الطلبات',
