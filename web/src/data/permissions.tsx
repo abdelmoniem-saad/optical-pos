@@ -40,6 +40,18 @@ export function isBypassRoleName(name: string | null | undefined): boolean {
   return BYPASS_ROLE_NAMES.includes((name ?? '').toLowerCase() as never)
 }
 
+/**
+ * Reserved account for break-glass access. Whoever logs in with this username
+ * sees and may do EVERYTHING, is never listed among employees, and can never
+ * be edited through the app. Create the matching Supabase Auth user once
+ * (e.g. superadmin@your-domain) and the app links it automatically.
+ */
+export const SUPERADMIN_USERNAME = 'superadmin'
+
+export function isSuperUsername(username: string | null | undefined): boolean {
+  return (username ?? '').trim().toLowerCase() === SUPERADMIN_USERNAME
+}
+
 export function code(resource: string, action: Action): string {
   return `${resource}.${action}`
 }
@@ -211,8 +223,10 @@ export function PermissionsProvider({ children }: { children: ReactNode }) {
   const isAdmin = roleName === 'admin' || roleName === 'owner'
 
   const value = useMemo<PermsState>(() => {
-    // Admin/owner positions bypass everything.
-    if (isAdmin) return { loading: false, isAdmin: true, can: () => true }
+    // Super admin + admin/owner positions bypass everything.
+    if (isAdmin || isSuperUsername(me.data?.username)) {
+      return { loading: false, isAdmin: true, can: () => true }
+    }
 
     if (!user) return { loading: false, isAdmin: false, can: () => false }
 

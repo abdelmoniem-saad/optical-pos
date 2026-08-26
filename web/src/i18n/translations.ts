@@ -336,8 +336,9 @@ export const ar: Record<string, string> = {
   'Owner/admin positions always have full access — the matrix below is read-only.':
     'مناصب المالك/المدير تتمتع دائماً بكامل الصلاحيات — الجدول أدناه للقراءة فقط.',
   'Defaults for everyone in this position.': 'الإعدادات الافتراضية لكل من يحمل هذا المنصب.',
-  'Exceptions for this person — click to cycle: follow position (—) → allowed (✓) → blocked (✕).':
-    'استثناءات لهذا الشخص — اضغط للتبديل: حسب الدور (—) ← مسموح (✓) ← ممنوع (✕).',
+  'Exceptions for this person — click to cycle: follow position → allowed (✓) → blocked (✕).':
+    'استثناءات لهذا الشخص — اضغط للتبديل: يتبع المنصب ← مسموح (✓) ← ممنوع (✕).',
+  'Follows position': 'يتبع المنصب',
   'You are changing your own access — be careful!': 'أنت تعدّل صلاحياتك أنت — انتبه!',
   'This may lock you out of the Staff page. Continue?':
     'قد يؤدي هذا إلى منعك من الوصول لصفحة الموظفين. متابعة؟',

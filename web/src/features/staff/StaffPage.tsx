@@ -5,6 +5,7 @@ import {
   RESOURCES,
   code,
   isBypassRoleName,
+  isSuperUsername,
   useRoleGrants,
   useSetUserOverride,
   useToggleRoleGrant,
@@ -131,8 +132,10 @@ function OverrideCell({
   onCycle: () => void
 }) {
   const { t } = useI18n()
+  // Inherit renders EMPTY — the green/red background already tells whether the
+  // person can actually do this. No dash glyphs anywhere.
   const glyph =
-    state === undefined ? '—' : state ? '✓' : '✕'
+    state === undefined ? '' : state ? '✓' : '✕'
   const glyphCls =
     state === undefined
       ? 'text-faint'
@@ -237,17 +240,24 @@ function AccessControl() {
   const roles = useRoles()
   const users = useUsers()
   const me = useCurrentUser()
-  const perms = usePermissions()
 
   const [selectedRoleId, setSelectedRoleId] = useState<string | null>(null)
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null)
   const [newPosition, setNewPosition] = useState('')
   const [err, setErr] = useState<string | null>(null)
 
+  // The reserved super-admin account and YOUR OWN row are never editable here.
+  const editableUsers = (users.data ?? []).filter(
+    (u) => u.id !== me.data?.id && !isSuperUsername(u.username),
+  )
+
   const roleId = selectedRoleId ?? roles.data?.[0]?.id ?? null
-  const userId = selectedUserId ?? users.data?.[0]?.id ?? null
+  const userId = selectedUserId ?? editableUsers[0]?.id ?? null
 
   const selectedRole = roles.data?.find((r) => r.id === roleId)
+  // Each card depends ONLY on its own selection:
+  //   card 1 disables when the selected POSITION bypasses,
+  //   card 2 when the selected EMPLOYEE is an owner/admin or the super admin.
   const bypass = isBypassRoleName(selectedRole?.name)
 
   const grants = useRoleGrants(roleId)
@@ -256,21 +266,21 @@ function AccessControl() {
   // The selected person's position defaults — needed to show effective colors.
   const selUser = users.data?.find((u) => u.id === userId)
   const userRoleGrants = useRoleGrants(selUser?.role_id ?? null)
+  const empBypass =
+    !!selUser && (isBypassRoleName(selUser.roles?.name) || isSuperUsername(selUser.username))
 
   const toggleGrant = useToggleRoleGrant()
   const setOverride = useSetUserOverride()
 
   const editingSelfRole = !!me.data?.role_id && roleId === me.data.role_id
-  const editingSelfUser = !!me.data?.id && userId === me.data.id
 
   /** Guard: warn before an action could lock the editor out of THIS page. */
   function guardSelfLockout(permCode: string, willDeny: boolean): boolean {
     if (!willDeny || !SENSITIVE_CODES.includes(permCode)) return true
-    const affectsMe =
-      (editingSelfRole && roleId === me.data?.role_id) ||
-      (editingSelfUser && userId === me.data?.id)
-    if (!affectsMe) return true
-    return window.confirm(t('This may lock you out of the Staff page. Continue?'))
+    if (editingSelfRole && roleId === me.data?.role_id) {
+      return window.confirm(t('This may lock you out of the Staff page. Continue?'))
+    }
+    return true
   }
 
   async function addPosition() {
@@ -342,44 +352,49 @@ function AccessControl() {
       <section>
         <div className="mb-2 flex flex-wrap items-center gap-2">
           <h3 className="font-semibold text-brand-dark">{t('Employee')}</h3>
-          <select className={selCls} value={userId ?? ''} onChange={(e) => setSelectedUserId(e.target.value)}>
-            {(users.data ?? []).map((u) => (
-              <option key={u.id} value={u.id}>
-                {u.full_name || u.username} — {u.username}
-              </option>
-            ))}
-          </select>
-          {editingSelfUser && (
-            <span className="rounded-lg bg-warning-bg px-2 py-1 text-xs font-semibold text-warning">
-              ⚠ {t('You are changing your own access — be careful!')}
-            </span>
+          {editableUsers.length === 0 ? (
+            <span className="text-sm text-faint">{t('No staff.')}</span>
+          ) : (
+            <select className={selCls} value={userId ?? ''} onChange={(e) => setSelectedUserId(e.target.value)}>
+              {editableUsers.map((u) => (
+                <option key={u.id} value={u.id}>
+                  {u.full_name || u.username} — {u.username}
+                </option>
+              ))}
+            </select>
           )}
         </div>
-        <p className="mb-2 text-xs text-muted">
-          {t(
-            'Exceptions for this person — click to cycle: follow position (—) → allowed (✓) → blocked (✕).',
-          )}
-        </p>
 
-        <PermissionMatrix
-          overrides={overrides.data}
-          roleGrantsForEffective={userRoleGrants.data}
-          disabled={bypass}
-          onCycleOverride={(permCode) => {
-            if (!userId || bypass) return
-            const current = overrides.data?.[permCode]
-            const next: boolean | null =
-              current === undefined ? true : current === true ? false : null
-            if (!guardSelfLockout(permCode, next === false)) return
-            setOverride.mutate({ userId, permCode, allow: next })
-          }}
-        />
+        {empBypass ? (
+          <div className="mb-2 rounded-lg bg-brand-bg px-3 py-2 text-xs font-semibold text-brand-dark">
+            🔑 {t('Owner/admin positions always have full access — the matrix below is read-only.')}
+          </div>
+        ) : (
+          <>
+            <p className="mb-2 text-xs text-muted">
+              {t(
+                'Exceptions for this person — click to cycle: follow position → allowed (✓) → blocked (✕).',
+              )}
+            </p>
+
+            <PermissionMatrix
+              overrides={overrides.data}
+              roleGrantsForEffective={userRoleGrants.data}
+              onCycleOverride={(permCode) => {
+                if (!userId) return
+                const current = overrides.data?.[permCode]
+                const next: boolean | null =
+                  current === undefined ? true : current === true ? false : null
+                setOverride.mutate({ userId, permCode, allow: next })
+              }}
+            />
+          </>
+        )}
         {overrides.isError && (
           <p className="mt-2 rounded-lg bg-warning-bg px-3 py-2 text-xs text-warning">
             {String(overrides.error)}
           </p>
         )}
-        {!perms.isAdmin && !bypass && null}
       </section>
 
       {err && <p className="rounded-lg bg-warning-bg px-3 py-2 text-sm text-warning">{t(err)}</p>}
@@ -391,11 +406,14 @@ export function StaffPage() {
   const { t } = useI18n()
   const users = useUsers()
   const roles = useRoles()
+  const me = useCurrentUser()
   const updateRole = useUpdateUserRole()
   const perms = usePermissions()
   const [adding, setAdding] = useState(false)
   const [tab, setTab] = useState<'people' | 'access'>('people')
 
+  // The reserved super-admin account is infrastructure, not an employee row.
+  const people = (users.data ?? []).filter((u) => !isSuperUsername(u.username))
   const canEditStaff = perms.isAdmin || perms.can('staff.edit' as never)
 
   const tabBtn = (key: 'people' | 'access', label: string) => (
@@ -429,7 +447,7 @@ export function StaffPage() {
       {tab === 'people' ? (
         <>
           <p className="mb-4 text-sm text-muted">
-            {users.data ? `${users.data.length} ${t('users')}` : t('Loading…')}
+            {users.data ? `${people.length} ${t('users')}` : t('Loading…')}
           </p>
 
           {users.isError && (
@@ -449,21 +467,26 @@ export function StaffPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-line/40">
-                {(users.data ?? []).length === 0 && !users.isLoading && (
+                {people.length === 0 && !users.isLoading && (
                   <tr>
                     <td colSpan={4} className="px-4 py-6 text-center text-faint">
                       {t('No staff.')}
                     </td>
                   </tr>
                 )}
-                {(users.data ?? []).map((u) => (
+                {people.map((u) => (
                   <tr key={u.id}>
                     <td className="px-4 py-2 font-medium">{u.username}</td>
                     <td className="px-4 py-2 text-muted">{u.full_name ?? '—'}</td>
                     <td className="px-4 py-2">
                       <select
                         value={u.role_id ?? ''}
-                        disabled={!canEditStaff}
+                        disabled={!canEditStaff || u.id === me.data?.id}
+                        title={
+                          u.id === me.data?.id
+                            ? t('You are changing your own access — be careful!')
+                            : undefined
+                        }
                         onChange={(e) => updateRole.mutate({ id: u.id, role_id: e.target.value || null })}
                         className="rounded-lg border border-line bg-white px-2 py-1 text-sm outline-none focus:border-brand disabled:opacity-60"
                       >
