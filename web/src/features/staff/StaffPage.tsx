@@ -14,6 +14,7 @@ import {
 import { useCurrentUser, useUpdateUserRole, useUsers } from '../../data/staff'
 import { useRoles } from '../../data/metadata'
 import { supabase } from '../../lib/supabase'
+import { useAuth } from '../../lib/auth'
 import { useI18n } from '../../i18n/LanguageContext'
 import { usePermissions } from '../../data/permissions'
 import type { NamedRow } from '../../data/metadata'
@@ -240,6 +241,7 @@ function AccessControl() {
   const roles = useRoles()
   const users = useUsers()
   const me = useCurrentUser()
+  const { user } = useAuth()
 
   const [selectedRoleId, setSelectedRoleId] = useState<string | null>(null)
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null)
@@ -247,8 +249,14 @@ function AccessControl() {
   const [err, setErr] = useState<string | null>(null)
 
   // The reserved super-admin account and YOUR OWN row are never editable here.
+  // Exclusion matches by id AND username, so it holds even while the staff
+  // record lookup is still resolving (or if it links through a legacy row).
+  const myUsername = user?.email?.split('@')[0]?.toLowerCase() ?? ''
+  const isSelfRow = (u: { id: string; username: string | null }) =>
+    (me.data?.id && u.id === me.data.id) ||
+    (!!myUsername && (u.username ?? '').toLowerCase() === myUsername)
   const editableUsers = (users.data ?? []).filter(
-    (u) => u.id !== me.data?.id && !isSuperUsername(u.username),
+    (u) => !isSelfRow(u) && !isSuperUsername(u.username),
   )
 
   const roleId = selectedRoleId ?? roles.data?.[0]?.id ?? null
@@ -328,7 +336,7 @@ function AccessControl() {
 
         {bypass && (
           <div className="mb-2 rounded-lg bg-brand-bg px-3 py-2 text-xs font-semibold text-brand-dark">
-            🔑 {t('Owner/admin positions always have full access — the matrix below is read-only.')}
+            {t('Owner/admin positions always have full access.')}
           </div>
         )}
         <p className="mb-2 text-xs text-muted">{t('Defaults for everyone in this position.')}</p>
@@ -367,13 +375,15 @@ function AccessControl() {
 
         {empBypass ? (
           <div className="mb-2 rounded-lg bg-brand-bg px-3 py-2 text-xs font-semibold text-brand-dark">
-            🔑 {t('Owner/admin positions always have full access — the matrix below is read-only.')}
+            {t(
+              'This person is an owner/admin, they always have full access, so there is nothing to configure.',
+            )}
           </div>
         ) : (
           <>
             <p className="mb-2 text-xs text-muted">
               {t(
-                'Exceptions for this person — click to cycle: follow position → allowed (✓) → blocked (✕).',
+                'Exceptions for this person, click to cycle: follow position → allowed (✓) → blocked (✕).',
               )}
             </p>
 
@@ -484,7 +494,7 @@ export function StaffPage() {
                         disabled={!canEditStaff || u.id === me.data?.id}
                         title={
                           u.id === me.data?.id
-                            ? t('You are changing your own access — be careful!')
+                            ? t('You are changing your own access, be careful!')
                             : undefined
                         }
                         onChange={(e) => updateRole.mutate({ id: u.id, role_id: e.target.value || null })}

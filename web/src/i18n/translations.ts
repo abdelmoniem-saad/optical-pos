@@ -333,13 +333,15 @@ export const ar: Record<string, string> = {
   edit: 'تعديل',
   delete: 'حذف',
   'You do not have access to this page.': 'ليست لديك صلاحية للوصول إلى هذه الصفحة.',
-  'Owner/admin positions always have full access — the matrix below is read-only.':
-    'مناصب المالك/المدير تتمتع دائماً بكامل الصلاحيات — الجدول أدناه للقراءة فقط.',
+  'Owner/admin positions always have full access.':
+    'مناصب المالك/المدير تتمتع دائماً بكامل الصلاحيات.',
+  'This person is an owner/admin, they always have full access, so there is nothing to configure.':
+    'هذا الشخص مالك/مدير, تتمتع دائماً بكامل الصلاحيات، ولا يوجد ما يمكن ضبطه.',
   'Defaults for everyone in this position.': 'الإعدادات الافتراضية لكل من يحمل هذا المنصب.',
-  'Exceptions for this person — click to cycle: follow position → allowed (✓) → blocked (✕).':
-    'استثناءات لهذا الشخص — اضغط للتبديل: يتبع المنصب ← مسموح (✓) ← ممنوع (✕).',
+  'Exceptions for this person, click to cycle: follow position → allowed (✓) → blocked (✕).':
+    'استثناءات لهذا الشخص, اضغط للتبديل: يتبع المنصب ← مسموح (✓) ← ممنوع (✕).',
   'Follows position': 'يتبع المنصب',
-  'You are changing your own access — be careful!': 'أنت تعدّل صلاحياتك أنت — انتبه!',
+  'You are changing your own access, be careful!': 'أنت تعدّل صلاحياتك أنت, انتبه!',
   'This may lock you out of the Staff page. Continue?':
     'قد يؤدي هذا إلى منعك من الوصول لصفحة الموظفين. متابعة؟',
 }
