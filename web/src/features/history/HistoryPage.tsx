@@ -6,6 +6,7 @@ import { useI18n } from '../../i18n/LanguageContext'
 import { OrderExamsLazy } from '../../components/ExamView'
 import { OrderReceiptDialog } from '../../components/OrderReceiptDialog'
 import { EditOrderForm } from './EditOrderForm'
+import { usePermissions } from '../../data/permissions'
 import type { Sale } from '../../lib/database.types'
 
 type Range = 'all' | 'today' | 'month'
@@ -26,6 +27,7 @@ export function HistoryPage() {
   const { t } = useI18n()
   const sales = useSales()
   const customers = useCustomers()
+  const perms = usePermissions()
   const [params] = useSearchParams()
   const [term, setTerm] = useState(params.get('q') ?? '')
   const [range, setRange] = useState<Range>((params.get('range') as Range) || 'all')
@@ -142,12 +144,14 @@ export function HistoryPage() {
                     >
                       🖨 {t('Print')}
                     </button>
-                    <button
-                      onClick={() => setEditing(editing === s.id ? null : s.id)}
-                      className="rounded-lg border border-line px-3 py-1.5 text-sm text-muted hover:bg-surface"
-                    >
-                      ✎ {editing === s.id ? t('Cancel') : t('Edit')}
-                    </button>
+                    {perms.can('history.edit' as never) && (
+                      <button
+                        onClick={() => setEditing(editing === s.id ? null : s.id)}
+                        className="rounded-lg border border-line px-3 py-1.5 text-sm text-muted hover:bg-surface"
+                      >
+                        ✎ {editing === s.id ? t('Cancel') : t('Edit')}
+                      </button>
+                    )}
                   </div>
                   {editing === s.id && <EditOrderForm sale={s} onDone={() => setEditing(null)} />}
                 </div>

@@ -131,6 +131,15 @@ export interface OrderExamination {
   frame_status: string | null
   image_path: string | null
 }
+
+/** Team/self note (Notes tab). user_id NULL = visible to everyone. */
+export interface Note {
+  id: string
+  user_id: string | null
+  created_by: string | null
+  body: string
+  created_at: string | null
+}
 export type OrderExaminationInsert = Omit<OrderExamination, 'id'>
 
 export interface Prescription {

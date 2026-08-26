@@ -260,8 +260,8 @@ export const ar: Record<string, string> = {
 
   // Optical settings
   'Optical Settings': 'إعدادات البصريات',
-  'Lens types, frame types and colors used in prescriptions.':
-    'أنواع العدسات والإطارات والألوان المستخدمة في الوصفات.',
+  'Lens types and colors used in prescriptions.':
+    'أنواع العدسات والألوان المستخدمة في الوصفات.',
   'Lens Types': 'أنواع العدسات',
   'Frame Types': 'أنواع الإطارات',
   'Frame Colors': 'ألوان الإطارات',
@@ -311,4 +311,26 @@ export const ar: Record<string, string> = {
   // Language
   'العربية': 'العربية',
   English: 'English',
+
+  // Notes tab
+  Notes: 'الملاحظات',
+  'My Notes': 'ملاحظاتي',
+  Everyone: 'الجميع',
+  'Write a note…': 'اكتب ملاحظة…',
+  'No notes yet.': 'لا توجد ملاحظات بعد.',
+
+  // Staff access control
+  'Access Control': 'التحكم في الصلاحيات',
+  Employees: 'الموظفون',
+  Position: 'المنصب',
+  '+ Add Position': '+ إضافة منصب',
+  Employee: 'الموظف',
+  Inherit: 'حسب الدور',
+  Allowed: 'مسموح',
+  Denied: 'ممنوع',
+  view: 'عرض',
+  create: 'إضافة',
+  edit: 'تعديل',
+  delete: 'حذف',
+  'You do not have access to this page.': 'ليست لديك صلاحية للوصول إلى هذه الصفحة.',
 }

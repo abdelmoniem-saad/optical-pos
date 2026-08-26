@@ -7,6 +7,7 @@ import {
   useDeleteCustomer,
 } from '../../data/customers'
 import { useIsAdmin } from '../../data/staff'
+import { usePermissions } from '../../data/permissions'
 import { useI18n } from '../../i18n/LanguageContext'
 
 /** Customers list + search. Customers are created only by making an order
@@ -20,7 +21,9 @@ export function CustomersPage() {
   const all = useCustomers()
   const search = useCustomerSearchExtended(term)
   const del = useDeleteCustomer()
-  const isAdmin = useIsAdmin()
+  // Admins always can; otherwise a granted customers.delete permission works.
+  const perms = usePermissions()
+  const isAdmin = useIsAdmin() || perms.can('customers.delete' as never)
 
   const searching = term.trim().length >= 2
   const active = searching ? search : all

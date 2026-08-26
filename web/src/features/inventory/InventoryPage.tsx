@@ -7,6 +7,7 @@ import {
   useUpdateProduct,
 } from '../../data/inventory'
 import { useI18n } from '../../i18n/LanguageContext'
+import { usePermissions } from '../../data/permissions'
 import type { Product } from '../../lib/database.types'
 
 const CATEGORIES = ['Frame', 'Sunglasses', 'ContactLens', 'Lens', 'Accessory', 'Other']
@@ -132,6 +133,7 @@ function ProductModal({
 
 export function InventoryPage() {
   const { t } = useI18n()
+  const perms = usePermissions()
   const [params] = useSearchParams()
   const inv = useInventory()
   const adjust = useAdjustStock()
@@ -161,12 +163,14 @@ export function InventoryPage() {
     <div className="mx-auto max-w-5xl p-6">
       <div className="mb-4 flex items-center justify-between">
         <h1 className="text-2xl font-semibold text-brand-dark">{t('Inventory')}</h1>
-        <button
-          onClick={() => setModal({ open: true, editing: null })}
-          className="rounded-lg bg-brand px-4 py-2.5 font-semibold text-white"
-        >
-          {t('+ New Product')}
-        </button>
+        {perms.can('inventory.create' as never) && (
+          <button
+            onClick={() => setModal({ open: true, editing: null })}
+            className="rounded-lg bg-brand px-4 py-2.5 font-semibold text-white"
+          >
+            {t('+ New Product')}
+          </button>
+        )}
       </div>
 
       <input
@@ -211,17 +215,26 @@ export function InventoryPage() {
                 <td className="px-4 py-2 text-end">{Number(p.sale_price ?? 0).toFixed(2)}</td>
                 <td className="px-4 py-2">
                   <div className="flex items-center justify-center gap-1.5">
-                    <button onClick={() => quickAdjust(p, -1)} className="h-6 w-6 rounded border border-line text-muted hover:bg-surface">−</button>
-                    <span className={`w-8 text-center font-semibold ${(p.stock_qty ?? 0) < 5 ? 'text-danger' : ''}`}>
-                      {p.stock_qty ?? 0}
-                    </span>
-                    <button onClick={() => quickAdjust(p, 1)} className="h-6 w-6 rounded border border-line text-muted hover:bg-surface">+</button>
+                    {perms.can('inventory.edit' as never) && (
+                      <>
+                        <button onClick={() => quickAdjust(p, -1)} className="h-6 w-6 rounded border border-line text-muted hover:bg-surface">−</button>
+                        <span className={`w-8 text-center font-semibold ${(p.stock_qty ?? 0) < 5 ? 'text-danger' : ''}`}>
+                          {p.stock_qty ?? 0}
+                        </span>
+                        <button onClick={() => quickAdjust(p, 1)} className="h-6 w-6 rounded border border-line text-muted hover:bg-surface">+</button>
+                      </>
+                    )}
+                    {!perms.can('inventory.edit' as never) && (
+                      <span className="w-8 text-center font-semibold">{p.stock_qty ?? 0}</span>
+                    )}
                   </div>
                 </td>
                 <td className="px-4 py-2 text-end">
-                  <button onClick={() => setModal({ open: true, editing: p })} className="text-brand hover:underline">
-                    {t('Edit')}
-                  </button>
+                  {perms.can('inventory.edit' as never) && (
+                    <button onClick={() => setModal({ open: true, editing: p })} className="text-brand hover:underline">
+                      {t('Edit')}
+                    </button>
+                  )}
                 </td>
               </tr>
             ))}

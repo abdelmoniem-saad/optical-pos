@@ -4,24 +4,28 @@ import { displayName, useAuth } from '../lib/auth'
 import { useI18n } from '../i18n/LanguageContext'
 import { GlobalSearch } from './GlobalSearch'
 import { Calculator } from './Calculator'
+import { PermissionsProvider, usePermissions } from '../data/permissions'
 
-const nav = [
-  { to: '/', label: 'Dashboard', end: true },
-  { to: '/pos', label: 'New Sale' },
-  { to: '/customers', label: 'Customers' },
-  { to: '/inventory', label: 'Inventory' },
-  { to: '/lab', label: 'Lab' },
-  { to: '/history', label: 'History' },
-  { to: '/reports', label: 'Reports' },
-  { to: '/suppliers', label: 'Suppliers' },
-  { to: '/staff', label: 'Staff' },
-  { to: '/settings', label: 'Settings' },
+const nav: { to: string; label: string; end?: boolean; resource: string }[] = [
+  { to: '/', label: 'Dashboard', end: true, resource: 'dashboard' },
+  { to: '/pos', label: 'New Sale', resource: 'pos' },
+  { to: '/customers', label: 'Customers', resource: 'customers' },
+  { to: '/inventory', label: 'Inventory', resource: 'inventory' },
+  { to: '/lab', label: 'Lab', resource: 'lab' },
+  { to: '/history', label: 'History', resource: 'history' },
+  { to: '/reports', label: 'Reports', resource: 'reports' },
+  { to: '/suppliers', label: 'Suppliers', resource: 'suppliers' },
+  { to: '/notes', label: 'Notes', resource: 'notes' },
+  { to: '/staff', label: 'Staff', resource: 'staff' },
+  { to: '/settings', label: 'Settings', resource: 'settings' },
 ]
 
-/** Protected shell: redirects to /login when there's no Supabase session. */
-export function AppLayout() {
+/** Protected shell: redirects to /login when there's no Supabase session.
+ *  Sidebar entries are filtered by the signed-in user's permissions. */
+function AppShell() {
   const { user, loading, signOut } = useAuth()
   const { t, lang, toggle } = useI18n()
+  const perms = usePermissions()
   const [calcOpen, setCalcOpen] = useState(false)
 
   if (loading) {
@@ -33,11 +37,10 @@ export function AppLayout() {
   }
   if (!user) return <Navigate to="/login" replace />
 
+  const visibleNav = nav.filter((item) => perms.can(`${item.resource}.view` as never))
+
   return (
     <div className="flex min-h-full">
-      {/* Sidebar kept visually slim (~214px on screen) under the global 1.25×
-          zoom: w-38 layout px ≈ the width the order step was tuned against,
-          so its rows still fit on one line. */}
       <aside className="hidden w-38 shrink-0 flex-col bg-white shadow-sm sm:flex">
         <div className="flex items-center gap-2 px-4 py-4">
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand font-bold text-white">
@@ -46,7 +49,7 @@ export function AppLayout() {
           <span className="font-semibold text-brand-dark">LensyPOS</span>
         </div>
         <nav className="flex-1 overflow-auto px-2 py-2">
-          {nav.map((item) => (
+          {visibleNav.map((item) => (
             <NavLink
               key={item.to}
               to={item.to}
@@ -104,5 +107,15 @@ export function AppLayout() {
 
       {calcOpen && <Calculator onClose={() => setCalcOpen(false)} />}
     </div>
+  )
+}
+
+export function AppLayout() {
+  // The provider needs auth context, which wraps this route — so it lives
+  // here rather than at the router root.
+  return (
+    <PermissionsProvider>
+      <AppShell />
+    </PermissionsProvider>
   )
 }

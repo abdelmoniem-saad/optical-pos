@@ -4,7 +4,6 @@ import {
   useAddMetadata,
   useDeleteMetadata,
   useFrameColors,
-  useFrameTypes,
   useLensTypes,
   type NamedRow,
 } from '../../data/metadata'
@@ -71,16 +70,15 @@ function MetaList({
 export function OpticalSettings() {
   const { t } = useI18n()
   const lens = useLensTypes()
-  const frameTypes = useFrameTypes()
   const colors = useFrameColors()
 
   return (
     <div>
       <h2 className="mb-3 text-lg font-semibold text-brand-dark">{t('Optical Settings')}</h2>
-      <p className="mb-4 text-sm text-muted">{t('Lens types, frame types and colors used in prescriptions.')}</p>
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+      {/* Frame Types removed — nothing in the app reads that list anymore. */}
+      <p className="mb-4 text-sm text-muted">{t('Lens types and colors used in prescriptions.')}</p>
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <MetaList title={t('Lens Types')} table="lens_types" rows={lens.data ?? []} />
-        <MetaList title={t('Frame Types')} table="frame_types" rows={frameTypes.data ?? []} />
         <MetaList title={t('Frame Colors')} table="frame_colors" rows={colors.data ?? []} />
       </div>
     </div>

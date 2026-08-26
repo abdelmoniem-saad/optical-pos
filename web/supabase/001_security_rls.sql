@@ -41,7 +41,12 @@ declare
     -- re-running this file closes the gap on existing projects)
     'purchases',
     'purchase_items',
-    'purchase_payments'
+    'purchase_payments',
+    -- RBAC control panel + team notes (see also 004_rbac_notes.sql)
+    'permissions',
+    'role_permissions',
+    'user_permissions',
+    'notes'
   ];
 begin
   foreach t in array tables loop

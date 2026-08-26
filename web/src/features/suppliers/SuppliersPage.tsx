@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useI18n } from '../../i18n/LanguageContext'
 import { localDateISO } from '../pos/POSContext'
+import { usePermissions } from '../../data/permissions'
 import {
   useAddPurchase,
   useAddPurchasePayment,
@@ -218,6 +219,9 @@ export function SuppliersPage() {
   // Site-wide ledgers power the per-supplier outstanding badges.
   const allPurchases = usePurchases()
   const allPayments = useAllPurchasePayments()
+  const perms = usePermissions()
+  const canCreate = perms.isAdmin || perms.can('suppliers.create' as never)
+  const canDelete = perms.isAdmin || perms.can('suppliers.delete' as never)
   const [adding, setAdding] = useState(false)
   const [selected, setSelected] = useState<Supplier | null>(null)
 
@@ -247,9 +251,11 @@ export function SuppliersPage() {
     <div className="mx-auto max-w-5xl p-6">
       <div className="mb-4 flex items-center justify-between">
         <h1 className="text-2xl font-semibold text-brand-dark">{t('Suppliers')}</h1>
-        <button onClick={() => setAdding(true)} className="rounded-lg bg-brand px-4 py-2.5 font-semibold text-white">
-          {t('+ Add Supplier')}
-        </button>
+        {canCreate && (
+          <button onClick={() => setAdding(true)} className="rounded-lg bg-brand px-4 py-2.5 font-semibold text-white">
+            {t('+ Add Supplier')}
+          </button>
+        )}
       </div>
 
       {suppliers.isError && (
@@ -286,7 +292,7 @@ export function SuppliersPage() {
                       {s.phone || ''} {s.email ? `· ${s.email}` : ''}
                     </div>
                   </button>
-                  <button onClick={() => remove(s)} disabled={del.isPending} className="shrink-0 text-sm text-danger hover:underline disabled:opacity-40">
+                  <button onClick={() => remove(s)} disabled={del.isPending || !canDelete} className="shrink-0 text-sm text-danger hover:underline disabled:opacity-40">
                     {t('Delete')}
                   </button>
                 </li>
