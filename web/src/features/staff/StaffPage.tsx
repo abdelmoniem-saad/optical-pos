@@ -4,12 +4,13 @@ import {
   ACTIONS,
   RESOURCES,
   code,
+  isBypassRoleName,
   useRoleGrants,
   useSetUserOverride,
   useToggleRoleGrant,
   useUserOverrides,
 } from '../../data/permissions'
-import { useUpdateUserRole, useUsers } from '../../data/staff'
+import { useCurrentUser, useUpdateUserRole, useUsers } from '../../data/staff'
 import { useRoles } from '../../data/metadata'
 import { supabase } from '../../lib/supabase'
 import { useI18n } from '../../i18n/LanguageContext'
@@ -43,8 +44,6 @@ function AddUserForm({ onClose }: { onClose: () => void }) {
         },
       })
       if (error) {
-        // supabase-js wraps non-2xx as a generic message; the real reason is in
-        // the response body (error.context is the Response). Pull it out.
         let detail = error.message
         const ctx = (error as { context?: Response }).context
         if (ctx && typeof ctx.json === 'function') {
@@ -91,41 +90,71 @@ function AddUserForm({ onClose }: { onClose: () => void }) {
   )
 }
 
+/** Codes that could lock the editor out of this very page. */
+const SENSITIVE_CODES = ['staff.view', 'staff.edit']
+
 /** Checkbox cell for a position's grant. */
 function GrantCell({
   granted,
+  disabled,
   onToggle,
 }: {
   granted: boolean | undefined
+  disabled?: boolean
   onToggle: (next: boolean) => void
 }) {
   return (
     <input
       type="checkbox"
       checked={!!granted}
+      disabled={disabled}
       onChange={(e) => onToggle(e.target.checked)}
-      className="h-4 w-4 accent-[#1976d2]"
+      className="h-4 w-4 accent-[#1976d2] disabled:opacity-50"
     />
   )
 }
 
-/** Tri-state cell for a person: — inherit · ✓ allowed · ✕ denied (click cycles). */
+/**
+ * Tri-state cell for a person: — inherit · ✓ allowed · ✕ denied.
+ * The background always shows the EFFECTIVE result after combining the
+ * position default with this exception (green = can, red = cannot).
+ */
 function OverrideCell({
   state,
+  effective,
+  disabled,
   onCycle,
 }: {
   state: boolean | undefined
+  effective: boolean
+  disabled?: boolean
   onCycle: () => void
 }) {
-  const cls =
+  const { t } = useI18n()
+  const glyph =
+    state === undefined ? '—' : state ? '✓' : '✕'
+  const glyphCls =
     state === undefined
-      ? 'text-faint hover:text-brand-dark'
+      ? 'text-faint'
       : state
         ? 'font-bold text-success'
         : 'font-bold text-danger'
+  const title =
+    (state === undefined
+      ? `${t('Inherit')} → `
+      : state
+        ? `${t('Allowed')} → `
+        : `${t('Denied')} → `) + (effective ? t('Allowed') : t('Denied'))
   return (
-    <button onClick={onCycle} className={`mx-auto block h-6 w-6 rounded-md hover:bg-surface ${cls}`}>
-      {state === undefined ? '—' : state ? '✓' : '✕'}
+    <button
+      onClick={onCycle}
+      disabled={disabled}
+      title={title}
+      className={`mx-auto flex h-6 w-9 items-center justify-center rounded-md border ${
+        effective ? 'border-success/40 bg-success-bg' : 'border-danger/30 bg-danger/10'
+      } ${glyphCls} ${disabled ? 'opacity-60' : 'hover:brightness-95'}`}
+    >
+      {glyph}
     </button>
   )
 }
@@ -133,17 +162,24 @@ function OverrideCell({
 function PermissionMatrix({
   grants,
   overrides,
+  roleGrantsForEffective,
+  disabled,
   onToggleGrant,
   onCycleOverride,
 }: {
   grants?: Set<string> | string[]
   overrides?: Record<string, boolean>
+  /** Position grants of the SELECTED PERSON — used to tint effective results. */
+  roleGrantsForEffective?: string[]
+  disabled?: boolean
   onToggleGrant?: (permCode: string, next: boolean) => void
   onCycleOverride?: (permCode: string) => void
 }) {
   const { t } = useI18n()
-  const has = (c: string) =>
-    overrides ? overrides[c] : grants ? (grants instanceof Set ? grants.has(c) : grants.includes(c)) : false
+  const isRoleMatrix = !!onToggleGrant
+
+  const roleHas = (c: string) =>
+    grants ? (grants instanceof Set ? grants.has(c) : grants.includes(c)) : false
 
   return (
     <div className="overflow-x-auto rounded-xl border border-line bg-white">
@@ -158,17 +194,31 @@ function PermissionMatrix({
         </thead>
         <tbody className="divide-y divide-line/40">
           {RESOURCES.map((r) => (
-            <tr key={r.key} className="hover:bg-surface/40">
+            <tr key={r.key}>
               <td className="px-3 py-1.5">{t(r.label)}</td>
               {ACTIONS.map((a) => {
                 const c = code(r.key, a)
+                if (isRoleMatrix) {
+                  return (
+                    <td key={a} className="px-3 py-1.5 text-center">
+                      <GrantCell
+                        granted={roleHas(c)}
+                        disabled={disabled}
+                        onToggle={(next) => onToggleGrant?.(c, next)}
+                      />
+                    </td>
+                  )
+                }
+                const state = overrides?.[c]
+                const effective = state !== undefined ? state : roleGrantsForEffective?.includes(c) ?? false
                 return (
                   <td key={a} className="px-3 py-1.5 text-center">
-                    {onToggleGrant ? (
-                      <GrantCell granted={has(c)} onToggle={(next) => onToggleGrant(c, next)} />
-                    ) : (
-                      <OverrideCell state={overrides?.[c]} onCycle={() => onCycleOverride?.(c)} />
-                    )}
+                    <OverrideCell
+                      state={state}
+                      effective={effective}
+                      disabled={disabled}
+                      onCycle={() => onCycleOverride?.(c)}
+                    />
                   </td>
                 )
               })}
@@ -186,6 +236,8 @@ function AccessControl() {
   const qc = useQueryClient()
   const roles = useRoles()
   const users = useUsers()
+  const me = useCurrentUser()
+  const perms = usePermissions()
 
   const [selectedRoleId, setSelectedRoleId] = useState<string | null>(null)
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null)
@@ -195,10 +247,31 @@ function AccessControl() {
   const roleId = selectedRoleId ?? roles.data?.[0]?.id ?? null
   const userId = selectedUserId ?? users.data?.[0]?.id ?? null
 
+  const selectedRole = roles.data?.find((r) => r.id === roleId)
+  const bypass = isBypassRoleName(selectedRole?.name)
+
   const grants = useRoleGrants(roleId)
   const overrides = useUserOverrides(userId)
+
+  // The selected person's position defaults — needed to show effective colors.
+  const selUser = users.data?.find((u) => u.id === userId)
+  const userRoleGrants = useRoleGrants(selUser?.role_id ?? null)
+
   const toggleGrant = useToggleRoleGrant()
   const setOverride = useSetUserOverride()
+
+  const editingSelfRole = !!me.data?.role_id && roleId === me.data.role_id
+  const editingSelfUser = !!me.data?.id && userId === me.data.id
+
+  /** Guard: warn before an action could lock the editor out of THIS page. */
+  function guardSelfLockout(permCode: string, willDeny: boolean): boolean {
+    if (!willDeny || !SENSITIVE_CODES.includes(permCode)) return true
+    const affectsMe =
+      (editingSelfRole && roleId === me.data?.role_id) ||
+      (editingSelfUser && userId === me.data?.id)
+    if (!affectsMe) return true
+    return window.confirm(t('This may lock you out of the Staff page. Continue?'))
+  }
 
   async function addPosition() {
     const name = newPosition.trim()
@@ -217,8 +290,8 @@ function AccessControl() {
   const selCls = 'rounded-lg border border-line bg-white px-3 py-2 text-sm outline-none focus:border-brand'
 
   return (
-    <div className="space-y-6">
-      {/* ---- position grants ---- */}
+    <div className="space-y-8">
+      {/* ---- position grants (the DEFAULTS) ---- */}
       <section>
         <div className="mb-2 flex flex-wrap items-center gap-2">
           <h3 className="font-semibold text-brand-dark">{t('Position')}</h3>
@@ -243,13 +316,20 @@ function AccessControl() {
           </button>
         </div>
 
-        {/* Ticked = the position can do it. Unticked = blocked for everyone in
-            this position, unless a person below has an explicit ✓. */}
+        {bypass && (
+          <div className="mb-2 rounded-lg bg-brand-bg px-3 py-2 text-xs font-semibold text-brand-dark">
+            🔑 {t('Owner/admin positions always have full access — the matrix below is read-only.')}
+          </div>
+        )}
+        <p className="mb-2 text-xs text-muted">{t('Defaults for everyone in this position.')}</p>
+
         <PermissionMatrix
           grants={grants.data}
-          onToggleGrant={(permCode, next) =>
-            roleId && toggleGrant.mutate({ roleId, permCode, granted: next })
-          }
+          disabled={bypass}
+          onToggleGrant={(permCode, next) => {
+            if (!guardSelfLockout(permCode, !next)) return
+            if (roleId) toggleGrant.mutate({ roleId, permCode, granted: next })
+          }}
         />
         {grants.isError && (
           <p className="mt-2 rounded-lg bg-warning-bg px-3 py-2 text-xs text-warning">
@@ -258,7 +338,7 @@ function AccessControl() {
         )}
       </section>
 
-      {/* ---- per-person overrides ---- */}
+      {/* ---- per-person EXCEPTIONS ---- */}
       <section>
         <div className="mb-2 flex flex-wrap items-center gap-2">
           <h3 className="font-semibold text-brand-dark">{t('Employee')}</h3>
@@ -269,19 +349,28 @@ function AccessControl() {
               </option>
             ))}
           </select>
-          <span className="flex flex-wrap items-center gap-3 text-xs text-faint">
-            <span><span className="inline-block w-4 text-center">—</span> {t('Inherit')}</span>
-            <span className="text-success"><span className="inline-block w-4 text-center font-bold">✓</span> {t('Allowed')}</span>
-            <span className="text-danger"><span className="inline-block w-4 text-center font-bold">✕</span> {t('Denied')}</span>
-          </span>
+          {editingSelfUser && (
+            <span className="rounded-lg bg-warning-bg px-2 py-1 text-xs font-semibold text-warning">
+              ⚠ {t('You are changing your own access — be careful!')}
+            </span>
+          )}
         </div>
+        <p className="mb-2 text-xs text-muted">
+          {t(
+            'Exceptions for this person — click to cycle: follow position (—) → allowed (✓) → blocked (✕).',
+          )}
+        </p>
 
         <PermissionMatrix
           overrides={overrides.data}
+          roleGrantsForEffective={userRoleGrants.data}
+          disabled={bypass}
           onCycleOverride={(permCode) => {
-            if (!userId) return
+            if (!userId || bypass) return
             const current = overrides.data?.[permCode]
-            const next = current === undefined ? true : current === true ? false : null
+            const next: boolean | null =
+              current === undefined ? true : current === true ? false : null
+            if (!guardSelfLockout(permCode, next === false)) return
             setOverride.mutate({ userId, permCode, allow: next })
           }}
         />
@@ -290,6 +379,7 @@ function AccessControl() {
             {String(overrides.error)}
           </p>
         )}
+        {!perms.isAdmin && !bypass && null}
       </section>
 
       {err && <p className="rounded-lg bg-warning-bg px-3 py-2 text-sm text-warning">{t(err)}</p>}

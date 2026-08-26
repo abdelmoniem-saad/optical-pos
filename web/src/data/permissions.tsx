@@ -32,6 +32,14 @@ export const RESOURCES = [
 export const ACTIONS = ['view', 'create', 'edit', 'delete'] as const
 export type Action = (typeof ACTIONS)[number]
 
+/** Positions whose members ALWAYS have full access regardless of the matrix.
+ *  Kept as data so the UI can explain (and disable) the matrix for them. */
+export const BYPASS_ROLE_NAMES = ['admin', 'owner'] as const
+
+export function isBypassRoleName(name: string | null | undefined): boolean {
+  return BYPASS_ROLE_NAMES.includes((name ?? '').toLowerCase() as never)
+}
+
 export function code(resource: string, action: Action): string {
   return `${resource}.${action}`
 }

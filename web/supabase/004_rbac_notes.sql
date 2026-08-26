@@ -157,3 +157,17 @@ begin
     raise notice 'secured table: %', t;
   end loop;
 end $$;
+
+-- ---------- RECOVERY ----------
+-- If you ever lock yourself out of the Staff page, run this in the Supabase
+-- SQL editor, replacing 'Seller' with the affected position name:
+--
+--   insert into public.role_permissions (role_id, permission_id)
+--   select r.id, p.id
+--   from public.roles r cross join public.permissions p
+--   where lower(r.name) = 'seller'
+--   on conflict (role_id, permission_id) do nothing;
+--
+-- To clear one person's exceptions entirely:
+--   delete from public.user_permissions
+--   where user_id = (select id from public.users where username = 'NAME');
