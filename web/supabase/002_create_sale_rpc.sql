@@ -20,17 +20,37 @@ language plpgsql
 security invoker
 as $$
 declare
-  v_in   public.sales := jsonb_populate_record(null::public.sales, p_sale);
-  v_sale public.sales;
+  v_in      public.sales := jsonb_populate_record(null::public.sales, p_sale);
+  v_sale    public.sales;
+  v_inv     text := v_in.invoice_no;
+  v_max_num int;
 begin
+  -- If invoice_no is null, empty, or already taken, compute next available 6-digit invoice
+  if v_inv is null or trim(v_inv) = '' or exists (select 1 from public.sales where invoice_no = v_inv) then
+    select coalesce(max(
+      case
+        when invoice_no ~ '^\d+$' then invoice_no::int
+        else 0
+      end
+    ), 0) + 1
+    into v_max_num
+    from public.sales;
+
+    loop
+      v_inv := lpad(v_max_num::text, 6, '0');
+      exit when not exists (select 1 from public.sales where invoice_no = v_inv);
+      v_max_num := v_max_num + 1;
+    end loop;
+  end if;
+
   insert into public.sales
     (invoice_no, customer_id, user_id, total_amount, discount, net_amount,
-     amount_paid, payment_method, order_date, doctor_name, lab_status)
+     amount_paid, payment_method, order_date, delivery_date, doctor_name, lab_status)
   values
-    (v_in.invoice_no, v_in.customer_id, v_in.user_id, v_in.total_amount,
+    (v_inv, v_in.customer_id, v_in.user_id, v_in.total_amount,
      v_in.discount, v_in.net_amount, v_in.amount_paid,
-     coalesce(v_in.payment_method, 'Cash'), v_in.order_date,
-     v_in.doctor_name, v_in.lab_status)
+     coalesce(v_in.payment_method, 'Cash'), coalesce(v_in.order_date, now()),
+     v_in.delivery_date, v_in.doctor_name, v_in.lab_status)
   returning * into v_sale;
 
   -- line items
@@ -48,10 +68,10 @@ begin
   insert into public.order_examinations
     (sale_id, exam_type, sphere_od, cylinder_od, axis_od,
      sphere_os, cylinder_os, axis_os, ipd, lens_info, frame_info,
-     frame_color, frame_status, image_path)
+     frame_color, frame_status, doctor_name, image_path)
   select v_sale.id, r.exam_type, r.sphere_od, r.cylinder_od, r.axis_od,
          r.sphere_os, r.cylinder_os, r.axis_os, r.ipd, r.lens_info,
-         r.frame_info, r.frame_color, r.frame_status, r.image_path
+         r.frame_info, r.frame_color, r.frame_status, coalesce(r.doctor_name, v_sale.doctor_name), r.image_path
   from jsonb_populate_recordset(null::public.order_examinations, p_exams) r;
 
   return v_sale;

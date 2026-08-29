@@ -9,12 +9,27 @@ import type {
 const KEY = ['sales'] as const
 
 /** True when an RPC call failed because the function isn't installed yet
- *  (PostgREST returns PGRST202 / "not found in schema cache"). Lets checkout
+ *  (PostgREST returns PGRST202 / 42883 / "not found in schema cache"). Lets checkout
  *  fall back to client-side inserts until 002_create_sale_rpc.sql is run. */
-function isMissingFunction(error: { code?: string; message?: string }): boolean {
-  if (error.code === 'PGRST202') return true
-  const msg = error.message ?? ''
-  return /create_sale_order/.test(msg) && /(does not exist|not found|schema cache)/i.test(msg)
+function isMissingFunction(error: { code?: string; message?: string; details?: string; hint?: string } | null | undefined): boolean {
+  if (!error) return false
+  if (error.code === 'PGRST202' || error.code === '42883' || error.code === 'PGRST200' || error.code === '404') return true
+  const combined = `${error.message ?? ''} ${error.details ?? ''} ${error.hint ?? ''}`
+  return /create_sale_order/i.test(combined) && /(does not exist|not found|schema cache|could not find)/i.test(combined)
+}
+
+/** True when a sale insert or RPC fails due to unique constraint collision on invoice_no. */
+function isInvoiceNoConflict(
+  error: { code?: string; message?: string; details?: string; hint?: string } | null | undefined,
+): boolean {
+  if (!error) return false
+  const code = error.code ?? ''
+  const msg = `${error.message ?? ''} ${error.details ?? ''} ${error.hint ?? ''}`
+  return (
+    code === '23505' ||
+    /sales_invoice_no_key/i.test(msg) ||
+    (/duplicate key/i.test(msg) && /invoice_no/i.test(msg))
+  )
 }
 
 /** All sales with their line items. Mirrors repo.get_sales(). */
@@ -54,20 +69,65 @@ export function useCustomerOrders(customerId: string | null) {
 
 /** Next zero-padded invoice number. Mirrors repo.get_next_invoice_no(). */
 export async function getNextInvoiceNo(): Promise<string> {
-  const { data } = await supabase
-    .from('sales')
-    .select('invoice_no')
-    .order('invoice_no', { ascending: false })
-    .limit(1)
-    .returns<{ invoice_no: string }[]>()
-  const last = data?.[0]?.invoice_no
-  const n = last ? Number.parseInt(last, 10) : NaN
-  if (!Number.isNaN(n)) return String(n + 1).padStart(6, '0')
+  try {
+    const [{ data: byInv }, { data: byDate }] = await Promise.all([
+      supabase
+        .from('sales')
+        .select('invoice_no')
+        .order('invoice_no', { ascending: false })
+        .limit(100)
+        .returns<{ invoice_no: string }[]>(),
+      supabase
+        .from('sales')
+        .select('invoice_no')
+        .order('order_date', { ascending: false })
+        .limit(100)
+        .returns<{ invoice_no: string }[]>(),
+    ])
 
-  const { count } = await supabase
-    .from('sales')
-    .select('id', { count: 'exact', head: true })
-  return String((count ?? 0) + 1).padStart(6, '0')
+    let maxNum = 0
+    const seen = new Set<string>()
+    for (const row of [...(byInv ?? []), ...(byDate ?? [])]) {
+      if (row?.invoice_no) {
+        const str = String(row.invoice_no).trim()
+        seen.add(str)
+        if (/^\d+$/.test(str)) {
+          const val = Number.parseInt(str, 10)
+          if (!Number.isNaN(val) && val > maxNum) {
+            maxNum = val
+          }
+        }
+      }
+    }
+
+    if (maxNum === 0) {
+      const { count } = await supabase
+        .from('sales')
+        .select('id', { count: 'exact', head: true })
+      maxNum = count ?? 0
+    }
+
+    let candidate = maxNum + 1
+    for (let attempt = 0; attempt < 50; attempt++) {
+      const candidateStr = String(candidate).padStart(6, '0')
+      if (!seen.has(candidateStr)) {
+        const { data: exists } = await supabase
+          .from('sales')
+          .select('id')
+          .eq('invoice_no', candidateStr)
+          .limit(1)
+        if (!exists || exists.length === 0) {
+          return candidateStr
+        }
+        seen.add(candidateStr)
+      }
+      candidate++
+    }
+    return String(candidate).padStart(6, '0')
+  } catch (err) {
+    console.warn('getNextInvoiceNo failed, falling back to timestamp-based sequence:', err)
+    return String(Date.now() % 1000000).padStart(6, '0')
+  }
 }
 
 export type CartLine = {
@@ -110,74 +170,126 @@ export function useCreateSale() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: async (input: CreateSaleInput): Promise<Sale> => {
-      const invoiceNo = input.invoiceNo ?? (await getNextInvoiceNo())
-      const salePayload = {
-        invoice_no: invoiceNo,
-        customer_id: input.customerId,
-        user_id: input.userId ?? null,
-        total_amount: input.totals.total_amount,
-        discount: input.totals.discount,
-        net_amount: input.totals.net_amount,
-        amount_paid: input.totals.amount_paid,
-        payment_method: input.paymentMethod ?? 'Cash',
-        order_date: new Date().toISOString(),
-        delivery_date: input.deliveryDate ?? null,
-        doctor_name: input.doctorName ?? '',
-        lab_status: input.examinations?.length ? 'Not Started' : null,
+      let lastError: any = null
+      for (let attempt = 0; attempt < 3; attempt++) {
+        try {
+          let invoiceNo = input.invoiceNo
+          if (!invoiceNo || attempt > 0) {
+            invoiceNo = await getNextInvoiceNo()
+          } else if (!invoiceNo.startsWith('PRESC-')) {
+            const { data: existing } = await supabase
+              .from('sales')
+              .select('id')
+              .eq('invoice_no', invoiceNo)
+              .limit(1)
+            if (existing && existing.length > 0) {
+              invoiceNo = await getNextInvoiceNo()
+            }
+          }
+
+          const salePayload = {
+            invoice_no: invoiceNo,
+            customer_id: input.customerId,
+            user_id: input.userId ?? null,
+            total_amount: input.totals.total_amount,
+            discount: input.totals.discount,
+            net_amount: input.totals.net_amount,
+            amount_paid: input.totals.amount_paid,
+            payment_method: input.paymentMethod ?? 'Cash',
+            order_date: new Date().toISOString(),
+            delivery_date: input.deliveryDate ? input.deliveryDate : null,
+            doctor_name: input.doctorName ?? '',
+            lab_status: input.examinations?.length ? 'Not Started' : null,
+          }
+          const items = input.items.map((i) => ({
+            product_id: i.product_id,
+            qty: i.qty,
+            unit_price: i.unit_price,
+            total_price: i.total_price,
+            name: i.name,
+          }))
+          const exams = input.examinations ?? []
+
+          // Preferred path: atomic Postgres function (web/supabase/002_create_sale_rpc.sql).
+          try {
+            const rpc = await supabase.rpc('create_sale_order', {
+              p_sale: salePayload,
+              p_items: items,
+              p_exams: exams,
+            })
+            if (!rpc.error && rpc.data) return rpc.data as Sale
+            if (rpc.error) {
+              if (isInvoiceNoConflict(rpc.error)) {
+                lastError = rpc.error
+                continue
+              }
+              if (!isMissingFunction(rpc.error)) throw rpc.error
+            }
+          } catch (err: any) {
+            if (isInvoiceNoConflict(err)) {
+              lastError = err
+              continue
+            }
+            if (!isMissingFunction(err)) throw err
+          }
+
+          // Fallback (RPC not installed yet): non-atomic client-side inserts.
+          const { data: sale, error: saleErr } = await supabase
+            .from('sales')
+            .insert(salePayload)
+            .select()
+            .single<Sale>()
+          if (saleErr) {
+            if (isInvoiceNoConflict(saleErr)) {
+              lastError = saleErr
+              continue
+            }
+            throw saleErr
+          }
+
+          if (items.length) {
+            const rows: SaleItemInsert[] = items.map((i) => ({ ...i, sale_id: sale.id }))
+            const { error: itemsErr } = await supabase.from('sale_items').insert(rows)
+            if (itemsErr) throw itemsErr
+
+            const movements = items.map((i) => ({
+              product_id: i.product_id,
+              qty: -i.qty,
+              type: 'sale',
+              ref_no: sale.invoice_no,
+              note: `POS Sale: ${sale.invoice_no}`,
+              created_at: new Date().toISOString(),
+            }))
+            const { error: movErr } = await supabase.from('stock_movements').insert(movements)
+            if (movErr) throw movErr
+          }
+
+          if (exams.length) {
+            const exRows: OrderExaminationInsert[] = exams.map((e) => ({
+              ...e,
+              doctor_name: (e as any).doctor_name || input.doctorName || null,
+              sale_id: sale.id,
+            }))
+            let { error: exErr } = await supabase.from('order_examinations').insert(exRows)
+            // If image_path column does not exist in user's schema (42703 / undefined column), retry without image_path
+            if (exErr && (exErr.code === '42703' || /image_path/i.test(exErr.message ?? ''))) {
+              const stripped = exRows.map(({ image_path: _unused, ...rest }: any) => rest)
+              const retry = await supabase.from('order_examinations').insert(stripped)
+              exErr = retry.error
+            }
+            if (exErr) throw exErr
+          }
+
+          return sale
+        } catch (err: any) {
+          if (isInvoiceNoConflict(err) && attempt < 2) {
+            lastError = err
+            continue
+          }
+          throw err
+        }
       }
-      const items = input.items.map((i) => ({
-        product_id: i.product_id,
-        qty: i.qty,
-        unit_price: i.unit_price,
-        total_price: i.total_price,
-        name: i.name,
-      }))
-      const exams = input.examinations ?? []
-
-      // Preferred path: atomic Postgres function (web/supabase/002_create_sale_rpc.sql).
-      const rpc = await supabase.rpc('create_sale_order', {
-        p_sale: salePayload,
-        p_items: items,
-        p_exams: exams,
-      })
-      if (!rpc.error) return rpc.data as Sale
-      if (!isMissingFunction(rpc.error)) throw rpc.error
-
-      // Fallback (RPC not installed yet): non-atomic client-side inserts.
-      const { data: sale, error: saleErr } = await supabase
-        .from('sales')
-        .insert(salePayload)
-        .select()
-        .single<Sale>()
-      if (saleErr) throw saleErr
-
-      if (items.length) {
-        const rows: SaleItemInsert[] = items.map((i) => ({ ...i, sale_id: sale.id }))
-        const { error: itemsErr } = await supabase.from('sale_items').insert(rows)
-        if (itemsErr) throw itemsErr
-
-        const movements = items.map((i) => ({
-          product_id: i.product_id,
-          qty: -i.qty,
-          type: 'sale',
-          ref_no: invoiceNo,
-          note: `POS Sale: ${invoiceNo}`,
-          created_at: new Date().toISOString(),
-        }))
-        const { error: movErr } = await supabase.from('stock_movements').insert(movements)
-        if (movErr) throw movErr
-      }
-
-      if (exams.length) {
-        const exRows: OrderExaminationInsert[] = exams.map((e) => ({
-          ...e,
-          sale_id: sale.id,
-        }))
-        const { error: exErr } = await supabase.from('order_examinations').insert(exRows)
-        if (exErr) throw exErr
-      }
-
-      return sale
+      throw lastError
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: KEY })
@@ -222,7 +334,7 @@ export function useUpdateSaleFull() {
         net_amount: totals.net_amount,
         amount_paid: totals.amount_paid,
         payment_method: paymentMethod ?? 'Cash',
-        delivery_date: deliveryDate ?? null,
+        delivery_date: deliveryDate ? deliveryDate : null,
         doctor_name: doctorName ?? '',
       }
       const exams = examinations ?? []
@@ -258,9 +370,15 @@ export function useUpdateSaleFull() {
       if (exams.length) {
         const exRows: OrderExaminationInsert[] = exams.map((e) => ({
           ...e,
+          doctor_name: (e as any).doctor_name || doctorName || null,
           sale_id: saleId,
         }))
-        const { error: exErr } = await supabase.from('order_examinations').insert(exRows)
+        let { error: exErr } = await supabase.from('order_examinations').insert(exRows)
+        if (exErr && (exErr.code === '42703' || /image_path/i.test(exErr.message ?? ''))) {
+          const stripped = exRows.map(({ image_path: _unused, ...rest }: any) => rest)
+          const retry = await supabase.from('order_examinations').insert(stripped)
+          exErr = retry.error
+        }
         if (exErr) throw exErr
       }
 

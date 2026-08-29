@@ -43,25 +43,42 @@ export function useInventory(category?: string) {
  * frames — exposed here so other screens (History order editor) reuse it.
  */
 export async function ensureFrameProduct(name: string): Promise<Product | null> {
-  const clean = name.trim()
-  if (!clean) return null
-  const { data: existing } = await supabase
-    .from('inventory')
-    .select('*')
-    .eq('category', 'Frame')
-    .ilike('name', clean)
-    .limit(1)
-    .returns<Product[]>()
-  if (existing && existing.length) return existing[0]
-  const { data: created, error } = await supabase
-    .from('inventory')
-    .insert({ name: clean, category: 'Frame', sale_price: 0, cost_price: 0 })
-    .select()
-    .single<Product>()
-  if (error) throw error
-  // Refresh every frame list/datalist in the app.
-  void queryClient.invalidateQueries({ queryKey: KEY })
-  return created
+  const raw = name.trim()
+  if (!raw) return null
+  const clean = raw.split(' (')[0].trim() || raw
+  try {
+    const { data: existing } = await supabase
+      .from('inventory')
+      .select('*')
+      .eq('category', 'Frame')
+      .ilike('name', clean)
+      .limit(1)
+      .returns<Product[]>()
+    if (existing && existing.length) return existing[0]
+
+    const { data: anyExisting } = await supabase
+      .from('inventory')
+      .select('*')
+      .ilike('name', clean)
+      .limit(1)
+      .returns<Product[]>()
+    if (anyExisting && anyExisting.length) return anyExisting[0]
+
+    const { data: created, error } = await supabase
+      .from('inventory')
+      .insert({ name: clean, category: 'Frame', sale_price: 0, cost_price: 0 })
+      .select()
+      .maybeSingle<Product>()
+    if (error) {
+      console.warn('Could not auto-create frame product in inventory:', error)
+      return null
+    }
+    void queryClient.invalidateQueries({ queryKey: KEY })
+    return created
+  } catch (e) {
+    console.warn('ensureFrameProduct failed:', e)
+    return null
+  }
 }
 
 /** Current stock for a single product. Mirrors repo.get_product_stock(). */export function useProductStock(productId: string | null) {

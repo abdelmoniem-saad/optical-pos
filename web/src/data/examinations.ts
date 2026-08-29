@@ -40,7 +40,12 @@ export function useReplaceOrderExaminations(saleId: string) {
       if (delErr) throw delErr
       if (exams.length) {
         const rows = exams.map((e) => ({ ...e, sale_id: saleId }))
-        const { error: insErr } = await supabase.from('order_examinations').insert(rows)
+        let { error: insErr } = await supabase.from('order_examinations').insert(rows)
+        if (insErr && (insErr.code === '42703' || /image_path/i.test(insErr.message ?? ''))) {
+          const stripped = rows.map(({ image_path: _unused, ...rest }: any) => rest)
+          const retry = await supabase.from('order_examinations').insert(stripped)
+          insErr = retry.error
+        }
         if (insErr) throw insErr
       }
     },

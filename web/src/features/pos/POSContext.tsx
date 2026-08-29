@@ -222,14 +222,33 @@ export function POSProvider({ children }: { children: ReactNode }) {
     try {
       await updateCustomer.mutateAsync({ id: c.id, patch: changes })
       patch({ customer: { ...c, ...changes } as Customer, error: null })
-    } catch (e) {
-      patch({ error: e instanceof Error ? e.message : 'Could not save customer' })
+    } catch (e: any) {
+      console.error('saveCustomerEdits failed:', e)
+      const msg = e?.message || (e instanceof Error ? e.message : 'Could not save customer')
+      patch({ error: msg })
     }
   }
 
   /** Entering the cart keeps the SAME invoice number — never burn a new one. */
   async function enterAfterCustomer(customer: Customer) {
-    const invoiceNo = ref.current.invoiceNo || (await getNextInvoiceNo())
+    let invoiceNo = ref.current.invoiceNo
+    if (invoiceNo && !ref.current.savedSale) {
+      try {
+        const { data: existing } = await supabase
+          .from('sales')
+          .select('id')
+          .eq('invoice_no', invoiceNo)
+          .limit(1)
+        if (existing && existing.length > 0) {
+          invoiceNo = ''
+        }
+      } catch {
+        // ignore check error
+      }
+    }
+    if (!invoiceNo) {
+      invoiceNo = await getNextInvoiceNo()
+    }
     patch({ customer, invoiceNo, step: 'cart' })
   }
 
@@ -268,8 +287,10 @@ export function POSProvider({ children }: { children: ReactNode }) {
         })
       }
       await enterAfterCustomer(customer)
-    } catch (e) {
-      patch({ error: e instanceof Error ? e.message : 'Could not save customer' })
+    } catch (e: any) {
+      console.error('continueWithCustomer failed:', e)
+      const msg = e?.message || (e instanceof Error ? e.message : 'Could not save customer')
+      patch({ error: msg })
     } finally {
       patch({ busy: false })
     }
@@ -294,23 +315,43 @@ export function POSProvider({ children }: { children: ReactNode }) {
 
   /** Find an existing Frame product by name, or create a zero-priced one. */
   async function findOrCreateFrame(name: string): Promise<Product | null> {
-    const clean = name.trim()
-    if (!clean) return null
-    const { data: existing } = await supabase
-      .from('inventory')
-      .select('*')
-      .eq('category', 'Frame')
-      .ilike('name', clean)
-      .limit(1)
-      .returns<Product[]>()
-    if (existing && existing.length) return existing[0]
-    const { data: created, error } = await supabase
-      .from('inventory')
-      .insert({ name: clean, category: 'Frame', sale_price: 0, cost_price: 0 })
-      .select()
-      .single<Product>()
-    if (error) throw error
-    return created
+    const raw = name.trim()
+    if (!raw) return null
+    // Strip trailing parenthetical details (e.g. "RayBan RB2140 (Black)" -> "RayBan RB2140")
+    const clean = raw.split(' (')[0].trim() || raw
+    try {
+      const { data: existing } = await supabase
+        .from('inventory')
+        .select('*')
+        .eq('category', 'Frame')
+        .ilike('name', clean)
+        .limit(1)
+        .returns<Product[]>()
+      if (existing && existing.length) return existing[0]
+
+      // Check across any category before attempting creation
+      const { data: anyExisting } = await supabase
+        .from('inventory')
+        .select('*')
+        .ilike('name', clean)
+        .limit(1)
+        .returns<Product[]>()
+      if (anyExisting && anyExisting.length) return anyExisting[0]
+
+      const { data: created, error } = await supabase
+        .from('inventory')
+        .insert({ name: clean, category: 'Frame', sale_price: 0, cost_price: 0 })
+        .select()
+        .maybeSingle<Product>()
+      if (error) {
+        console.warn('Could not auto-create frame product in inventory:', error)
+        return null
+      }
+      return created
+    } catch (e) {
+      console.warn('findOrCreateFrame error:', e)
+      return null
+    }
   }
 
   /** Add New-frame lines from examinations into the cart (runs at checkout). */
@@ -321,9 +362,13 @@ export function POSProvider({ children }: { children: ReactNode }) {
     let next = [...cart]
     for (const exam of examinations) {
       if (exam.frame_status === 'New' && exam.frame_info) {
-        const frame = await findOrCreateFrame(String(exam.frame_info))
-        if (frame && !next.some((i) => i.product_id === frame.id)) {
-          next = addLine(next, frame)
+        try {
+          const frame = await findOrCreateFrame(String(exam.frame_info))
+          if (frame && !next.some((i) => i.product_id === frame.id)) {
+            next = addLine(next, frame)
+          }
+        } catch (e) {
+          console.warn('addNewFramesFromExams error:', e)
         }
       }
     }
@@ -427,6 +472,7 @@ export function POSProvider({ children }: { children: ReactNode }) {
       }
       patch({
         busy: false,
+        invoiceNo: sale.invoice_no || s.invoiceNo,
         savedSale: sale,
         savedHadExams: s.examinations.length > 0,
         completed: {
@@ -441,8 +487,14 @@ export function POSProvider({ children }: { children: ReactNode }) {
           isUpdate,
         },
       })
-    } catch (e) {
-      patch({ busy: false, error: e instanceof Error ? e.message : 'Error saving order' })
+    } catch (e: any) {
+      console.error('finishOrder failed:', e)
+      const msg =
+        e?.message ||
+        e?.error_description ||
+        e?.details ||
+        (typeof e === 'string' ? e : 'Error saving order')
+      patch({ busy: false, error: msg })
     }
   }
 
