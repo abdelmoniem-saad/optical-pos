@@ -40,7 +40,7 @@ function AppShell() {
   const visibleNav = nav.filter((item) => perms.can(`${item.resource}.view` as never))
 
   return (
-    <div className="flex min-h-full">
+    <div className="flex h-full overflow-hidden">
       <aside className="hidden w-38 shrink-0 flex-col bg-white shadow-sm sm:flex">
         <div className="flex items-center gap-2 px-4 py-4">
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand font-bold text-white">
