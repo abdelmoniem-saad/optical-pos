@@ -4,11 +4,11 @@ export type Shop = { name: string; address: string; phone: string; currency: str
 
 /**
  * Print layout (2026 redesign, v2):
- * ONE order = ONE landscape page of ~210×140 mm — the useful half of an A4
+ * ONE order = ONE landscape page of ~210×140 mm - the useful half of an A4
  * sheet cut horizontally. Three cut-apart parts:
  *   • Upper tier (65% height) → two equal columns: LEFT = customer, RIGHT = shop
  *   • Lower tier (35% height) → lab strip, full width
- * Prescriptions are TABULATED with grouped split cells — each eye is a group
+ * Prescriptions are TABULATED with grouped split cells - each eye is a group
  * (RIGHT / LEFT) whose SPH / CYL / AXIS values sit in their own labeled
  * columns (like the shop's legacy paper receipt). Item lists (الأصناف) are
  * NOT printed. Frame status (جديد / عميل) is printed in the lab table.
@@ -52,10 +52,10 @@ function statusAr(s: string | null | undefined): string {
   return v || ''
 }
 
-/** One value per cell — blank when empty (legacy paper style). */
+/** One value per cell - blank when empty (legacy paper style). */
 const cell = (v: string | null | undefined) => (v ?? '').toString().trim()
 
-/** dd/mm/yyyy — the human way dates appear on the paper receipt. */
+/** dd/mm/yyyy - the human way dates appear on the paper receipt. */
 function humanDate(iso: string): string {
   const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso.trim())
   return m ? `${m[3]}/${m[2]}/${m[1]}` : iso
@@ -65,7 +65,7 @@ function humanDate(iso: string): string {
 export function buildOrderDocument(order: CompletedOrder, _shop: Shop): OrderDoc {
   const rows: RxRow[] = order.examinations.map((e, i) => ({
     index: i + 1,
-    type: cell(e.exam_type) || '—',
+    type: cell(e.exam_type) || '-',
     sphOd: cell(e.sphere_od),
     cylOd: cell(e.cylinder_od),
     axOd: cell(e.axis_od),
@@ -82,8 +82,8 @@ export function buildOrderDocument(order: CompletedOrder, _shop: Shop): OrderDoc
   return {
     invoiceNo: order.invoiceNo,
     orderDate: humanDate(cell(order.sale.order_date) || new Date().toISOString()),
-    deliveryDate: humanDate(cell(order.deliveryDate)) || '—',
-    customerName: cell(order.customer?.name) || '—',
+    deliveryDate: humanDate(cell(order.deliveryDate)) || '-',
+    customerName: cell(order.customer?.name) || '-',
     customerPhone: cell(order.customer?.phone),
     doctorName: cell(order.doctorName),
     rows,
@@ -120,7 +120,7 @@ function metaTable(doc: OrderDoc): string {
 }
 
 /**
- * Prescription table with grouped split cells — columns are laid out
+ * Prescription table with grouped split cells - columns are laid out
  * right-to-left as: الحالة | IPD | RIGHT(SPH CYL AXIS) | LEFT(SPH CYL AXIS) |
  * النوع (+# / العدسة / الإطار / اللون in the wide lab variant).
  * The status (جديد / عميل) replaced the old notes column.
@@ -184,12 +184,12 @@ function totalsTable(doc: OrderDoc, currency: string, kind: 'shop' | 'customer')
 }
 
 /**
- * The complete half-page unit (styles provided separately — see UNIT_CSS).
+ * The complete half-page unit (styles provided separately - see UNIT_CSS).
  * Layout: the lab strip takes what its table needs; the top tier (customer |
  * shop columns) stretches over the rest, each column clamping its own
  * overflow so nothing ever bleeds across the dividers. Totals stay pinned to
  * the bottom of their column. A density class shrinks fonts as the
- * prescription count grows — graduated so even 6+ Rx show COMPLETELY.
+ * prescription count grows - graduated so even 6+ Rx show COMPLETELY.
  * Column order: CUSTOMER on the right, shop on the left.
  */
 export function renderOrderUnitHTML(doc: OrderDoc, shop: Shop): string {
@@ -224,7 +224,7 @@ export function renderOrderUnitHTML(doc: OrderDoc, shop: Shop): string {
     </div>`
   const shopCol = `
     <div class="rcpt-col rcpt-col-shop">
-      <div class="rcpt-head">نسخة المحل — ${esc(shop.name)}</div>
+      <div class="rcpt-head">نسخة المحل - ${esc(shop.name)}</div>
       ${shop.address || shop.phone ? `<div class="rcpt-sub">${shop.address ? esc(shop.address) : ''}${shop.address && shop.phone ? ' · ' : ''}${shop.phone ? `<span class="rcpt-num">${esc(shop.phone)}</span>` : ''}</div>` : ''}
       <div class="rcpt-body">
         ${metaTable(doc)}
@@ -237,7 +237,7 @@ export function renderOrderUnitHTML(doc: OrderDoc, shop: Shop): string {
     </div>`
   const labTier = `
     <div class="rcpt-lab">
-      <div class="rcpt-head rcpt-head-lab">نسخة المعمل — فاتورة <span class="rcpt-num">#${esc(doc.invoiceNo)}</span> · التسليم <span class="rcpt-num">${esc(doc.deliveryDate)}</span>${doc.doctorName ? ` · الطبيب ${esc(doc.doctorName)}` : ''}</div>
+      <div class="rcpt-head rcpt-head-lab">نسخة المعمل - فاتورة <span class="rcpt-num">#${esc(doc.invoiceNo)}</span> · التسليم <span class="rcpt-num">${esc(doc.deliveryDate)}</span>${doc.doctorName ? ` · الطبيب ${esc(doc.doctorName)}` : ''}</div>
       ${rxTable(doc, true)}
     </div>`
 
@@ -247,17 +247,17 @@ export function renderOrderUnitHTML(doc: OrderDoc, shop: Shop): string {
 
 // ---------- styles ----------
 
-/** Component styles — safe to inject into the app for previews. */
+/** Component styles - safe to inject into the app for previews. */
 export const UNIT_CSS = `
 .rcpt-unit{width:100%;height:100%;box-sizing:border-box;display:flex;flex-direction:column;
   direction:rtl;text-align:right;color:#000;background:#fff;overflow:hidden;
   font-family:'Segoe UI',Tahoma,'Cairo','Noto Naskh Arabic',Arial,sans-serif}
-/* Top tier takes all the space the lab strip doesn't need — content can never
+/* Top tier takes all the space the lab strip doesn't need - content can never
    bleed across the 2pt divider. */
 .rcpt-top{flex:1 1 auto;min-height:0;display:flex;min-width:0;overflow:hidden}
 .rcpt-col{flex:1 1 50%;padding:1.5mm 2mm;min-width:0;box-sizing:border-box;
   display:flex;flex-direction:column;overflow:hidden}
-/* Body keeps its natural height (shrinks only when space runs out) — leftover
+/* Body keeps its natural height (shrinks only when space runs out) - leftover
    space falls BELOW the totals instead of pooling between table and totals. */
 .rcpt-body{flex:0 1 auto;min-height:0;overflow:hidden}
 .rcpt-foot{padding-top:1mm}
@@ -321,9 +321,9 @@ export const UNIT_CSS = `
 .rcpt-d6 .rcpt-head{font-size:8.5pt;margin-bottom:0.4mm}
 `
 
-/** Print-page rules — ONLY injected into the print window (never the app).
+/** Print-page rules - ONLY injected into the print window (never the app).
  *  A4 portrait; each sheet holds TWO order units (top + bottom half), so the
- *  paper can be cut horizontally into two equal halves — one order each.
+ *  paper can be cut horizontally into two equal halves - one order each.
  *  The unit keeps ~4mm inner padding so nothing lands on printer dead zones
  *  or exactly on the cut line. */
 const PAGE_CSS = `
@@ -338,7 +338,7 @@ html,body{margin:0;padding:0;background:#fff}
 `
 
 /**
- * Print one or more order units — two per A4 sheet (top/bottom halves), so a
+ * Print one or more order units - two per A4 sheet (top/bottom halves), so a
  * sheet is cut horizontally into two orders. A single order fills only the
  * top half; the bottom half stays blank.
  */

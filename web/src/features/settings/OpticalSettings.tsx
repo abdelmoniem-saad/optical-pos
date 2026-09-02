@@ -33,7 +33,7 @@ function MetaList({
     <div className="rounded-xl border border-line bg-white p-4">
       <h3 className="mb-2 font-semibold text-brand-dark">{title}</h3>
       <div className="mb-3 flex flex-wrap gap-1.5">
-        {rows.length === 0 && <span className="text-sm text-faint">—</span>}
+        {rows.length === 0 && <span className="text-sm text-faint">-</span>}
         {rows.map((r) => (
           <span key={r.id} className="inline-flex items-center gap-1 rounded-full bg-surface px-2.5 py-1 text-sm">
             {r.name}
@@ -75,7 +75,7 @@ export function OpticalSettings() {
   return (
     <div>
       <h2 className="mb-3 text-lg font-semibold text-brand-dark">{t('Optical Settings')}</h2>
-      {/* Frame Types removed — nothing in the app reads that list anymore. */}
+      {/* Frame Types removed - nothing in the app reads that list anymore. */}
       <p className="mb-4 text-sm text-muted">{t('Lens types and colors used in prescriptions.')}</p>
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <MetaList title={t('Lens Types')} table="lens_types" rows={lens.data ?? []} />

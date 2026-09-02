@@ -77,7 +77,7 @@ async function metadataHas(table: string, name: string): Promise<boolean> {
 }
 
 /** Add lens/color values used by a CONFIRMED order that don't exist yet.
- *  Called at checkout — never while the order is still being typed. */
+ *  Called at checkout - never while the order is still being typed. */
 export async function addMissingOrderMetadata(
   exams: { lens_info?: string | null; frame_color?: string | null }[],
 ): Promise<void> {
@@ -113,11 +113,11 @@ export type ExamRefRow = {
 /**
  * Sync the settings/inventory references after a CONFIRMED order is edited:
  *   • lens types / frame colors: newly typed values are ADDED; a replaced
- *     value is DELETED from its list — but only when NO other order still
+ *     value is DELETED from its list - but only when NO other order still
  *     references it.
  *   • frames: a newly typed frame becomes an inventory product; a removed
  *     frame product is DELETED only when it was app-created clutter (no real
- *     stock, referenced by nothing) — deleting it also removes its phantom
+ *     stock, referenced by nothing) - deleting it also removes its phantom
  *     stock movement. Switching to an EXISTING frame never changes quantities.
  * Runs AFTER the order's examinations have been replaced.
  */

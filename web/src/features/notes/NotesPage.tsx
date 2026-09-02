@@ -6,6 +6,7 @@ import {
   useDeleteNote,
   useEveryoneNotes,
   useMyNotes,
+  useUpdateNote,
   type Note,
 } from '../../data/notes'
 import { useUsers } from '../../data/staff'
@@ -52,29 +53,84 @@ function Composer({
 function NoteCard({
   note,
   canDelete,
+  canEdit,
   authorName,
 }: {
   note: Note
   canDelete: boolean
+  canEdit: boolean
   authorName?: string
 }) {
   const { t } = useI18n()
   const del = useDeleteNote()
+  const upd = useUpdateNote()
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState(note.body)
+
+  async function save() {
+    const body = draft.trim()
+    if (!body) return
+    await upd.mutateAsync({ id: note.id, body })
+    setEditing(false)
+  }
+
+  if (editing) {
+    return (
+      <div className="rounded-lg border border-brand-faint bg-white p-3 text-sm">
+        <textarea
+          rows={3}
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          className="w-full rounded-md border border-line px-2 py-1.5 outline-none focus:border-brand"
+        />
+        <div className="mt-2 flex justify-end gap-2">
+          <button
+            onClick={() => setEditing(false)}
+            className="rounded-md border border-line px-2.5 py-1 text-xs text-muted hover:bg-surface"
+          >
+            {t('Cancel')}
+          </button>
+          <button
+            onClick={save}
+            disabled={upd.isPending || !draft.trim()}
+            className="rounded-md bg-brand px-3 py-1 text-xs font-semibold text-white disabled:opacity-50"
+          >
+            {upd.isPending ? t('Saving…') : t('Save')}
+          </button>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="rounded-lg border border-line bg-white p-3 text-sm shadow-sm">
       <p className="whitespace-pre-wrap break-words">{note.body}</p>
       <div className="mt-2 flex items-center gap-3 text-xs text-faint">
         <span>{(note.created_at ?? '').slice(0, 16).replace('T', ' ')}</span>
+        {note.updated_at && <span className="text-warning">· {t('edited')}</span>}
         {authorName && <span>· {authorName}</span>}
-        {canDelete && (
-          <button
-            onClick={() => del.mutate(note.id)}
-            disabled={del.isPending}
-            className="ms-auto text-danger hover:underline disabled:opacity-40"
-          >
-            {t('Delete')}
-          </button>
-        )}
+        <span className="ms-auto flex items-center gap-2">
+          {canEdit && (
+            <button
+              onClick={() => {
+                setDraft(note.body)
+                setEditing(true)
+              }}
+              className="text-brand hover:underline"
+            >
+              ✎ {t('Edit')}
+            </button>
+          )}
+          {canDelete && (
+            <button
+              onClick={() => del.mutate(note.id)}
+              disabled={del.isPending}
+              className="text-danger hover:underline disabled:opacity-40"
+            >
+              {t('Delete')}
+            </button>
+          )}
+        </span>
       </div>
     </div>
   )
@@ -94,7 +150,7 @@ export function NotesPage() {
   const [myBody, setMyBody] = useState('')
   const [pubBody, setPubBody] = useState('')
 
-  const canCreate = perms.can('notes.create')
+  const canCreate = perms.can('notes.create' as never)
 
   const nameById = useMemo(() => {
     const m = new Map<string, string>()
@@ -110,9 +166,11 @@ export function NotesPage() {
     else setPubBody('')
   }
 
-  /** Author or admin can remove; private notes are always theirs. */
-  const canRemove = (n: Note) =>
-    perms.isAdmin || perms.can('notes.delete') || n.created_by === meId
+  // Deletion: the author for their own notes; ONLY an admin for notes
+  // addressed to everyone else.
+  const canDelete = (n: Note) => perms.isAdmin || n.created_by === meId
+  // Editing: the author (or an admin) - and the card then shows an edited tag.
+  const canEdit = (n: Note) => perms.isAdmin || n.created_by === meId
 
   const cls = 'rounded-xl border border-line bg-surface/40 p-4'
 
@@ -135,7 +193,12 @@ export function NotesPage() {
           ) : (
             <div className="space-y-2">
               {mine.data!.map((n) => (
-                <NoteCard key={n.id} note={n} canDelete={canCreate || canRemove(n)} />
+                <NoteCard
+                  key={n.id}
+                  note={n}
+                  canDelete={canDelete(n)}
+                  canEdit={canEdit(n)}
+                />
               ))}
             </div>
           )}
@@ -158,7 +221,8 @@ export function NotesPage() {
                 <NoteCard
                   key={n.id}
                   note={n}
-                  canDelete={canRemove(n)}
+                  canDelete={canDelete(n)}
+                  canEdit={canEdit(n)}
                   authorName={n.created_by ? nameById.get(n.created_by) : undefined}
                 />
               ))}

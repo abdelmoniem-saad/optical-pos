@@ -5,6 +5,7 @@ import { useLensTypes, useFrameColors } from '../../../data/metadata'
 import { useInventory } from '../../../data/inventory'
 import { usePastExaminations, type PastExam } from '../../../data/examinations'
 import { uploadPrescriptionImage } from '../../../lib/storage'
+import { rxArrowNav } from '../enterNav'
 import { emptyExam, type Exam } from '../types'
 
 const small =
@@ -48,9 +49,9 @@ function ExamRow({ index }: { index: number }) {
   }
 
   // Enter-to-next-field for prescription inputs is handled page-wide by the
-  // CartStep container (enterMovesNext) — no row-local handler anymore.
+  // CartStep container (enterMovesNext) - no row-local handler anymore.
 
-  // A New frame with zero/negative stock stays ALLOWED — the seller is just
+  // A New frame with zero/negative stock stays ALLOWED - the seller is just
   // notified. A frame typed free-hand isn't in inventory yet, so it will be
   // auto-created at checkout and therefore also counts as 0 quantity.
   const frameInfo = String(exam.frame_info ?? '').trim()
@@ -64,10 +65,16 @@ function ExamRow({ index }: { index: number }) {
     !!frameInfo &&
     (!matchedFrame || Number(matchedFrame.stock_qty ?? 0) <= 0)
 
-  const numCol = (label: string, key: keyof Exam, w = 'w-13') => (
+  // Excel-style numeric grid: Enter lands on a cell with its value selected
+  // (type to replace), and the arrow keys hop between cells while you're "on"
+  // a cell rather than editing inside it.
+  const numCol = (label: string, key: keyof Exam, col: number, w = 'w-13') => (
     <label className="flex flex-col">
       <span className="mb-0.5 text-[10px] font-semibold text-faint">{label}</span>
       <input
+        data-rxr={index}
+        data-rxc={col}
+        onKeyDown={rxArrowNav}
         className={`${numField} ${w}`}
         value={String(exam[key] ?? '')}
         onChange={(e) => upd({ [key]: e.target.value } as Partial<Exam>)}
@@ -92,16 +99,16 @@ function ExamRow({ index }: { index: number }) {
         </label>
 
         <div className="flex items-end gap-0.5 rounded-md bg-white/50 p-0.5">
-          {numCol('R.SPH', 'sphere_od')}
-          {numCol('R.CYL', 'cylinder_od')}
-          {numCol('R.AX', 'axis_od', 'w-11')}
+          {numCol('R.SPH', 'sphere_od', 0)}
+          {numCol('R.CYL', 'cylinder_od', 1)}
+          {numCol('R.AX', 'axis_od', 2, 'w-11')}
         </div>
         <div className="flex items-end gap-0.5 rounded-md bg-white/50 p-0.5">
-          {numCol('L.SPH', 'sphere_os')}
-          {numCol('L.CYL', 'cylinder_os')}
-          {numCol('L.AX', 'axis_os', 'w-11')}
+          {numCol('L.SPH', 'sphere_os', 3)}
+          {numCol('L.CYL', 'cylinder_os', 4)}
+          {numCol('L.AX', 'axis_os', 5, 'w-11')}
         </div>
-        {numCol('IPD', 'ipd', 'w-11')}
+        {numCol('IPD', 'ipd', 6, 'w-11')}
 
         <label className="flex flex-col">
           <span className="mb-0.5 text-[10px] font-semibold text-faint">{t('Lens Type')}</span>
@@ -129,8 +136,8 @@ function ExamRow({ index }: { index: number }) {
           {warnZeroQty && (
             <span className="max-w-40 text-[10px] font-semibold leading-tight text-warning">
               {matchedFrame
-                ? t('This frame quantity is 0 or below — you can still sell it.')
-                : t('Frame not found in inventory — it will be recorded with 0 quantity.')}
+                ? t('This frame quantity is 0 or below - you can still sell it.')
+                : t('Frame not found in inventory - it will be recorded with 0 quantity.')}
             </span>
           )}
           <datalist id="frame-products">
@@ -201,7 +208,7 @@ function PastPrescriptions({ customerId }: { customerId: string }) {
   if (count === 0) return null
 
   /** Import ONLY the prescription numbers (SPH/CYL/AX/IPD) into a new exam
-   *  row — never the old frame, lens or color info. */
+   *  row - never the old frame, lens or color info. */
   function applyRx(p: PastExam) {
     addExam({
       ...emptyExam(),
@@ -279,7 +286,7 @@ export function ExamSection() {
       {state.customer && <PastPrescriptions customerId={state.customer.id} />}
 
       <div className="mb-4 flex flex-wrap gap-3">
-        {/* Today's date — read-only context right before the delivery date. */}
+        {/* Today's date - read-only context right before the delivery date. */}
         <label className="flex flex-col">
           <span className="mb-0.5 text-xs font-semibold text-faint">{t('Order Date')}</span>
           <input

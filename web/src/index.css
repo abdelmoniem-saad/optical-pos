@@ -24,7 +24,7 @@
 
 html {
   /* Global UI scale. The whole app uses rem-based sizing, so changing this one
-     value scales every text size, button, input and spacing together — sized up
+     value scales every text size, button, input and spacing together - sized up
      for staff using the app on tablets / touch screens. Bump to 20px for even
      bigger. */
   font-size: 18px;
@@ -36,7 +36,7 @@ html {
   zoom: 1.25;
   /* The app is hard-coded light-themed. Without this, an OS in dark mode makes
      native widgets (select dropdowns, date pickers) render dark/white-on-white
-     inside our white UI — reported as invisible Arabic <option> texts. */
+     inside our white UI - reported as invisible Arabic <option> texts. */
   color-scheme: light;
 }
 

@@ -50,7 +50,7 @@ export function CustomersPage() {
     } catch (e) {
       if (e instanceof CustomerHasRelatedRecordsError) {
         // The customer has orders and/or prescriptions. Explain the impact
-        // and let the user confirm a cascading delete — otherwise the row
+        // and let the user confirm a cascading delete - otherwise the row
         // can never be removed because of the sales FK.
         const parts: string[] = []
         if (e.orderCount > 0) {
@@ -121,7 +121,7 @@ export function CustomersPage() {
             >
               <div className="min-w-0">
                 <div className="font-medium">{c.name}</div>
-                <div className="text-sm text-faint">{c.city || '—'}</div>
+                <div className="text-sm text-faint">{c.city || '-'}</div>
               </div>
               <div className="text-end text-sm">
                 <div className="text-muted">{c.phone || ''}</div>

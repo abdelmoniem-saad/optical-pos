@@ -9,7 +9,7 @@ const KEY = ['inventory'] as const
  * Inventory with stock_qty computed from stock_movements.
  *
  * repository.py does this per-item (N+1). We instead pull all movements once
- * and aggregate client-side — one extra query total, no N+1. A future
+ * and aggregate client-side - one extra query total, no N+1. A future
  * optimization is a Postgres view/RPC `inventory_with_stock` (Phase 7).
  */
 export function useInventory(category?: string) {
@@ -40,7 +40,7 @@ export function useInventory(category?: string) {
  * Find an existing Frame product by name (case-insensitive) or create a
  * zero-priced one, so a free-typed frame name becomes a first-class option in
  * every frame dropdown afterwards. Mirrors what POS checkout does for New
- * frames — exposed here so other screens (History order editor) reuse it.
+ * frames - exposed here so other screens (History order editor) reuse it.
  */
 export async function ensureFrameProduct(name: string): Promise<Product | null> {
   const raw = name.trim()

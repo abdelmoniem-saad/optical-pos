@@ -14,7 +14,7 @@ const statusColor = LAB_STATUS_COLORS
 
 function ExamLines({ saleId }: { saleId: string }) {
   const exams = useOrderExaminations(saleId)
-  if (!exams.data?.length) return <div className="text-faint">—</div>
+  if (!exams.data?.length) return <div className="text-faint">-</div>
   return (
     <div className="space-y-1">
       {exams.data.map((e) => (
@@ -34,7 +34,7 @@ export function LabPage() {
   const [filter, setFilter] = useState<string>('All')
   const [reprint, setReprint] = useState<Sale | null>(null)
 
-  // Paged server feed — only orders WITH a lab status, 50 at a time.
+  // Paged server feed - only orders WITH a lab status, 50 at a time.
   const query = useInfiniteLabSales(filter)
   const rows = useMemo(
     () => query.data?.pages.flatMap((p) => p.rows) ?? [],

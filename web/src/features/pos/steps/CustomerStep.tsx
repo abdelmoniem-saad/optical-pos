@@ -9,7 +9,7 @@ export function CustomerStep() {
   const { t } = useI18n()
   const { back, continueWithCustomer, setCustomerDraft, state } = usePOS()
   // The draft lives in POS state (NOT local useState), so coming Back from the
-  // order step shows exactly the details that were being worked on — never a
+  // order step shows exactly the details that were being worked on - never a
   // blank form. Default the picked customer to the one already chosen.
   const form = state.customerDraft
   const [selected, setSelected] = useState<Customer | null>(state.customer)
@@ -57,7 +57,7 @@ export function CustomerStep() {
         {results.isFetching && <p className="p-4 text-sm text-muted">{t('Searching…')}</p>}
         {form.name.trim().length >= 2 && !results.isFetching && (results.data?.length ?? 0) === 0 && (
           <p className="p-4 text-sm text-faint">
-            {t('No match — a new customer will be created when you continue.')}
+            {t('No match - a new customer will be created when you continue.')}
           </p>
         )}
         <ul className="divide-y divide-line/40">
@@ -71,7 +71,7 @@ export function CustomerStep() {
               >
                 <span className="font-medium">{c.name}</span>
                 <span className="text-sm text-muted">
-                  {c.phone || '—'} · {c.city || '—'}
+                  {c.phone || '-'} · {c.city || '-'}
                 </span>
               </button>
             </li>

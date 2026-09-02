@@ -174,7 +174,7 @@ function Shipments({ supplier }: { supplier: Supplier }) {
   return (
     <div className="rounded-xl border border-line bg-white p-4">
       <h3 className="mb-2 font-semibold text-brand-dark">
-        {t('Shipments')} — {supplier.name}
+        {t('Shipments')} - {supplier.name}
       </h3>
       {/* New shipments start UNPAID; any cash handed over at delivery is simply
           recorded as the first payment on the card below. */}
@@ -238,7 +238,7 @@ export function SuppliersPage() {
 
   function remove(s: Supplier) {
     // The mutation cascades: shipments (and their payment history) go first.
-    const ok = window.confirm(`"${s.name}" — ${t('Delete supplier and all their shipments?')}`)
+    const ok = window.confirm(`"${s.name}" - ${t('Delete supplier and all their shipments?')}`)
     if (!ok) return
     del.mutate(s.id, {
       onSuccess: () => {

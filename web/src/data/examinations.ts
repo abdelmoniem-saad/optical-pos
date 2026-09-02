@@ -23,7 +23,7 @@ export type PastExam = OrderExamination & { sale: Partial<Sale> }
 
 /**
  * Replace ALL of one sale's examinations (History order editor). Non-atomic
- * delete+reinsert — same parity as the rest of the multi-step flows until the
+ * delete+reinsert - same parity as the rest of the multi-step flows until the
  * RPC hardening lands. The customer profile reads these same rows, so edits
  * here are reflected there automatically.
  */

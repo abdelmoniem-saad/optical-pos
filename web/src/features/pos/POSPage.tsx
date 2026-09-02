@@ -58,7 +58,7 @@ function CurrentStep() {
 }
 
 /** Corner escape hatch: abandon the in-progress order and restart the wizard
- *  at the category screen — for when a new customer walks in mid-order.
+ *  at the category screen - for when a new customer walks in mid-order.
  *  Hidden while the wizard is pristine; asks before discarding progress. */
 function RestartButton() {
   const { t } = useI18n()
@@ -114,7 +114,7 @@ function POSInner() {
   return (
     <div className="flex min-h-full flex-col">
       {/* The site-wide 1.25× scale now lives on <html> (index.css), so no local
-          zoom here — it would compound into 1.56×. */}
+          zoom here - it would compound into 1.56×. */}
       <Stepper />
       <div className="flex-1">
         <CurrentStep />

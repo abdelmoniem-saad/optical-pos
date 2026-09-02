@@ -1,12 +1,49 @@
 import type { KeyboardEvent } from 'react'
 
 /**
- * Page-wide "Enter behaves like Tab" for POS forms.
+ * Excel-style arrow navigation between the numeric prescription cells.
+ * Attach to each numeric input and tag cells with `data-rxr` (row index) and
+ * `data-rxc` (column index).
  *
+ * Arrow keys only JUMP between cells while the value is fully selected (the
+ * state right after Enter/Tab) or empty - i.e. when you're "on" a cell rather
+ * than inside it. Once you start editing, arrows move the caret normally.
+ */
+export function rxArrowNav(e: KeyboardEvent<HTMLInputElement>): void {
+  const el = e.currentTarget
+  const row = Number(el.dataset.rxr)
+  const col = Number(el.dataset.rxc)
+  if (Number.isNaN(row) || Number.isNaN(col)) return
+
+  const empty = el.value.length === 0
+  const fullySelected =
+    !empty && el.selectionStart === 0 && el.selectionEnd === el.value.length
+  if (!empty && !fullySelected) return
+
+  let r = row
+  let c = col
+  if (e.key === 'ArrowRight') c += 1
+  else if (e.key === 'ArrowLeft') c -= 1
+  else if (e.key === 'ArrowUp') r -= 1
+  else if (e.key === 'ArrowDown') r += 1
+  else return
+
+  e.preventDefault()
+  const target = document.querySelector<HTMLInputElement>(
+    `[data-rxr="${r}"][data-rxc="${c}"]`,
+  )
+  if (target) {
+    target.focus()
+    target.select()
+  }
+}
+
+/**
+ * Page-wide "Enter behaves like Tab" for POS forms.
  * Attach this to a container's onKeyDown (see CartStep / CustomerStep).
  * Pressing Enter inside any editable input focuses the NEXT visible editable
  * field (and selects its text), so the cashier can run through the entire page
- * from the keyboard — prescription numbers, doctor name and the payment
+ * from the keyboard - prescription numbers, doctor name and the payment
  * amounts alike. Previously only the prescription table had a row-local copy
  * of this behaviour.
  *

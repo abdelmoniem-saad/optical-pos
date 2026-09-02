@@ -1,5 +1,5 @@
 // Arabic translations, keyed by the English source string. `t('English')`
-// returns the Arabic when lang==='ar', else the English key itself — so English
+// returns the Arabic when lang==='ar', else the English key itself - so English
 // needs no map and any missing Arabic falls back gracefully to English.
 // Domain terms are reused from the Flet app (app/core/i18n.py) so the wording
 // matches what the shop's staff already know.
@@ -103,8 +103,8 @@ export const ar: Record<string, string> = {
   'Matching customers': 'العملاء المطابقون',
   'Start typing a name to search…': 'ابدأ بكتابة الاسم للبحث…',
   'Searching…': 'جارٍ البحث…',
-  'No match — a new customer will be created when you continue.':
-    'لا يوجد تطابق — سيتم إنشاء عميل جديد عند المتابعة.',
+  'No match - a new customer will be created when you continue.':
+    'لا يوجد تطابق - سيتم إنشاء عميل جديد عند المتابعة.',
   'Please enter customer name.': 'يرجى إدخال اسم العميل.',
   'Could not save customer': 'تعذّر حفظ العميل',
   'Walk-in': 'عميل عابر',
@@ -133,10 +133,10 @@ export const ar: Record<string, string> = {
   'Could not prepare order': 'تعذّر تجهيز الطلب',
   'Previous Prescriptions': 'الوصفات السابقة',
   'Order Date': 'تاريخ الطلب',
-  'This frame quantity is 0 or below — you can still sell it.':
-    'كمية هذا الإطار صفر أو أقل — لا يزال بإمكانك بيعها.',
-  'Frame not found in inventory — it will be recorded with 0 quantity.':
-    'الإطار غير موجود في المخزون — سيتم تسجيله بكمية صفر.',
+  'This frame quantity is 0 or below - you can still sell it.':
+    'كمية هذا الإطار صفر أو أقل - لا يزال بإمكانك بيعها.',
+  'Frame not found in inventory - it will be recorded with 0 quantity.':
+    'الإطار غير موجود في المخزون - سيتم تسجيله بكمية صفر.',
 
   // Additional items
   'Step 3: Add More Items': 'الخطوة 3: إضافة المزيد من الأصناف',
@@ -238,8 +238,8 @@ export const ar: Record<string, string> = {
 
   // Staff screen
   'users': 'مستخدمون',
-  'New staff logins are created in Supabase Auth (dashboard, or a service-role Edge Function) — see':
-    'تُنشأ حسابات الموظفين في نظام مصادقة Supabase (لوحة التحكم) — راجع',
+  'New staff logins are created in Supabase Auth (dashboard, or a service-role Edge Function) - see':
+    'تُنشأ حسابات الموظفين في نظام مصادقة Supabase (لوحة التحكم) - راجع',
   'In-app staff creation lands in a later pass.':
     'سيُضاف إنشاء الموظفين داخل التطبيق لاحقاً.',
   "Couldn't load staff:": 'تعذّر تحميل الموظفين:',
@@ -255,8 +255,8 @@ export const ar: Record<string, string> = {
   Currency: 'العملة',
 
   // Offline
-  'Offline — showing cached data. Changes will sync when you reconnect.':
-    'غير متصل — يتم عرض بيانات مخزّنة. ستتم المزامنة عند عودة الاتصال.',
+  'Offline - showing cached data. Changes will sync when you reconnect.':
+    'غير متصل - يتم عرض بيانات مخزّنة. ستتم المزامنة عند عودة الاتصال.',
 
   // Optical settings
   'Optical Settings': 'إعدادات البصريات',
@@ -297,8 +297,8 @@ export const ar: Record<string, string> = {
   'Record each payment inside the shipment below.':
     'سجّل كل دفعة داخل الشحنة أدناه.',
   'Delete supplier and all their shipments?': 'حذف المورد وجميع شحناته؟',
-  'Payments ledger missing — run web/supabase/003_purchase_payments.sql in the Supabase SQL editor.':
-    'جدول الدفعات غير موجود — نفّذ ملف web/supabase/003_purchase_payments.sql في محرر SQL بـ Supabase.',
+  'Payments ledger missing - run web/supabase/003_purchase_payments.sql in the Supabase SQL editor.':
+    'جدول الدفعات غير موجود - نفّذ ملف web/supabase/003_purchase_payments.sql في محرر SQL بـ Supabase.',
 
   // Customer detail / prescriptions
   Orders: 'الطلبات',
@@ -334,6 +334,7 @@ export const ar: Record<string, string> = {
   delete: 'حذف',
   'You do not have access to this page.': 'ليست لديك صلاحية للوصول إلى هذه الصفحة.',
   'Load more': 'تحميل المزيد',
+  edited: 'معدلة',
   'Owner/admin positions always have full access.':
     'مناصب المالك/المدير تتمتع دائماً بكامل الصلاحيات.',
   'This person is an owner/admin, they always have full access, so there is nothing to configure.':

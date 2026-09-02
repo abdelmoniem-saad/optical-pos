@@ -8,7 +8,7 @@ export type SearchResults = {
   sales: Sale[]
 }
 
-/** Cross-entity search (customers, products, invoices) — the "giga search"
+/** Cross-entity search (customers, products, invoices) - the "giga search"
  *  from the Flet top bar. Runs once the term is >= 2 chars. */
 export function useGlobalSearch(term: string) {
   const q = term.trim().replace(/[,()]/g, ' ')

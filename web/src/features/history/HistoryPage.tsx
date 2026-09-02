@@ -43,7 +43,7 @@ export function HistoryPage() {
     return () => clearTimeout(id)
   }, [termInput])
 
-  // Server-filtered, paged feed — the browser only ever holds ~50 orders per
+  // Server-filtered, paged feed - the browser only ever holds ~50 orders per
   // page and loads more as you scroll, so the tab stays fast for years.
   const query = useInfiniteSales(range, term)
   const rows = useMemo(

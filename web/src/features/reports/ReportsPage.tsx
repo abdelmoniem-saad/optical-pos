@@ -43,7 +43,7 @@ function computeReport(
   const topCustomers = [...totals.entries()]
     .sort((a, b) => b[1] - a[1])
     .slice(0, 5)
-    .map(([id, total]) => ({ name: customers.find((c) => c.id === id)?.name ?? '—', total }))
+    .map(([id, total]) => ({ name: customers.find((c) => c.id === id)?.name ?? '-', total }))
 
   return {
     totalRevenue,

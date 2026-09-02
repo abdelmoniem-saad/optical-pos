@@ -33,7 +33,7 @@ function isInvoiceNoConflict(
 }
 
 /**
- * Lean sales feed for aggregate screens (Reports): header columns ONLY —
+ * Lean sales feed for aggregate screens (Reports): header columns ONLY -
  * deliberately WITHOUT sale_items, which dominate the payload as data grows.
  * Years of orders stay a few hundred KB this way.
  */
@@ -253,7 +253,7 @@ export type CreateSaleInput = {
  * Create a complete sale: header + line items + stock movements + examinations.
  * Mirrors repo.create_sale_order() / add_sale().
  *
- * NOTE: this runs as several sequential inserts and is therefore NOT atomic —
+ * NOTE: this runs as several sequential inserts and is therefore NOT atomic -
  * the same as the current Python implementation. Before go-live the whole
  * operation should move into a Postgres function (RPC) so a mid-way failure
  * can't leave a half-written order. Tracked for Phase 4/7 hardening.
@@ -401,7 +401,7 @@ export type UpdateSaleFullInput = CreateSaleInput & {
  * Replace an existing sale's contents after an in-place re-checkout: updates
  * the header, then swaps out sale_items / order_examinations and the sale's
  * stock movements (delete + reinsert). Like the create fallback this is NOT
- * atomic — a mid-way failure could leave partial rows; acceptable parity with
+ * atomic - a mid-way failure could leave partial rows; acceptable parity with
  * the legacy Flet flow until everything moves into a Postgres RPC.
  */
 export function useUpdateSaleFull() {
@@ -475,7 +475,7 @@ export function useUpdateSaleFull() {
       }
 
       // 4) Stock movements: replace THIS sale's movements. They carry no
-      //    sale_id column — ref_no holds the invoice number and type='sale'.
+      //    sale_id column - ref_no holds the invoice number and type='sale'.
       const { error: delMovErr } = await supabase
         .from('stock_movements')
         .delete()
@@ -526,7 +526,7 @@ export function useUpdateLabStatus() {
  *  must use these so colors and filters stay aligned across screens. */
 export const LAB_STATUSES = ['Not Started', 'In Lab', 'Ready', 'Received'] as const
 
-/** Badge classes per status — kept next to the vocabulary so they can't drift. */
+/** Badge classes per status - kept next to the vocabulary so they can't drift. */
 export const LAB_STATUS_COLORS: Record<string, string> = {
   'Not Started': 'bg-surface text-muted',
   'In Lab': 'bg-warning-bg text-warning',

@@ -59,7 +59,7 @@ export function useCustomerSearch(term: string) {
 /**
  * Extended search: customers matching name / city / phone, PLUS customers
  * whose SALES carry a matching doctor name. Everything runs server-side with
- * hard limits (50) so it stays fast no matter how large the tables grow — it
+ * hard limits (50) so it stays fast no matter how large the tables grow - it
  * never downloads the full customers/sales tables.
  */
 export type CustomerSearchHit = Customer & { matchedDoctors: string[] }
@@ -122,7 +122,7 @@ export function useCustomerSearchExtended(term: string) {
   })
 }
 
-/** Paged, name-ordered customer list — grows gracefully via "load more". */
+/** Paged, name-ordered customer list - grows gracefully via "load more". */
 export function useInfiniteCustomers(pageSize = 60) {
   return useInfiniteQuery({
     queryKey: [...KEY, 'paged'],

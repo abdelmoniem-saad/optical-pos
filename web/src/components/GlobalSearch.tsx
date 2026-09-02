@@ -65,7 +65,7 @@ export function GlobalSearch() {
           >
             <div className="flex items-center justify-between border-b border-line/40 px-4 py-3">
               <span className="font-semibold text-brand-dark">
-                {t('Search Results')} — “{term.trim()}”
+                {t('Search Results')} - “{term.trim()}”
               </span>
               <button onClick={() => setModalOpen(false)} className="text-faint hover:text-muted">
                 ✕

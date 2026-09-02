@@ -117,7 +117,7 @@ function GrantCell({
 }
 
 /**
- * Tri-state cell for a person: — inherit · ✓ allowed · ✕ denied.
+ * Tri-state cell for a person: - inherit · ✓ allowed · ✕ denied.
  * The background always shows the EFFECTIVE result after combining the
  * position default with this exception (green = can, red = cannot).
  */
@@ -133,7 +133,7 @@ function OverrideCell({
   onCycle: () => void
 }) {
   const { t } = useI18n()
-  // Inherit renders EMPTY — the green/red background already tells whether the
+  // Inherit renders EMPTY - the green/red background already tells whether the
   // person can actually do this. No dash glyphs anywhere.
   const glyph =
     state === undefined ? '' : state ? '✓' : '✕'
@@ -173,7 +173,7 @@ function PermissionMatrix({
 }: {
   grants?: Set<string> | string[]
   overrides?: Record<string, boolean>
-  /** Position grants of the SELECTED PERSON — used to tint effective results. */
+  /** Position grants of the SELECTED PERSON - used to tint effective results. */
   roleGrantsForEffective?: string[]
   disabled?: boolean
   onToggleGrant?: (permCode: string, next: boolean) => void
@@ -271,7 +271,7 @@ function AccessControl() {
   const grants = useRoleGrants(roleId)
   const overrides = useUserOverrides(userId)
 
-  // The selected person's position defaults — needed to show effective colors.
+  // The selected person's position defaults - needed to show effective colors.
   const selUser = users.data?.find((u) => u.id === userId)
   const userRoleGrants = useRoleGrants(selUser?.role_id ?? null)
   const empBypass =
@@ -366,7 +366,7 @@ function AccessControl() {
             <select className={selCls} value={userId ?? ''} onChange={(e) => setSelectedUserId(e.target.value)}>
               {editableUsers.map((u) => (
                 <option key={u.id} value={u.id}>
-                  {u.full_name || u.username} — {u.username}
+                  {u.full_name || u.username} - {u.username}
                 </option>
               ))}
             </select>
@@ -487,7 +487,7 @@ export function StaffPage() {
                 {people.map((u) => (
                   <tr key={u.id}>
                     <td className="px-4 py-2 font-medium">{u.username}</td>
-                    <td className="px-4 py-2 text-muted">{u.full_name ?? '—'}</td>
+                    <td className="px-4 py-2 text-muted">{u.full_name ?? '-'}</td>
                     <td className="px-4 py-2">
                       <select
                         value={u.role_id ?? ''}

@@ -5,7 +5,7 @@ import type { User } from '../lib/database.types'
 
 /** Staff users with their role joined. Mirrors repo.get_users().
  *  Note: creating/editing auth users is done via the Supabase dashboard or a
- *  service-role Edge Function (see supabase/SETUP.md) — not from the browser. */
+ *  service-role Edge Function (see supabase/SETUP.md) - not from the browser. */
 export function useUsers() {
   return useQuery({
     queryKey: ['users'],
@@ -25,8 +25,8 @@ export function useUsers() {
  * Resolve the signed-in auth user's public.users row.
  * Tries, in order:
  *   1. users.id === auth UID            (the convention for rows we create)
- *   2. users.username === email local   (links LEGACY desktop-era rows — e.g.
- *      the seeded 'admin' — to their auth account without touching their PK)
+ *   2. users.username === email local   (links LEGACY desktop-era rows - e.g.
+ *      the seeded 'admin' - to their auth account without touching their PK)
  * Returns null when neither matches.
  */
 async function queryStaffRow(uid: string, username: string): Promise<User | null> {
@@ -60,7 +60,7 @@ export function useCurrentUser() {
 }
 
 /**
- * Same resolution as useCurrentUser, as a plain function — used where hooks
+ * Same resolution as useCurrentUser, as a plain function - used where hooks
  * can't run (e.g. inside checkout) to stamp sales.user_id. Works for BOTH
  * auth-keyed rows and linked legacy rows, so invoices attribute correctly
  * even on databases migrated from the desktop version.

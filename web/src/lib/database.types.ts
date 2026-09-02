@@ -2,7 +2,7 @@
 //
 // These are hand-derived from how app/database/repository.py reads/writes each
 // table, so they cover every column the app actually uses. They are NOT
-// auto-generated — for the authoritative shape (exact nullability/types of
+// auto-generated - for the authoritative shape (exact nullability/types of
 // every column), run `npm run gen:types` once you have a Supabase access token
 // (see scripts in package.json). TypeScript will flag any drift at build time.
 
@@ -17,7 +17,7 @@ export interface User {
   full_name: string | null
   role_id: string | null
   is_active: boolean | null
-  // Legacy — Supabase Auth now owns passwords; present only on old rows.
+  // Legacy - Supabase Auth now owns passwords; present only on old rows.
   password_hash?: string | null
   // Present when selected with `*, roles(*)`.
   roles?: Role | null
@@ -97,10 +97,10 @@ export interface Sale {
   sale_items?: SaleItem[]
   // Present when selected with `*, order_examinations(*)`.
   order_examinations?: OrderExamination[]
-  // Present when selected with `*, users(full_name, username)` — the staff
+  // Present when selected with `*, users(full_name, username)` - the staff
   // member who made the sale (null on legacy/unattributed invoices).
   users?: Pick<User, 'id' | 'username' | 'full_name'> | null
-  // Present when selected with `customers(name)` — display name only.
+  // Present when selected with `customers(name)` - display name only.
   customers?: Pick<Customer, 'name'> | null
 }
 export type SaleInsert = Omit<
@@ -144,6 +144,8 @@ export interface Note {
   created_by: string | null
   body: string
   created_at: string | null
+  // Set when the note body was edited after creation.
+  updated_at: string | null
 }
 export type OrderExaminationInsert = Omit<OrderExamination, 'id'>
 

@@ -40,7 +40,7 @@ export function CartStep() {
       <div className="mb-1 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
         <h2 className="text-xl font-bold text-brand-dark">{stepTitle}</h2>
         <div className="flex items-baseline gap-3">
-          {/* The customer's name stays visible while selling — highlighted,
+          {/* The customer's name stays visible while selling - highlighted,
               no longer the tiny muted line it used to be. */}
           {state.customer && (
             <span className="text-lg font-bold text-brand-dark">

@@ -11,7 +11,7 @@ import {
   syncExamReferences,
 } from '../../data/metadata'
 import { useInventory } from '../../data/inventory'
-import { enterMovesNext } from '../pos/enterNav'
+import { enterMovesNext, rxArrowNav } from '../pos/enterNav'
 import { emptyExam, type Exam } from '../pos/types'
 import type { Sale } from '../../lib/database.types'
 
@@ -24,7 +24,7 @@ const small =
  * order_examinations, so the customer profile reflects them automatically.
  * Lens / Frame / Color fields are plain datalist combos (press to see options,
  * live narrowing while typing). NOTHING is written to the settings lists while
- * editing — on Save, syncExamReferences adds newly typed values and removes
+ * editing - on Save, syncExamReferences adds newly typed values and removes
  * replaced ones (when no other order still uses them); orphaned app-created
  * frame products are cleaned up. Quantities are never auto-changed here.
  */
@@ -84,7 +84,7 @@ export function EditOrderForm({ sale, onDone }: { sale: Sale; onDone: () => void
           delivery_date: form.delivery_date || null,
         },
       })
-      // Only rewrite prescriptions when they were actually loaded — never
+      // Only rewrite prescriptions when they were actually loaded - never
       // clobber them because of a fetch hiccup.
       if (rows !== null && !examsQ.isError) {
         await replaceExams.mutateAsync(rows)
@@ -153,8 +153,8 @@ export function EditOrderForm({ sale, onDone }: { sale: Sale; onDone: () => void
             value={form.lab_status ?? ''}
             onChange={(e) => setForm({ ...form, lab_status: e.target.value })}
           >
-            <option value="">—</option>
-            {/* Same vocabulary as the Lab tab — nothing else, so statuses and
+            <option value="">-</option>
+            {/* Same vocabulary as the Lab tab - nothing else, so statuses and
                 their colors stay aligned across screens. */}
             {LAB_STATUSES.map((st) => (
               <option key={st} value={st}>
@@ -211,14 +211,17 @@ export function EditOrderForm({ sale, onDone }: { sale: Sale; onDone: () => void
               <div className="flex items-end gap-1 rounded-md bg-white p-1">
                 {(
                   [
-                    ['R.SPH', 'sphere_od'],
-                    ['R.CYL', 'cylinder_od'],
-                    ['R.AX', 'axis_od', 'w-14'],
+                    ['R.SPH', 'sphere_od', 0],
+                    ['R.CYL', 'cylinder_od', 1],
+                    ['R.AX', 'axis_od', 2, 'w-14'],
                   ] as const
-                ).map(([label, key, w]) => (
+                ).map(([label, key, col, w]) => (
                   <label className="flex flex-col" key={label}>
                     <span className="mb-0.5 text-[10px] font-semibold text-faint">{label}</span>
                     <input
+                      data-rxr={i}
+                      data-rxc={col}
+                      onKeyDown={rxArrowNav}
                       className={`${small} ${w ?? 'w-16'}`}
                       value={String(row[key] ?? '')}
                       onChange={(e) => upd(i, { [key]: e.target.value } as Partial<Exam>)}
@@ -229,14 +232,17 @@ export function EditOrderForm({ sale, onDone }: { sale: Sale; onDone: () => void
               <div className="flex items-end gap-1 rounded-md bg-white p-1">
                 {(
                   [
-                    ['L.SPH', 'sphere_os'],
-                    ['L.CYL', 'cylinder_os'],
-                    ['L.AX', 'axis_os', 'w-14'],
+                    ['L.SPH', 'sphere_os', 3],
+                    ['L.CYL', 'cylinder_os', 4],
+                    ['L.AX', 'axis_os', 5, 'w-14'],
                   ] as const
-                ).map(([label, key, w]) => (
+                ).map(([label, key, col, w]) => (
                   <label className="flex flex-col" key={label}>
                     <span className="mb-0.5 text-[10px] font-semibold text-faint">{label}</span>
                     <input
+                      data-rxr={i}
+                      data-rxc={col}
+                      onKeyDown={rxArrowNav}
                       className={`${small} ${w ?? 'w-16'}`}
                       value={String(row[key] ?? '')}
                       onChange={(e) => upd(i, { [key]: e.target.value } as Partial<Exam>)}
@@ -247,13 +253,16 @@ export function EditOrderForm({ sale, onDone }: { sale: Sale; onDone: () => void
               <label className="flex flex-col">
                 <span className="mb-0.5 text-[10px] font-semibold text-faint">IPD</span>
                 <input
+                  data-rxr={i}
+                  data-rxc={6}
+                  onKeyDown={rxArrowNav}
                   className={`${small} w-14`}
                   value={String(row.ipd ?? '')}
                   onChange={(e) => upd(i, { ipd: e.target.value })}
                 />
               </label>
 
-              {/* Lens Type — narrows over saved lens types; new names are added. */}
+              {/* Lens Type - narrows over saved lens types; new names are added. */}
               <label className="flex flex-col">
                 <span className="mb-0.5 text-[10px] font-semibold text-faint">{t('Lens Type')}</span>
                 <input
@@ -269,7 +278,7 @@ export function EditOrderForm({ sale, onDone }: { sale: Sale; onDone: () => void
                 </datalist>
               </label>
 
-              {/* Frame — narrows over inventory Frames; unknown names become products. */}
+              {/* Frame - narrows over inventory Frames; unknown names become products. */}
               <label className="flex flex-col">
                 <span className="mb-0.5 text-[10px] font-semibold text-faint">{t('Frame')}</span>
                 <input
@@ -285,7 +294,7 @@ export function EditOrderForm({ sale, onDone }: { sale: Sale; onDone: () => void
                 </datalist>
               </label>
 
-              {/* Color — narrows over saved colors; new names are added. */}
+              {/* Color - narrows over saved colors; new names are added. */}
               <label className="flex flex-col">
                 <span className="mb-0.5 text-[10px] font-semibold text-faint">{t('Color')}</span>
                 <input

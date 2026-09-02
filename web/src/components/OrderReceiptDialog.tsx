@@ -76,7 +76,7 @@ export function OrderReceiptDialog({ sale, onClose }: { sale: Sale; onClose: () 
       invoiceNo: sale.invoice_no,
       doctorName: sale.doctor_name ?? '',
       deliveryDate: sale.delivery_date ?? '',
-      // Reprint of an already-saved order — not an in-place re-checkout.
+      // Reprint of an already-saved order - not an in-place re-checkout.
       isUpdate: false,
     }),
     [sale, customer.data, exams, net, paid],
@@ -92,7 +92,7 @@ export function OrderReceiptDialog({ sale, onClose }: { sale: Sale; onClose: () 
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-3 text-center text-lg font-bold text-brand-dark">
-          {t('Print')} — <span className="rcpt-num">#</span>
+          {t('Print')} - <span className="rcpt-num">#</span>
           {sale.invoice_no}
         </div>
 

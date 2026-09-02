@@ -111,7 +111,7 @@ function AppShell() {
 }
 
 export function AppLayout() {
-  // The provider needs auth context, which wraps this route — so it lives
+  // The provider needs auth context, which wraps this route - so it lives
   // here rather than at the router root.
   return (
     <PermissionsProvider>

@@ -41,9 +41,9 @@ function isMissingTable(error: { code?: string; message?: string } | null): bool
 }
 
 function missingTableError(): Error {
-  // The message doubles as an i18n key — see translations.ts.
+  // The message doubles as an i18n key - see translations.ts.
   return new Error(
-    'Payments ledger missing — run web/supabase/003_purchase_payments.sql in the Supabase SQL editor.',
+    'Payments ledger missing - run web/supabase/003_purchase_payments.sql in the Supabase SQL editor.',
   )
 }
 
@@ -87,7 +87,7 @@ export function useUpdateSupplier() {
 
 /**
  * Delete a supplier AND their shipments. The FK has no ON DELETE CASCADE, so
- * deleting only the supplier fails whenever shipments exist — we therefore
+ * deleting only the supplier fails whenever shipments exist - we therefore
  * remove the shipments ourselves first (their purchase_items/payments cascade
  * server-side). Returns how many shipments were removed for the confirm flow.
  */
@@ -148,7 +148,7 @@ export function useAddPurchase() {
 
 // ---- payment ledger (migration 003) ----
 
-/** Every recorded payment — powers the per-supplier outstanding badges. */
+/** Every recorded payment - powers the per-supplier outstanding badges. */
 export function useAllPurchasePayments() {
   return useQuery({
     queryKey: [...PAYMENTS_KEY, 'all'],

@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
+import { resolveStaffUserId } from './staff'
 import type { Note } from '../lib/database.types'
 
 const KEY = ['notes'] as const
@@ -45,14 +46,29 @@ export function useAddNote() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: async ({ body, userId }: { body: string; userId: string | null }): Promise<void> => {
-      let createdBy: string | null = null
-      const { data: me } = await supabase.auth.getUser()
-      if (me.user?.id) createdBy = me.user.id
+      // Resolve the STAFF row id (not the raw auth UUID) - accounts linked via
+      // their legacy username have no auth-keyed users row, and using the raw
+      // auth UUID here would violate the created_by FK and block the note.
+      const createdBy = await resolveStaffUserId()
       const { error } = await supabase.from('notes').insert({
         body: body.trim(),
         user_id: userId,
         created_by: createdBy,
       })
+      if (error) throw error
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: KEY }),
+  })
+}
+
+export function useUpdateNote() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ id, body }: { id: string; body: string }): Promise<void> => {
+      const { error } = await supabase
+        .from('notes')
+        .update({ body: body.trim(), updated_at: new Date().toISOString() })
+        .eq('id', id)
       if (error) throw error
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: KEY }),

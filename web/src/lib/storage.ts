@@ -1,7 +1,7 @@
 import { supabase } from './supabase'
 
 // Supabase Storage bucket for prescription/reading images. Create it once in the
-// dashboard (Storage → New bucket → name "prescriptions", Public) — see
+// dashboard (Storage → New bucket → name "prescriptions", Public) - see
 // web/supabase/SETUP.md.
 const BUCKET = 'prescriptions'
 

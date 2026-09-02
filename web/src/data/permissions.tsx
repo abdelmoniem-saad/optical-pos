@@ -113,7 +113,7 @@ async function permissionIdByCode(codeStr: string): Promise<string> {
     .maybeSingle<{ id: string }>()
   if (error) throw error
   if (!data) {
-    // Unknown code (migration 004 not run / newer app) — create it on the fly.
+    // Unknown code (migration 004 not run / newer app) - create it on the fly.
     const { data: created, error: insErr } = await supabase
       .from('permissions')
       .insert({ code: codeStr })
@@ -239,7 +239,7 @@ export function PermissionsProvider({ children }: { children: ReactNode }) {
     // Break-glass #1: no staff record could be resolved for this account
     // (lookup failure / never linked). Never brick a login over bookkeeping.
     // Break-glass #2: an account WITHOUT any position is treated as fully
-    // trusted too — access control applies to people actually placed in a
+    // trusted too - access control applies to people actually placed in a
     // position by the admin.
     if (!me.data || me.isError || !me.data.role_id) {
       return { loading: false, isAdmin: false, can: () => true }

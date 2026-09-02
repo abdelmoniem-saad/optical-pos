@@ -51,7 +51,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   // Keep a `users` row linked to the signed-in auth user so invoices can be
-  // attributed (sales.user_id → users.id, keyed BY the auth UUID — the same
+  // attributed (sales.user_id → users.id, keyed BY the auth UUID - the same
   // convention staff.ts::useCurrentUser relies on).
   useEffect(() => {
     const u = session?.user
@@ -107,8 +107,8 @@ export function displayName(user: User | null): string {
  * be attributed and roles/permissions apply.
  *
  * Resolution order (mirrors staff.ts):
- *   1. A row keyed by the auth UID — keep its display name fresh.
- *   2. A LEGACY row whose username equals the email local-part — leave it as
+ *   1. A row keyed by the auth UID - keep its display name fresh.
+ *   2. A LEGACY row whose username equals the email local-part - leave it as
  *      is; it already carries the correct role (this is what makes the seeded
  *      'admin' account work).
  *   3. Otherwise create one, auto-assigning the Admin position when the
@@ -134,7 +134,7 @@ async function ensureStaffRecord(user: User): Promise<void> {
       return
     }
 
-    // 2) Legacy row with the same username? Adopt silently — its role is the
+    // 2) Legacy row with the same username? Adopt silently - its role is the
     //    source of truth and sales can reference its existing PK safely.
     const { data: byName } = await supabase
       .from('users')
@@ -169,6 +169,6 @@ async function ensureStaffRecord(user: User): Promise<void> {
       is_active: true,
     })
   } catch {
-    // Attribution is best-effort — never block login over it.
+    // Attribution is best-effort - never block login over it.
   }
 }

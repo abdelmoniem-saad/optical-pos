@@ -33,7 +33,7 @@ export function CustomerDetailPage() {
           <h1 className="text-2xl font-semibold text-brand-dark">
             {c?.name ?? t('Loading…')}
           </h1>
-          {/* Address intentionally omitted — city is enough per requirements. */}
+          {/* Address intentionally omitted - city is enough per requirements. */}
           <div className="mb-6 text-sm text-muted">
             {[c?.phone, c?.city, c?.email].filter(Boolean).join(' · ')}
           </div>
@@ -48,7 +48,7 @@ export function CustomerDetailPage() {
         )}
       </div>
 
-      {/* Orders — prescriptions live inside each order's expanded panel, so
+      {/* Orders - prescriptions live inside each order's expanded panel, so
           the standalone "Prescriptions" section is no longer shown here. */}
       <h2 className="mb-2 text-lg font-semibold text-brand-dark">
         {t('Orders')}{' '}
@@ -100,7 +100,7 @@ export function CustomerDetailPage() {
                     <span>{t('Paid')} {fmt(paid)}</span>
                     <span>{t('Balance')} {fmt(bal)}</span>
                   </div>
-                  {/* Compact one-row layout — multiple Rx on the same order
+                  {/* Compact one-row layout - multiple Rx on the same order
                       don't need much space per the updated design. */}
                   <ExamList exams={o.order_examinations ?? []} compact />
                   <button
@@ -125,7 +125,7 @@ export function CustomerDetailPage() {
 }
 
 /** Edit a customer's contact details. Address is intentionally not offered
- *  here — the shop only tracks city per the updated requirements. */
+ *  here - the shop only tracks city per the updated requirements. */
 function EditCustomerDialog({
   customer,
   onClose,

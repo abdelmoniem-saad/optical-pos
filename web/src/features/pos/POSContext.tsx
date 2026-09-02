@@ -204,7 +204,7 @@ export function POSProvider({ children }: { children: ReactNode }) {
 
   /**
    * Persist customer-field edits (order-step editors / customer step).
-   * Edits ALWAYS update the SAME customer record — renaming here never
+   * Edits ALWAYS update the SAME customer record - renaming here never
    * spawns a duplicate customer.
    */
   async function saveCustomerEdits(p: Partial<CustomerDraft>) {
@@ -230,7 +230,7 @@ export function POSProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  /** Entering the cart keeps the SAME invoice number — never burn a new one. */
+  /** Entering the cart keeps the SAME invoice number - never burn a new one. */
   async function enterAfterCustomer(customer: Customer) {
     let invoiceNo = ref.current.invoiceNo
     if (invoiceNo && !ref.current.savedSale) {
@@ -427,7 +427,7 @@ export function POSProvider({ children }: { children: ReactNode }) {
     try {
       const cartItems = await addNewFramesFromExams(s.cartItems, s.examinations)
       // Settings sync (lens types / frame colors used by this order) happens
-      // HERE at confirmation — typing during the wizard never touches them.
+      // HERE at confirmation - typing during the wizard never touches them.
       // Missing frame products are created by addNewFramesFromExams above.
       await addMissingOrderMetadata(s.examinations)
       const t = computeTotals(cartItems, {
