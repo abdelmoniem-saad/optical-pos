@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import type {
   OrderExaminationInsert,
@@ -32,18 +32,110 @@ function isInvoiceNoConflict(
   )
 }
 
-/** All sales with their line items. Mirrors repo.get_sales(). */
-export function useSales() {
+/**
+ * Lean sales feed for aggregate screens (Reports): header columns ONLY —
+ * deliberately WITHOUT sale_items, which dominate the payload as data grows.
+ * Years of orders stay a few hundred KB this way.
+ */
+export function useSalesSummary() {
   return useQuery({
     queryKey: KEY,
     queryFn: async (): Promise<Sale[]> => {
       const { data, error } = await supabase
         .from('sales')
-        .select('*, sale_items(*), users(full_name, username)')
+        .select(
+          'id, invoice_no, customer_id, total_amount, discount, net_amount, amount_paid, order_date, delivery_date, lab_status',
+        )
         .order('order_date', { ascending: false })
         .returns<Sale[]>()
       if (error) throw error
       return data ?? []
+    },
+  })
+}
+
+function localDate(d = new Date()): string {
+  const p = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`
+}
+
+/** Search terms must not inject PostgREST or-syntax. */
+function sanitizeTerm(t: string): string {
+  return t.replace(/[,()]/g, ' ').trim()
+}
+
+const SALES_PAGE = 50
+export type SalesRange = 'all' | 'today' | 'month'
+
+/**
+ * Paged, server-filtered sales feed for History. Loads SALES_PAGE orders at a
+ * time (newest first) and grows gracefully: filters run in Postgres (date
+ * range, invoice-number match, or customer-name match resolved to ids), so
+ * the browser never downloads the whole table.
+ */
+export function useInfiniteSales(range: SalesRange, term: string) {
+  const t = sanitizeTerm(term)
+  return useInfiniteQuery({
+    queryKey: [...KEY, 'paged', range, t],
+    initialPageParam: 0,
+    queryFn: async ({ pageParam }): Promise<{ rows: Sale[]; count: number }> => {
+      const offset = (pageParam as number) * SALES_PAGE
+      let q = supabase
+        .from('sales')
+        .select(
+          'id, invoice_no, customer_id, user_id, total_amount, discount, net_amount, amount_paid, payment_method, order_date, delivery_date, doctor_name, lab_status, users(full_name, username), customers(name)',
+          { count: 'exact' },
+        )
+        .order('order_date', { ascending: false })
+        .range(offset, offset + SALES_PAGE - 1)
+      if (range === 'today') q = q.gte('order_date', `${localDate()}T00:00:00`)
+      else if (range === 'month') q = q.gte('order_date', `${localDate().slice(0, 8)}01T00:00:00`)
+      if (t) {
+        const { data: custs } = await supabase
+          .from('customers')
+          .select('id')
+          .ilike('name', `%${t}%`)
+          .limit(50)
+        const ids = (custs ?? []).map((c) => c.id)
+        const parts = [`invoice_no.ilike.%${t}%`]
+        if (ids.length) parts.push(`customer_id.in.(${ids.join(',')})`)
+        q = q.or(parts.join(','))
+      }
+      const { data, error, count } = await q.returns<Sale[]>()
+      if (error) throw error
+      return { rows: data ?? [], count: count ?? 0 }
+    },
+    getNextPageParam: (last, all) => {
+      const loaded = all.reduce((sum, p) => sum + p.rows.length, 0)
+      return loaded < last.count ? all.length : undefined
+    },
+  })
+}
+
+/** Paged lab feed: only orders that have a lab status, filtered in Postgres. */
+export function useInfiniteLabSales(status: string) {
+  return useInfiniteQuery({
+    queryKey: [...KEY, 'lab', status],
+    initialPageParam: 0,
+    queryFn: async ({ pageParam }): Promise<{ rows: Sale[]; count: number }> => {
+      const offset = (pageParam as number) * SALES_PAGE
+      let q = supabase
+        .from('sales')
+        .select(
+          'id, invoice_no, customer_id, total_amount, net_amount, amount_paid, order_date, delivery_date, lab_status, customers(name)',
+          { count: 'exact' },
+        )
+        .not('lab_status', 'is', null)
+        .order('order_date', { ascending: false })
+        .range(offset, offset + SALES_PAGE - 1)
+      if (status !== 'All') q = q.eq('lab_status', status)
+      const { data, error, count } = await q.returns<Sale[]>()
+      if (error) throw error
+      return { rows: data ?? [], count: count ?? 0 }
+    },
+    getNextPageParam: (last, all) => {
+      const loaded = all.reduce((sum, p) => sum + p.rows.length, 0)
+      return loaded < last.count ? all.length : undefined
     },
   })
 }
@@ -458,16 +550,19 @@ export function useUpdateSale() {
         sale_items: _si,
         order_examinations: _oe,
         users: _u,
+        customers: _c,
         id: _id,
         ...clean
       } = patch as Partial<Sale> & {
         sale_items?: unknown
         order_examinations?: unknown
         users?: unknown
+        customers?: unknown
       }
       void _si
       void _oe
       void _u
+      void _c
       void _id
       const { error } = await supabase.from('sales').update(clean).eq('id', id)
       if (error) throw error

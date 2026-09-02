@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { useSales } from '../../data/sales'
+import { useSalesSummary } from '../../data/sales'
 import { useCustomers } from '../../data/customers'
 import { useInventory } from '../../data/inventory'
 import { useI18n } from '../../i18n/LanguageContext'
@@ -95,7 +95,9 @@ function Kpi({
 
 export function ReportsPage() {
   const { t } = useI18n()
-  const sales = useSales()
+  // Lean header-only feed: Reports aggregates totals, it never needs the
+  // (payload-heavy) line items, so this stays cheap as data grows.
+  const sales = useSalesSummary()
   const customers = useCustomers()
   const inv = useInventory()
   const [period, setPeriod] = useState<Period>('all')

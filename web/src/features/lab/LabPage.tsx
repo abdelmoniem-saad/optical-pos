@@ -1,6 +1,10 @@
-import { useMemo, useState } from 'react'
-import { useSales, useUpdateLabStatus, LAB_STATUSES, LAB_STATUS_COLORS } from '../../data/sales'
-import { useCustomers } from '../../data/customers'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import {
+  useInfiniteLabSales,
+  useUpdateLabStatus,
+  LAB_STATUSES,
+  LAB_STATUS_COLORS,
+} from '../../data/sales'
 import { useOrderExaminations } from '../../data/examinations'
 import { useI18n } from '../../i18n/LanguageContext'
 import { OrderReceiptDialog } from '../../components/OrderReceiptDialog'
@@ -26,22 +30,32 @@ function ExamLines({ saleId }: { saleId: string }) {
 
 export function LabPage() {
   const { t } = useI18n()
-  const sales = useSales()
-  const customers = useCustomers()
   const updateStatus = useUpdateLabStatus()
   const [filter, setFilter] = useState<string>('All')
   const [reprint, setReprint] = useState<Sale | null>(null)
 
-  const nameById = useMemo(() => {
-    const m = new Map<string, string>()
-    for (const c of customers.data ?? []) m.set(c.id, c.name)
-    return m
-  }, [customers.data])
+  // Paged server feed — only orders WITH a lab status, 50 at a time.
+  const query = useInfiniteLabSales(filter)
+  const rows = useMemo(
+    () => query.data?.pages.flatMap((p) => p.rows) ?? [],
+    [query.data],
+  )
+  const total = query.data?.pages[query.data.pages.length - 1]?.count ?? 0
 
-  const labOrders = useMemo(() => {
-    const list = (sales.data ?? []).filter((s) => s.lab_status)
-    return filter === 'All' ? list : list.filter((s) => s.lab_status === filter)
-  }, [sales.data, filter])
+  // Auto-load the next page when the sentinel scrolls into view.
+  const sentinelRef = useRef<HTMLDivElement | null>(null)
+  useEffect(() => {
+    const el = sentinelRef.current
+    if (!el || !query.hasNextPage || query.isFetchingNextPage) return
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((en) => en.isIntersecting)) void query.fetchNextPage()
+      },
+      { rootMargin: '300px' },
+    )
+    io.observe(el)
+    return () => io.disconnect()
+  }, [query])
 
   return (
     <div className="mx-auto max-w-5xl p-6">
@@ -59,24 +73,32 @@ export function LabPage() {
         </select>
       </div>
 
-      {sales.isError && (
+      <p className="mb-4 text-sm text-muted">
+        {query.isLoading
+          ? t('Loading…')
+          : `${rows.length}${total > rows.length ? ` / ${total}` : ''} ${t('orders')}`}
+      </p>
+
+      {query.isError && (
         <div className="rounded-lg bg-warning-bg px-3 py-2 text-sm text-warning">
-          {t("Couldn't load sales:")} {String(sales.error)}
+          {t("Couldn't load sales:")} {String(query.error)}
         </div>
       )}
 
-      {labOrders.length === 0 ? (
+      {rows.length === 0 && !query.isLoading ? (
         <p className="text-sm text-faint">{t('No lab orders.')}</p>
       ) : (
         <div className="space-y-2">
-          {labOrders.map((s) => (
+          {rows.map((s) => (
             <div key={s.id} className="rounded-xl border border-line bg-white p-4">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <div className="font-semibold">
                     #{s.invoice_no}{' '}
                     <span className="font-normal text-muted">
-                      {s.customer_id ? nameById.get(s.customer_id) ?? t('Customer') : t('Walk-in')}
+                      {s.customer_id
+                        ? s.customers?.name ?? t('Customer')
+                        : t('Walk-in')}
                     </span>
                   </div>
                   <div className="text-xs text-faint">{(s.order_date ?? '').slice(0, 10)}</div>
@@ -108,6 +130,13 @@ export function LabPage() {
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Sentinel: entering the viewport loads the next page automatically. */}
+      {query.hasNextPage && (
+        <div ref={sentinelRef} className="p-4 text-center text-xs text-faint">
+          {query.isFetchingNextPage ? t('Loading…') : ''}
         </div>
       )}
 

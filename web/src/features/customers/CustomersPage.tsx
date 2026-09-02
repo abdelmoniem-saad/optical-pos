@@ -1,24 +1,24 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import {
   CustomerHasRelatedRecordsError,
-  useCustomers,
   useCustomerSearchExtended,
   useDeleteCustomer,
+  useInfiniteCustomers,
 } from '../../data/customers'
 import { useIsAdmin } from '../../data/staff'
 import { usePermissions } from '../../data/permissions'
 import { useI18n } from '../../i18n/LanguageContext'
 
-/** Customers list + search. Customers are created only by making an order
- *  (POS wizard), so there is no "Add Customer" action here. Deletion is
- *  restricted to Admin/Owner roles and gracefully surfaces the FK error
- *  when a customer has existing orders or prescriptions. */
+/** Customers list + search. The DEFAULT list is paged server-side and grows
+ *  via "Load more"; search runs entirely server-side with hard limits, so
+ *  neither path slows down as the tables grow. Deletion is restricted to
+ *  Admin/Owner roles (or a granted customers.delete permission). */
 export function CustomersPage() {
   const { t, lang } = useI18n()
   const [params] = useSearchParams()
   const [term, setTerm] = useState(params.get('q') ?? '')
-  const all = useCustomers()
+  const all = useInfiniteCustomers()
   const search = useCustomerSearchExtended(term)
   const del = useDeleteCustomer()
   // Admins always can; otherwise a granted customers.delete permission works.
@@ -26,12 +26,22 @@ export function CustomersPage() {
   const isAdmin = useIsAdmin() || perms.can('customers.delete' as never)
 
   const searching = term.trim().length >= 2
+  const rows = useMemo(() => {
+    if (searching) {
+      return (search.data ?? []).map((c) => ({
+        ...c,
+        matchedDoctors: c.matchedDoctors ?? [],
+      }))
+    }
+    return (all.data?.pages.flatMap((p) => p.rows) ?? []).map((c) => ({
+      ...c,
+      matchedDoctors: [] as string[],
+    }))
+  }, [searching, search.data, all.data])
+  const total = searching
+    ? rows.length
+    : (all.data?.pages[all.data.pages.length - 1]?.count ?? 0)
   const active = searching ? search : all
-  const rows = (active.data ?? []).map((c) => ({
-    ...c,
-    matchedDoctors:
-      (c as { matchedDoctors?: string[] }).matchedDoctors ?? [],
-  }))
 
   async function onDelete(id: string, name: string) {
     if (!window.confirm(t('Delete customer') + ` "${name}"?`)) return
@@ -78,7 +88,7 @@ export function CustomersPage() {
         <h1 className="text-2xl font-semibold text-brand-dark">{t('Customers')}</h1>
       </div>
       <p className="mb-5 text-sm text-muted">
-        {all.data ? `${all.data.length} ${t('total')}` : t('Loading…')}
+        {all.data || search.data ? `${total} ${t('total')}` : t('Loading…')}
       </p>
 
       <input
@@ -139,6 +149,18 @@ export function CustomersPage() {
           </li>
         ))}
       </ul>
+
+      {!searching && all.hasNextPage && (
+        <div className="p-3 text-center">
+          <button
+            onClick={() => all.fetchNextPage()}
+            disabled={all.isFetchingNextPage}
+            className="rounded-lg border border-line px-4 py-2 text-sm text-muted hover:bg-surface disabled:opacity-50"
+          >
+            {all.isFetchingNextPage ? t('Loading…') : t('Load more')}
+          </button>
+        </div>
+      )}
     </div>
   )
 }

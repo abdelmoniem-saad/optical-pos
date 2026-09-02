@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import type { Customer, CustomerInsert } from '../lib/database.types'
 
@@ -56,68 +56,91 @@ export function useCustomerSearch(term: string) {
   })
 }
 
-/** Extended search: matches a customer by name / city / phone, and also by
- *  the doctor name attached to any of their sales. Returns each matching
- *  customer with the list of unique doctor names that matched the term (used
- *  to render "Dr. …" under the phone). Client-side filtering is fine given
- *  the shop's data volume — mirrors what the Flet app does on the desktop. */
+/**
+ * Extended search: customers matching name / city / phone, PLUS customers
+ * whose SALES carry a matching doctor name. Everything runs server-side with
+ * hard limits (50) so it stays fast no matter how large the tables grow — it
+ * never downloads the full customers/sales tables.
+ */
 export type CustomerSearchHit = Customer & { matchedDoctors: string[] }
 
 export function useCustomerSearchExtended(term: string) {
-  const trimmed = term.trim()
+  const q = term.replace(/[,()]/g, ' ').trim()
   return useQuery({
-    queryKey: [...KEY, 'search-ext', trimmed],
-    enabled: trimmed.length >= 2,
+    queryKey: [...KEY, 'search-ext', q],
+    enabled: q.length >= 2,
     queryFn: async (): Promise<CustomerSearchHit[]> => {
-      const q = trimmed.toLowerCase()
-      const { data: customers, error: cErr } = await supabase
-        .from('customers')
-        .select('*')
-        .order('name')
-        .returns<Customer[]>()
-      if (cErr) throw cErr
-      const { data: sales, error: sErr } = await supabase
-        .from('sales')
-        .select('customer_id, doctor_name')
-        .not('customer_id', 'is', null)
-        .returns<{ customer_id: string; doctor_name: string | null }[]>()
-      if (sErr) throw sErr
+      const like = `%${q}%`
+      const [custRes, docRes] = await Promise.all([
+        supabase
+          .from('customers')
+          .select('*')
+          .or(`name.ilike.${like},city.ilike.${like},phone.ilike.${like}`)
+          .order('name')
+          .limit(50)
+          .returns<Customer[]>(),
+        supabase
+          .from('sales')
+          .select('customer_id, doctor_name')
+          .ilike('doctor_name', like)
+          .limit(50)
+          .returns<{ customer_id: string | null; doctor_name: string | null }[]>(),
+      ])
+      if (custRes.error) throw custRes.error
+      if (docRes.error) throw docRes.error
 
-      // Group all doctor names per customer for doctor-name matching.
+      const byId = new Map<string, Customer>()
+      for (const c of custRes.data ?? []) byId.set(c.id, c)
+
       const doctorsByCustomer = new Map<string, string[]>()
-      for (const s of sales ?? []) {
+      const missing: string[] = []
+      for (const s of docRes.data ?? []) {
         if (!s.customer_id || !s.doctor_name) continue
-        const arr = doctorsByCustomer.get(s.customer_id) ?? []
-        arr.push(s.doctor_name)
-        doctorsByCustomer.set(s.customer_id, arr)
+        const list = doctorsByCustomer.get(s.customer_id) ?? []
+        if (!list.includes(s.doctor_name)) list.push(s.doctor_name)
+        doctorsByCustomer.set(s.customer_id, list)
+        if (!byId.has(s.customer_id)) missing.push(s.customer_id)
       }
 
-      const hits: CustomerSearchHit[] = []
-      for (const c of customers ?? []) {
-        const inField = (v: string | null | undefined) =>
-          !!v && v.toLowerCase().includes(q)
-        const matched = (doctorsByCustomer.get(c.id) ?? []).filter((d) =>
-          d.toLowerCase().includes(q),
-        )
-        // Preserve duplicates (same doctor across two orders is valid signal
-        // per the requirement) but drop exact-duplicate strings only.
-        const seen = new Set<string>()
-        const matchedDoctors = matched.filter((d) => {
-          const k = d.trim()
-          if (seen.has(k)) return false
-          seen.add(k)
-          return true
-        })
-        if (
-          inField(c.name) ||
-          inField(c.city) ||
-          inField(c.phone) ||
-          matchedDoctors.length > 0
-        ) {
-          hits.push({ ...c, matchedDoctors })
-        }
+      if (missing.length) {
+        const { data: extra, error } = await supabase
+          .from('customers')
+          .select('*')
+          .in('id', missing)
+          .returns<Customer[]>()
+        if (error) throw error
+        for (const c of extra ?? []) byId.set(c.id, c)
       }
-      return hits.slice(0, 50)
+
+      const hits: CustomerSearchHit[] = [...byId.values()].map((c) => ({
+        ...c,
+        matchedDoctors: doctorsByCustomer.get(c.id) ?? [],
+      }))
+      hits.sort((a, b) => a.name.localeCompare(b.name))
+      return hits
+    },
+  })
+}
+
+/** Paged, name-ordered customer list — grows gracefully via "load more". */
+export function useInfiniteCustomers(pageSize = 60) {
+  return useInfiniteQuery({
+    queryKey: [...KEY, 'paged'],
+    initialPageParam: 0,
+    queryFn: async ({ pageParam }): Promise<{ rows: Customer[]; count: number }> => {
+      const offset = (pageParam as number) * pageSize
+      const { data, error, count } = await supabase
+        .from('customers')
+        .select('*', { count: 'exact' })
+        .order('name')
+        .range(offset, offset + pageSize - 1)
+        .returns<Customer[]>()
+      if (error) throw error
+      return { rows: data ?? [], count: count ?? 0 }
+    },
+    getNextPageParam: (last, all) => {
+      const loaded = all.reduce((sum, p) => sum + p.rows.length, 0)
+      return loaded < last.count ? all.length : undefined
     },
   })
 }

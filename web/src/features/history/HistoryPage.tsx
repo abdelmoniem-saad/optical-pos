@@ -1,15 +1,16 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { useSales, LAB_STATUS_COLORS } from '../../data/sales'
-import { useCustomers } from '../../data/customers'
+import {
+  useInfiniteSales,
+  LAB_STATUS_COLORS,
+  type SalesRange,
+} from '../../data/sales'
 import { useI18n } from '../../i18n/LanguageContext'
 import { OrderExamsLazy } from '../../components/ExamView'
 import { OrderReceiptDialog } from '../../components/OrderReceiptDialog'
 import { EditOrderForm } from './EditOrderForm'
 import { usePermissions } from '../../data/permissions'
 import type { Sale } from '../../lib/database.types'
-
-type Range = 'all' | 'today' | 'month'
 
 function fmt(n: number | null | undefined) {
   return Number(n ?? 0).toFixed(2)
@@ -25,56 +26,66 @@ const labColor: Record<string, string> = {
 
 export function HistoryPage() {
   const { t } = useI18n()
-  const sales = useSales()
-  const customers = useCustomers()
   const perms = usePermissions()
   const [params] = useSearchParams()
-  const [term, setTerm] = useState(params.get('q') ?? '')
-  const [range, setRange] = useState<Range>((params.get('range') as Range) || 'all')
+  const [termInput, setTermInput] = useState(params.get('q') ?? '')
+  const [term, setTerm] = useState(termInput.trim())
+  const [range, setRange] = useState<SalesRange>(
+    (params.get('range') as SalesRange) || 'all',
+  )
   const [open, setOpen] = useState<string | null>(null)
   const [reprint, setReprint] = useState<Sale | null>(null)
   const [editing, setEditing] = useState<string | null>(null)
 
-  const nameById = useMemo(() => {
-    const m = new Map<string, string>()
-    for (const c of customers.data ?? []) m.set(c.id, c.name)
-    return m
-  }, [customers.data])
+  // Debounce so typing doesn't fire a Postgres query per keystroke.
+  useEffect(() => {
+    const id = setTimeout(() => setTerm(termInput.trim()), 300)
+    return () => clearTimeout(id)
+  }, [termInput])
 
-  const rows = useMemo(() => {
-    const todayIso = new Date().toISOString().slice(0, 10)
-    const monthStart = todayIso.slice(0, 8) + '01'
-    let list = sales.data ?? []
-    if (range === 'today') list = list.filter((s) => (s.order_date ?? '').startsWith(todayIso))
-    else if (range === 'month') list = list.filter((s) => (s.order_date ?? '') >= monthStart)
-    const tt = term.trim().toLowerCase()
-    if (!tt) return list
-    return list.filter((s) => {
-      const cust = s.customer_id ? (nameById.get(s.customer_id) ?? '') : ''
-      return (
-        (s.invoice_no ?? '').toLowerCase().includes(tt) ||
-        cust.toLowerCase().includes(tt)
-      )
-    })
-  }, [sales.data, term, range, nameById])
+  // Server-filtered, paged feed — the browser only ever holds ~50 orders per
+  // page and loads more as you scroll, so the tab stays fast for years.
+  const query = useInfiniteSales(range, term)
+  const rows = useMemo(
+    () => query.data?.pages.flatMap((p) => p.rows) ?? [],
+    [query.data],
+  )
+  const total = query.data?.pages[query.data.pages.length - 1]?.count ?? 0
+
+  // Auto-load the next page when the sentinel scrolls into view.
+  const sentinelRef = useRef<HTMLDivElement | null>(null)
+  useEffect(() => {
+    const el = sentinelRef.current
+    if (!el || !query.hasNextPage || query.isFetchingNextPage) return
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((en) => en.isIntersecting)) void query.fetchNextPage()
+      },
+      { rootMargin: '300px' },
+    )
+    io.observe(el)
+    return () => io.disconnect()
+  }, [query])
 
   return (
     <div className="mx-auto max-w-5xl p-6">
       <h1 className="mb-1 text-2xl font-semibold text-brand-dark">{t('Sales History')}</h1>
       <p className="mb-4 text-sm text-muted">
-        {sales.data ? `${sales.data.length} ${t('orders')}` : t('Loading…')}
+        {query.isLoading
+          ? t('Loading…')
+          : `${rows.length}${total > rows.length ? ` / ${total}` : ''} ${t('orders')}`}
       </p>
 
       <div className="mb-4 flex gap-2">
         <input
-          value={term}
-          onChange={(e) => setTerm(e.target.value)}
+          value={termInput}
+          onChange={(e) => setTermInput(e.target.value)}
           placeholder={t('Search invoice # or customer…')}
           className="flex-1 rounded-lg border border-line bg-white px-3 py-2.5 outline-none focus:border-brand"
         />
         <select
           value={range}
-          onChange={(e) => setRange(e.target.value as Range)}
+          onChange={(e) => setRange(e.target.value as SalesRange)}
           className="rounded-lg border border-line bg-white px-3 py-2.5 outline-none focus:border-brand"
         >
           <option value="all">{t('All Time')}</option>
@@ -83,9 +94,9 @@ export function HistoryPage() {
         </select>
       </div>
 
-      {sales.isError && (
-        <div className="rounded-lg bg-warning-bg px-3 py-2 text-sm text-warning">
-          {t("Couldn't load sales:")} {String(sales.error)}
+      {query.isError && (
+        <div className="mb-4 rounded-lg bg-warning-bg px-3 py-2 text-sm text-warning">
+          {t("Couldn't load sales:")} {String(query.error)}
         </div>
       )}
 
@@ -95,6 +106,10 @@ export function HistoryPage() {
           const paid = Number(s.amount_paid ?? 0)
           const balance = net - paid
           const expanded = open === s.id
+          const custName =
+            s.customer_id
+              ? s.customers?.name ?? t('Customer')
+              : t('Walk-in')
           return (
             <div key={s.id} className="overflow-hidden rounded-xl border border-line bg-white">
               <button
@@ -104,9 +119,7 @@ export function HistoryPage() {
                 <div>
                   <div className="font-semibold">
                     #{s.invoice_no}{' '}
-                    <span className="font-normal text-muted">
-                      {s.customer_id ? nameById.get(s.customer_id) ?? t('Customer') : t('Walk-in')}
-                    </span>
+                    <span className="font-normal text-muted">{custName}</span>
                   </div>
                   <div className="text-xs text-faint">
                     {(s.order_date ?? '').slice(0, 16).replace('T', ' ')}
@@ -160,6 +173,17 @@ export function HistoryPage() {
           )
         })}
       </div>
+
+      {!query.isLoading && !query.isError && rows.length === 0 && (
+        <p className="mt-6 text-center text-sm text-faint">{t('No matches.')}</p>
+      )}
+
+      {/* Sentinel: entering the viewport loads the next page automatically. */}
+      {query.hasNextPage && (
+        <div ref={sentinelRef} className="p-4 text-center text-xs text-faint">
+          {query.isFetchingNextPage ? t('Loading…') : ''}
+        </div>
+      )}
 
       {reprint && <OrderReceiptDialog sale={reprint} onClose={() => setReprint(null)} />}
     </div>
