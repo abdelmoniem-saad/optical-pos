@@ -15,6 +15,7 @@ import {
 } from '../../data/sales'
 import { useAddCustomer, useUpdateCustomer } from '../../data/customers'
 import { resolveStaffUserId } from '../../data/staff'
+import { addMissingOrderMetadata } from '../../data/metadata'
 import type { Customer, CustomerInsert, Product, Sale } from '../../lib/database.types'
 import { addLine, computeTotals, removeLine, setQty, type Totals } from './pricing'
 import {
@@ -425,6 +426,10 @@ export function POSProvider({ children }: { children: ReactNode }) {
     patch({ busy: true, error: null })
     try {
       const cartItems = await addNewFramesFromExams(s.cartItems, s.examinations)
+      // Settings sync (lens types / frame colors used by this order) happens
+      // HERE at confirmation — typing during the wizard never touches them.
+      // Missing frame products are created by addNewFramesFromExams above.
+      await addMissingOrderMetadata(s.examinations)
       const t = computeTotals(cartItems, {
         discount: s.discount,
         amountPaid: s.amountPaid,

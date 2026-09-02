@@ -1,13 +1,16 @@
 import { useEffect, useState } from 'react'
 import { useI18n } from '../../i18n/LanguageContext'
-import { useUpdateSale } from '../../data/sales'
+import { useUpdateSale, LAB_STATUSES } from '../../data/sales'
 import {
   useOrderExaminations,
   useReplaceOrderExaminations,
 } from '../../data/examinations'
-import { LAB_STATUSES } from '../../data/sales'
-import { useLensTypes, useFrameColors, useAddMetadata } from '../../data/metadata'
-import { useInventory, ensureFrameProduct } from '../../data/inventory'
+import {
+  useLensTypes,
+  useFrameColors,
+  syncExamReferences,
+} from '../../data/metadata'
+import { useInventory } from '../../data/inventory'
 import { enterMovesNext } from '../pos/enterNav'
 import { emptyExam, type Exam } from '../pos/types'
 import type { Sale } from '../../lib/database.types'
@@ -19,9 +22,11 @@ const small =
  * Inline full-order editor for the History tab: the usual header fields PLUS
  * the order's prescriptions. Prescription edits are written back to
  * order_examinations, so the customer profile reflects them automatically.
- * Lens / Frame / Color fields behave exactly like the making-order step:
- * press to see options, live narrowing while typing, and unknown names are
- * committed to their list on blur (lens types / inventory frames / colors).
+ * Lens / Frame / Color fields are plain datalist combos (press to see options,
+ * live narrowing while typing). NOTHING is written to the settings lists while
+ * editing — on Save, syncExamReferences adds newly typed values and removes
+ * replaced ones (when no other order still uses them); orphaned app-created
+ * frame products are cleaned up. Quantities are never auto-changed here.
  */
 export function EditOrderForm({ sale, onDone }: { sale: Sale; onDone: () => void }) {
   const { t } = useI18n()
@@ -32,8 +37,6 @@ export function EditOrderForm({ sale, onDone }: { sale: Sale; onDone: () => void
   const lensTypes = useLensTypes()
   const frameColors = useFrameColors()
   const framesInv = useInventory('Frame')
-  const addLensType = useAddMetadata('lens_types')
-  const addFrameColor = useAddMetadata('frame_colors')
 
   const [form, setForm] = useState({
     doctor_name: sale.doctor_name ?? '',
@@ -58,18 +61,6 @@ export function EditOrderForm({ sale, onDone }: { sale: Sale; onDone: () => void
 
   const field =
     'w-full rounded-lg border border-line bg-white px-3 py-2 outline-none focus:border-brand'
-
-  /** Persist a free-typed value into its metadata table when it's new. */
-  function maybeAddOption(
-    value: string | undefined,
-    known: readonly { name: string }[] | undefined,
-    add: (name: string) => void,
-  ) {
-    const v = (value ?? '').trim()
-    if (!v) return
-    const exists = (known ?? []).some((o) => o.name.trim().toLowerCase() === v.toLowerCase())
-    if (!exists) add(v)
-  }
 
   function upd(index: number, patch: Partial<Exam>) {
     setRows((r) => (r ?? []).map((row, i) => (i === index ? { ...row, ...patch } : row)))
@@ -97,6 +88,16 @@ export function EditOrderForm({ sale, onDone }: { sale: Sale; onDone: () => void
       // clobber them because of a fetch hiccup.
       if (rows !== null && !examsQ.isError) {
         await replaceExams.mutateAsync(rows)
+        // Sync the settings/inventory references against the SAVED rows:
+        // newly typed lens/color values are added, replaced values are removed
+        // (when no other order uses them), new frames become products, and
+        // orphaned app-created frame products are cleaned up. Quantities of
+        // existing products are never auto-changed by an edit.
+        await syncExamReferences({
+          invoiceNo: sale.invoice_no,
+          oldRows: examsQ.data ?? [],
+          newRows: rows,
+        })
       }
       onDone()
     } catch (e) {
@@ -260,9 +261,6 @@ export function EditOrderForm({ sale, onDone }: { sale: Sale; onDone: () => void
                   list={`edit-lens-types-${i}`}
                   value={String(row.lens_info ?? '')}
                   onChange={(e) => upd(i, { lens_info: e.target.value })}
-                  onBlur={(e) =>
-                    maybeAddOption(e.target.value, lensTypes.data, (n) => addLensType.mutate(n))
-                  }
                 />
                 <datalist id={`edit-lens-types-${i}`}>
                   {(lensTypes.data ?? []).map((o) => (
@@ -279,7 +277,6 @@ export function EditOrderForm({ sale, onDone }: { sale: Sale; onDone: () => void
                   list={`edit-frame-products-${i}`}
                   value={String(row.frame_info ?? '')}
                   onChange={(e) => upd(i, { frame_info: e.target.value })}
-                  onBlur={(e) => void ensureFrameProduct(e.target.value).catch(() => undefined)}
                 />
                 <datalist id={`edit-frame-products-${i}`}>
                   {(framesInv.data ?? []).map((f) => (
@@ -296,9 +293,6 @@ export function EditOrderForm({ sale, onDone }: { sale: Sale; onDone: () => void
                   list={`edit-frame-colors-${i}`}
                   value={String(row.frame_color ?? '')}
                   onChange={(e) => upd(i, { frame_color: e.target.value })}
-                  onBlur={(e) =>
-                    maybeAddOption(e.target.value, frameColors.data, (n) => addFrameColor.mutate(n))
-                  }
                 />
                 <datalist id={`edit-frame-colors-${i}`}>
                   {(frameColors.data ?? []).map((o) => (

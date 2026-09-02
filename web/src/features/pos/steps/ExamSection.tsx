@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { usePOS, localDateISO } from '../POSContext'
 import { useI18n } from '../../../i18n/LanguageContext'
-import { useLensTypes, useFrameColors, useAddMetadata } from '../../../data/metadata'
+import { useLensTypes, useFrameColors } from '../../../data/metadata'
 import { useInventory } from '../../../data/inventory'
 import { usePastExaminations, type PastExam } from '../../../data/examinations'
 import { uploadPrescriptionImage } from '../../../lib/storage'
@@ -27,22 +27,6 @@ function ExamRow({ index }: { index: number }) {
   const lensTypes = useLensTypes()
   const frameColors = useFrameColors()
   const frames = useInventory('Frame')
-  const addLensType = useAddMetadata('lens_types')
-  const addFrameColor = useAddMetadata('frame_colors')
-
-  /** Persist a free-typed value into a metadata table when it's new. */
-  function maybeAddOption(
-    value: string | undefined,
-    known: readonly { name: string }[] | undefined,
-    add: (name: string) => void,
-  ) {
-    const v = (value ?? '').trim()
-    if (!v) return
-    const exists = (known ?? []).some(
-      (o) => o.name.trim().toLowerCase() === v.toLowerCase(),
-    )
-    if (!exists) add(v)
-  }
 
   const upd = (p: Partial<Exam>) => updateExam(index, p)
 
@@ -126,11 +110,6 @@ function ExamRow({ index }: { index: number }) {
             list="lens-types"
             value={String(exam.lens_info ?? '')}
             onChange={(e) => upd({ lens_info: e.target.value })}
-            onBlur={(e) =>
-              maybeAddOption(e.target.value, lensTypes.data, (name) =>
-                addLensType.mutate(name),
-              )
-            }
           />
           <datalist id="lens-types">
             {(lensTypes.data ?? []).map((l) => (
@@ -168,11 +147,6 @@ function ExamRow({ index }: { index: number }) {
             list="frame-colors"
             value={String(exam.frame_color ?? '')}
             onChange={(e) => upd({ frame_color: e.target.value })}
-            onBlur={(e) =>
-              maybeAddOption(e.target.value, frameColors.data, (name) =>
-                addFrameColor.mutate(name),
-              )
-            }
           />
           <datalist id="frame-colors">
             {(frameColors.data ?? []).map((c) => (
