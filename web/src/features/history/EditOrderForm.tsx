@@ -198,6 +198,9 @@ export function EditOrderForm({ sale, onDone }: { sale: Sale; onDone: () => void
               <label className="flex flex-col">
                 <span className="mb-0.5 text-[10px] font-semibold text-faint">{t('Exam Type')}</span>
                 <select
+                  data-rxr={i}
+                  data-rxc={0}
+                  onKeyDown={rxArrowNav}
                   className={`${small} w-32`}
                   value={String(row.exam_type ?? 'Distance')}
                   onChange={(e) => upd(i, { exam_type: e.target.value })}
@@ -211,9 +214,9 @@ export function EditOrderForm({ sale, onDone }: { sale: Sale; onDone: () => void
               <div className="flex items-end gap-1 rounded-md bg-white p-1">
                 {(
                   [
-                    ['R.SPH', 'sphere_od', 0],
-                    ['R.CYL', 'cylinder_od', 1],
-                    ['R.AX', 'axis_od', 2, 'w-14'],
+                    ['R.SPH', 'sphere_od', 1],
+                    ['R.CYL', 'cylinder_od', 2],
+                    ['R.AX', 'axis_od', 3, 'w-14'],
                   ] as const
                 ).map(([label, key, col, w]) => (
                   <label className="flex flex-col" key={label}>
@@ -232,9 +235,9 @@ export function EditOrderForm({ sale, onDone }: { sale: Sale; onDone: () => void
               <div className="flex items-end gap-1 rounded-md bg-white p-1">
                 {(
                   [
-                    ['L.SPH', 'sphere_os', 3],
-                    ['L.CYL', 'cylinder_os', 4],
-                    ['L.AX', 'axis_os', 5, 'w-14'],
+                    ['L.SPH', 'sphere_os', 4],
+                    ['L.CYL', 'cylinder_os', 5],
+                    ['L.AX', 'axis_os', 6, 'w-14'],
                   ] as const
                 ).map(([label, key, col, w]) => (
                   <label className="flex flex-col" key={label}>
@@ -254,7 +257,7 @@ export function EditOrderForm({ sale, onDone }: { sale: Sale; onDone: () => void
                 <span className="mb-0.5 text-[10px] font-semibold text-faint">IPD</span>
                 <input
                   data-rxr={i}
-                  data-rxc={6}
+                  data-rxc={7}
                   onKeyDown={rxArrowNav}
                   className={`${small} w-14`}
                   value={String(row.ipd ?? '')}
@@ -266,6 +269,9 @@ export function EditOrderForm({ sale, onDone }: { sale: Sale; onDone: () => void
               <label className="flex flex-col">
                 <span className="mb-0.5 text-[10px] font-semibold text-faint">{t('Lens Type')}</span>
                 <input
+                  data-rxr={i}
+                  data-rxc={8}
+                  onKeyDown={rxArrowNav}
                   className={`${small} w-40`}
                   list={`edit-lens-types-${i}`}
                   value={String(row.lens_info ?? '')}
@@ -282,6 +288,9 @@ export function EditOrderForm({ sale, onDone }: { sale: Sale; onDone: () => void
               <label className="flex flex-col">
                 <span className="mb-0.5 text-[10px] font-semibold text-faint">{t('Frame')}</span>
                 <input
+                  data-rxr={i}
+                  data-rxc={9}
+                  onKeyDown={rxArrowNav}
                   className={`${small} w-40`}
                   list={`edit-frame-products-${i}`}
                   value={String(row.frame_info ?? '')}
@@ -298,6 +307,9 @@ export function EditOrderForm({ sale, onDone }: { sale: Sale; onDone: () => void
               <label className="flex flex-col">
                 <span className="mb-0.5 text-[10px] font-semibold text-faint">{t('Color')}</span>
                 <input
+                  data-rxr={i}
+                  data-rxc={10}
+                  onKeyDown={rxArrowNav}
                   className={`${small} w-28`}
                   list={`edit-frame-colors-${i}`}
                   value={String(row.frame_color ?? '')}
@@ -313,6 +325,9 @@ export function EditOrderForm({ sale, onDone }: { sale: Sale; onDone: () => void
               <label className="flex flex-col">
                 <span className="mb-0.5 text-[10px] font-semibold text-faint">{t('Status')}</span>
                 <select
+                  data-rxr={i}
+                  data-rxc={11}
+                  onKeyDown={rxArrowNav}
                   className={`${small} w-20`}
                   value={String(row.frame_status ?? 'New')}
                   onChange={(e) => upd(i, { frame_status: e.target.value })}

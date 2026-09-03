@@ -147,6 +147,13 @@ export interface Note {
   // Set when the note body was edited after creation.
   updated_at: string | null
 }
+
+/** One person's "seen / understood" confirmation on a public note. */
+export interface NoteSeen {
+  note_id: string
+  user_id: string
+  seen_at: string | null
+}
 export type OrderExaminationInsert = Omit<OrderExamination, 'id'>
 
 export interface Prescription {

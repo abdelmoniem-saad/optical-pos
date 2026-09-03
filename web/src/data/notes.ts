@@ -75,6 +75,42 @@ export function useUpdateNote() {
   })
 }
 
+// ---- seen / confirm receipts (public notes, migration 006) ----
+
+/** Seen confirmations for the given public notes. */
+export function useNoteSeen(ids: string[]) {
+  const idKey = [...ids].sort().join(',')
+  return useQuery({
+    queryKey: ['note-seen', idKey],
+    enabled: ids.length > 0,
+    queryFn: async (): Promise<{ note_id: string; user_id: string }[]> => {
+      const { data, error } = await supabase
+        .from('note_seen')
+        .select('note_id, user_id')
+        .in('note_id', ids)
+        .returns<{ note_id: string; user_id: string }[]>()
+      if (error) throw error
+      return data ?? []
+    },
+  })
+}
+
+export function useMarkNoteSeen() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ noteId, userId }: { noteId: string; userId: string }): Promise<void> => {
+      const { error } = await supabase
+        .from('note_seen')
+        .upsert(
+          { note_id: noteId, user_id: userId },
+          { onConflict: 'note_id,user_id' },
+        )
+      if (error) throw error
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['note-seen'] }),
+  })
+}
+
 export function useDeleteNote() {
   const qc = useQueryClient()
   return useMutation({

@@ -1,40 +1,48 @@
 import type { KeyboardEvent } from 'react'
 
 /**
- * Excel-style arrow navigation between the numeric prescription cells.
- * Attach to each numeric input and tag cells with `data-rxr` (row index) and
- * `data-rxc` (column index).
+ * Excel-style arrow navigation across a WHOLE prescription row.
+ * Attach to every field (selects, inputs) and tag them with `data-rxr` (row
+ * index) and `data-rxc` (column index, in visual left-to-right order).
  *
- * Arrow keys only JUMP between cells while the value is fully selected (the
- * state right after Enter/Tab) or empty - i.e. when you're "on" a cell rather
- * than inside it. Once you start editing, arrows move the caret normally.
+ * Arrow keys only JUMP between fields while an input's value is fully
+ * selected (the state right after Enter/Tab) or empty — i.e. when you're "on"
+ * a field rather than inside it. Once you start editing, arrows move the
+ * caret normally. Selects only navigate horizontally (Up/Down stays native
+ * so it can open their dropdown).
  */
-export function rxArrowNav(e: KeyboardEvent<HTMLInputElement>): void {
+export function rxArrowNav(e: KeyboardEvent<HTMLElement>): void {
   const el = e.currentTarget
   const row = Number(el.dataset.rxr)
   const col = Number(el.dataset.rxc)
   if (Number.isNaN(row) || Number.isNaN(col)) return
 
-  const empty = el.value.length === 0
+  const isInput = el instanceof HTMLInputElement
+  const empty = isInput && el.value.length === 0
   const fullySelected =
-    !empty && el.selectionStart === 0 && el.selectionEnd === el.value.length
-  if (!empty && !fullySelected) return
+    isInput && !empty && el.selectionStart === 0 && el.selectionEnd === el.value.length
 
+  const horizontal = e.key === 'ArrowRight' || e.key === 'ArrowLeft'
+  const vertical = e.key === 'ArrowUp' || e.key === 'ArrowDown'
+  if (!horizontal && !vertical) return
+  // Inside an input with the caret placed (editing), arrows stay native.
+  if (isInput && !empty && !fullySelected) return
+  // Selects: Up/Down opens their dropdown, so only Left/Right navigate.
+  if (!isInput && vertical) return
+
+  e.preventDefault()
   let r = row
   let c = col
   if (e.key === 'ArrowRight') c += 1
   else if (e.key === 'ArrowLeft') c -= 1
-  else if (e.key === 'ArrowUp') r -= 1
-  else if (e.key === 'ArrowDown') r += 1
-  else return
+  else r += e.key === 'ArrowDown' ? 1 : -1
 
-  e.preventDefault()
-  const target = document.querySelector<HTMLInputElement>(
+  const target = document.querySelector<HTMLElement>(
     `[data-rxr="${r}"][data-rxc="${c}"]`,
   )
   if (target) {
     target.focus()
-    target.select()
+    if (target instanceof HTMLInputElement) target.select()
   }
 }
 

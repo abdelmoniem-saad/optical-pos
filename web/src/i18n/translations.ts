@@ -335,6 +335,9 @@ export const ar: Record<string, string> = {
   'You do not have access to this page.': 'ليست لديك صلاحية للوصول إلى هذه الصفحة.',
   'Load more': 'تحميل المزيد',
   edited: 'معدلة',
+  'Mark as seen': 'تأكيد الاطلاع',
+  Seen: 'تم الاطلاع',
+  'Seen by': 'اطلعوا عليه',
   'Owner/admin positions always have full access.':
     'مناصب المالك/المدير تتمتع دائماً بكامل الصلاحيات.',
   'This person is an owner/admin, they always have full access, so there is nothing to configure.':

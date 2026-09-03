@@ -1,15 +1,16 @@
 import { useMemo, useState } from 'react'
 import { useI18n } from '../../i18n/LanguageContext'
-import { useAuth } from '../../lib/auth'
 import {
   useAddNote,
   useDeleteNote,
   useEveryoneNotes,
+  useMarkNoteSeen,
   useMyNotes,
+  useNoteSeen,
   useUpdateNote,
   type Note,
 } from '../../data/notes'
-import { useUsers } from '../../data/staff'
+import { useCurrentUser, useUsers } from '../../data/staff'
 import { usePermissions } from '../../data/permissions'
 
 function Composer({
@@ -55,11 +56,17 @@ function NoteCard({
   canDelete,
   canEdit,
   authorName,
+  seenByMe,
+  seenNames,
+  onMarkSeen,
 }: {
   note: Note
   canDelete: boolean
   canEdit: boolean
   authorName?: string
+  seenByMe?: boolean
+  seenNames?: string[]
+  onMarkSeen?: () => void
 }) {
   const { t } = useI18n()
   const del = useDeleteNote()
@@ -105,7 +112,7 @@ function NoteCard({
   return (
     <div className="rounded-lg border border-line bg-white p-3 text-sm shadow-sm">
       <p className="whitespace-pre-wrap break-words">{note.body}</p>
-      <div className="mt-2 flex items-center gap-3 text-xs text-faint">
+      <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-faint">
         <span>{(note.created_at ?? '').slice(0, 16).replace('T', ' ')}</span>
         {note.updated_at && <span className="text-warning">· {t('edited')}</span>}
         {authorName && <span>· {authorName}</span>}
@@ -132,20 +139,48 @@ function NoteCard({
           )}
         </span>
       </div>
+
+      {/* Seen / confirm receipt for PUBLIC notes: everyone can confirm, and the
+          sender sees exactly who has read it. */}
+      {onMarkSeen && (
+        <div className="mt-2 flex flex-wrap items-center gap-2 border-t border-line/40 pt-2">
+          {seenByMe ? (
+            <span className="text-xs font-semibold text-success">✓ {t('Seen')}</span>
+          ) : (
+            <button
+              onClick={onMarkSeen}
+              className="rounded-md bg-brand-bg px-2.5 py-1 text-xs font-semibold text-brand-dark hover:opacity-90"
+            >
+              ✓ {t('Mark as seen')}
+            </button>
+          )}
+          {seenNames && seenNames.length > 0 && (
+            <span className="text-xs text-faint">
+              {t('Seen by')}: {seenNames.join('، ')}
+            </span>
+          )}
+        </div>
+      )}
     </div>
   )
 }
 
 export function NotesPage() {
   const { t } = useI18n()
-  const { user } = useAuth()
-  const meId = user?.id ?? null
+  const me = useCurrentUser()
   const perms = usePermissions()
+
+  // The resolved STAFF row id (never the raw auth UUID) — this is what links
+  // private notes to their owner, even on legacy-linked accounts like the
+  // seeded admin. Using the raw auth UUID here is exactly why the admin could
+  // not post private notes before.
+  const meId = me.data?.id ?? null
 
   const mine = useMyNotes(meId)
   const everyone = useEveryoneNotes()
   const users = useUsers()
   const add = useAddNote()
+  const markSeen = useMarkNoteSeen()
 
   const [myBody, setMyBody] = useState('')
   const [pubBody, setPubBody] = useState('')
@@ -158,6 +193,21 @@ export function NotesPage() {
     return m
   }, [users.data])
 
+  const publicIds = useMemo(
+    () => (everyone.data ?? []).map((n) => n.id),
+    [everyone.data],
+  )
+  const seenRows = useNoteSeen(publicIds)
+  const seenByNote = useMemo(() => {
+    const m = new Map<string, string[]>()
+    for (const s of seenRows.data ?? []) {
+      const list = m.get(s.note_id) ?? []
+      list.push(s.user_id)
+      m.set(s.note_id, list)
+    }
+    return m
+  }, [seenRows.data])
+
   async function submit(scope: 'mine' | 'everyone') {
     const body = (scope === 'mine' ? myBody : pubBody).trim()
     if (!body) return
@@ -169,8 +219,9 @@ export function NotesPage() {
   // Deletion: the author for their own notes; ONLY an admin for notes
   // addressed to everyone else.
   const canDelete = (n: Note) => perms.isAdmin || n.created_by === meId
-  // Editing: the author (or an admin) - and the card then shows an edited tag.
-  const canEdit = (n: Note) => perms.isAdmin || n.created_by === meId
+  // Editing is for the AUTHOR only (admins keep deletion, not rewriting other
+  // people's words). Edited notes show an edited tag.
+  const canEdit = (n: Note) => n.created_by === meId
 
   const cls = 'rounded-xl border border-line bg-surface/40 p-4'
 
@@ -193,12 +244,7 @@ export function NotesPage() {
           ) : (
             <div className="space-y-2">
               {mine.data!.map((n) => (
-                <NoteCard
-                  key={n.id}
-                  note={n}
-                  canDelete={canDelete(n)}
-                  canEdit={canEdit(n)}
-                />
+                <NoteCard key={n.id} note={n} canDelete={canDelete(n)} canEdit={canEdit(n)} />
               ))}
             </div>
           )}
@@ -217,15 +263,25 @@ export function NotesPage() {
             <p className="text-sm text-faint">{t('No notes yet.')}</p>
           ) : (
             <div className="space-y-2">
-              {everyone.data!.map((n) => (
-                <NoteCard
-                  key={n.id}
-                  note={n}
-                  canDelete={canDelete(n)}
-                  canEdit={canEdit(n)}
-                  authorName={n.created_by ? nameById.get(n.created_by) : undefined}
-                />
-              ))}
+              {everyone.data!.map((n) => {
+                const seenUsers = seenByNote.get(n.id) ?? []
+                return (
+                  <NoteCard
+                    key={n.id}
+                    note={n}
+                    canDelete={canDelete(n)}
+                    canEdit={canEdit(n)}
+                    authorName={n.created_by ? nameById.get(n.created_by) : undefined}
+                    seenByMe={!!meId && seenUsers.includes(meId)}
+                    seenNames={seenUsers.map((id) => nameById.get(id) ?? '-')}
+                    onMarkSeen={
+                      meId && !seenUsers.includes(meId)
+                        ? () => markSeen.mutate({ noteId: n.id, userId: meId })
+                        : undefined
+                    }
+                  />
+                )
+              })}
             </div>
           )}
         </section>

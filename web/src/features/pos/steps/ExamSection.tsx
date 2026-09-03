@@ -88,6 +88,9 @@ function ExamRow({ index }: { index: number }) {
         <label className="flex flex-col">
           <span className="mb-0.5 text-[10px] font-semibold text-faint">{t('Exam Type')}</span>
           <select
+            data-rxr={index}
+            data-rxc={0}
+            onKeyDown={rxArrowNav}
             className={`${small} w-26`}
             value={String(exam.exam_type ?? 'Distance')}
             onChange={(e) => upd({ exam_type: e.target.value })}
@@ -99,20 +102,23 @@ function ExamRow({ index }: { index: number }) {
         </label>
 
         <div className="flex items-end gap-0.5 rounded-md bg-white/50 p-0.5">
-          {numCol('R.SPH', 'sphere_od', 0)}
-          {numCol('R.CYL', 'cylinder_od', 1)}
-          {numCol('R.AX', 'axis_od', 2, 'w-11')}
+          {numCol('R.SPH', 'sphere_od', 1)}
+          {numCol('R.CYL', 'cylinder_od', 2)}
+          {numCol('R.AX', 'axis_od', 3, 'w-11')}
         </div>
         <div className="flex items-end gap-0.5 rounded-md bg-white/50 p-0.5">
-          {numCol('L.SPH', 'sphere_os', 3)}
-          {numCol('L.CYL', 'cylinder_os', 4)}
-          {numCol('L.AX', 'axis_os', 5, 'w-11')}
+          {numCol('L.SPH', 'sphere_os', 4)}
+          {numCol('L.CYL', 'cylinder_os', 5)}
+          {numCol('L.AX', 'axis_os', 6, 'w-11')}
         </div>
-        {numCol('IPD', 'ipd', 6, 'w-11')}
+        {numCol('IPD', 'ipd', 7, 'w-11')}
 
         <label className="flex flex-col">
           <span className="mb-0.5 text-[10px] font-semibold text-faint">{t('Lens Type')}</span>
           <input
+            data-rxr={index}
+            data-rxc={8}
+            onKeyDown={rxArrowNav}
             className={`${small} w-40`}
             list="lens-types"
             value={String(exam.lens_info ?? '')}
@@ -128,6 +134,9 @@ function ExamRow({ index }: { index: number }) {
         <label className="flex flex-col">
           <span className="mb-0.5 text-[10px] font-semibold text-faint">{t('Frame')}</span>
           <input
+            data-rxr={index}
+            data-rxc={9}
+            onKeyDown={rxArrowNav}
             className={`${small} w-40`}
             list="frame-products"
             value={String(exam.frame_info ?? '')}
@@ -150,6 +159,9 @@ function ExamRow({ index }: { index: number }) {
         <label className="flex flex-col">
           <span className="mb-0.5 text-[10px] font-semibold text-faint">{t('Color')}</span>
           <input
+            data-rxr={index}
+            data-rxc={10}
+            onKeyDown={rxArrowNav}
             className={`${small} w-18`}
             list="frame-colors"
             value={String(exam.frame_color ?? '')}
@@ -165,6 +177,9 @@ function ExamRow({ index }: { index: number }) {
         <label className="flex flex-col">
           <span className="mb-0.5 text-[10px] font-semibold text-faint">{t('Status')}</span>
           <select
+            data-rxr={index}
+            data-rxc={11}
+            onKeyDown={rxArrowNav}
             className={`${small} w-20`}
             value={String(exam.frame_status ?? 'New')}
             onChange={(e) => upd({ frame_status: e.target.value })}
