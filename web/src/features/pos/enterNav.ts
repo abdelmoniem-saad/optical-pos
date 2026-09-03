@@ -49,15 +49,13 @@ export function rxArrowNav(e: KeyboardEvent<HTMLElement>): void {
 /**
  * Page-wide "Enter behaves like Tab" for POS forms.
  * Attach this to a container's onKeyDown (see CartStep / CustomerStep).
- * Pressing Enter inside any editable input focuses the NEXT visible editable
- * field (and selects its text), so the cashier can run through the entire page
- * from the keyboard - prescription numbers, doctor name and the payment
- * amounts alike. Previously only the prescription table had a row-local copy
- * of this behaviour.
+ * Pressing Enter inside any editable field (inputs AND selects) focuses the
+ * NEXT visible editable field (and selects its text), so the cashier can run
+ * through the entire page from the keyboard - prescription numbers, exam
+ * type, status, doctor name and the payment amounts alike.
  *
  * Deliberately NOT intercepted:
  * - buttons / links: Enter must still click them;
- * - <select>: Enter opens/closes its native dropdown;
  * - textareas: Enter inserts a newline;
  * - readonly / disabled / hidden / file inputs;
  * - anything marked `data-skip-enter` (quick-add keeps its dedicated
@@ -67,10 +65,17 @@ export function enterMovesNext(e: KeyboardEvent<HTMLElement>): void {
   if (e.key !== 'Enter' || e.nativeEvent.isComposing) return
 
   const target = e.target
-  if (!(target instanceof HTMLInputElement)) return
-  if (target.disabled || target.readOnly) return
-  const type = target.type
-  if (type === 'hidden' || type === 'file' || type === 'button' || type === 'submit') return
+  if (target instanceof HTMLInputElement) {
+    if (target.disabled || target.readOnly) return
+    const type = target.type
+    if (type === 'hidden' || type === 'file' || type === 'button' || type === 'submit') return
+  } else if (target instanceof HTMLSelectElement) {
+    if (target.disabled) return
+    // Selects now navigate on Enter too (dropdown can still be opened by
+    // clicking or with Up/Down).
+  } else {
+    return
+  }
   if (target.closest('[data-skip-enter]')) return
 
   e.preventDefault()
