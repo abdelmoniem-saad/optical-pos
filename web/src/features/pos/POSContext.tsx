@@ -75,6 +75,9 @@ type State = {
   grossOverride: number | null
   doctorName: string
   deliveryDate: string
+  // Order photo slots (migration 007).
+  rxImagePath: string | null
+  frameImagePath: string | null
   invoiceNo: string
   /** Sale created by the FIRST Finish Checkout; later checkouts update it. */
   savedSale: Sale | null
@@ -97,6 +100,8 @@ function initialState(): State {
     grossOverride: null,
     doctorName: '',
     deliveryDate: plusDays(3),
+    rxImagePath: null,
+    frameImagePath: null,
     invoiceNo: '',
     savedSale: null,
     savedHadExams: false,
@@ -140,6 +145,8 @@ type POSApi = {
   removeExam: (index: number) => void
   setDoctorName: (v: string) => void
   setDeliveryDate: (v: string) => void
+  /** Attach/replace/clear one of the two order photo slots. */
+  setOrderImage: (slot: 'rx' | 'frame', path: string | null) => void
   // cart
   quickAdd: (term: string) => Promise<void>
   addProduct: (p: Product) => void
@@ -313,6 +320,8 @@ export function POSProvider({ children }: { children: ReactNode }) {
 
   const setDoctorName = (v: string) => patch({ doctorName: v })
   const setDeliveryDate = (v: string) => patch({ deliveryDate: v })
+  const setOrderImage = (slot: 'rx' | 'frame', path: string | null) =>
+    patch(slot === 'rx' ? { rxImagePath: path } : { frameImagePath: path })
 
   /** Find an existing Frame product by name, or create a zero-priced one. */
   async function findOrCreateFrame(name: string): Promise<Product | null> {
@@ -438,6 +447,10 @@ export function POSProvider({ children }: { children: ReactNode }) {
       // Allow overselling: stock movements will make inventory go negative,
       // which is intentional per the workflow (record the sale even when
       // qty-on-hand is zero or below).
+      // Order photos: an explicit attach wins; otherwise promote a legacy
+      // per-exam prescription upload if one exists.
+      const legacyRxImage =
+        s.examinations.find((e) => (e.image_path ?? '').trim())?.image_path ?? null
       const payload = {
         items: cartItems,
         examinations: s.examinations.length ? s.examinations : undefined,
@@ -449,6 +462,8 @@ export function POSProvider({ children }: { children: ReactNode }) {
         },
         doctorName: s.doctorName,
         deliveryDate: s.deliveryDate,
+        rxImagePath: s.rxImagePath ?? legacyRxImage,
+        frameImagePath: s.frameImagePath,
       }
       const isUpdate = !!s.savedSale
       let sale: Sale
@@ -523,6 +538,7 @@ export function POSProvider({ children }: { children: ReactNode }) {
     removeExam,
     setDoctorName,
     setDeliveryDate,
+    setOrderImage,
     quickAdd,
     addProduct,
     changeQty,

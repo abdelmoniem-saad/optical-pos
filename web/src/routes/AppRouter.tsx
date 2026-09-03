@@ -24,6 +24,7 @@ const SuppliersPage = named(() => import('../features/suppliers/SuppliersPage'),
 const NotesPage = named(() => import('../features/notes/NotesPage'), 'NotesPage')
 const StaffPage = named(() => import('../features/staff/StaffPage'), 'StaffPage')
 const SettingsPage = named(() => import('../features/settings/SettingsPage'), 'SettingsPage')
+const MUploadPage = named(() => import('../features/mobile/MUploadPage'), 'MUploadPage')
 
 /** Route-level permission gate. Renders a friendly notice instead of the page
  *  when the signed-in user lacks `<resource>.view`. */
@@ -42,6 +43,8 @@ function RequirePermission({ resource, children }: { resource: string; children:
 
 const router = createBrowserRouter([
   { path: '/login', element: <LoginPage /> },
+  // Standalone mobile upload page: own minimal layout, own login gate.
+  { path: '/m-upload', element: <MUploadPage /> },
   {
     path: '/',
     element: <AppLayout />,

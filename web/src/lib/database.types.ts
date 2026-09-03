@@ -93,6 +93,10 @@ export interface Sale {
   delivery_date: string | null
   doctor_name: string | null
   lab_status: LabStatus | null
+  // Photo slots per order (migration 007): the prescriptions paper and the
+  // glasses frame picture. Paths in the public 'prescriptions' bucket.
+  rx_image_path: string | null
+  frame_image_path: string | null
   // Present when selected with `*, sale_items(*)`.
   sale_items?: SaleItem[]
   // Present when selected with `*, order_examinations(*)`.

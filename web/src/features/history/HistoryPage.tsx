@@ -2,14 +2,17 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import {
   useInfiniteSales,
+  useSetOrderImage,
   LAB_STATUS_COLORS,
   type SalesRange,
 } from '../../data/sales'
 import { useI18n } from '../../i18n/LanguageContext'
 import { OrderExamsLazy } from '../../components/ExamView'
 import { OrderReceiptDialog } from '../../components/OrderReceiptDialog'
+import { QrDialog } from '../../components/QrDialog'
 import { EditOrderForm } from './EditOrderForm'
 import { usePermissions } from '../../data/permissions'
+import { prescriptionImageUrl, uploadOrderImage } from '../../lib/storage'
 import type { Sale } from '../../lib/database.types'
 
 function fmt(n: number | null | undefined) {
@@ -36,6 +39,7 @@ export function HistoryPage() {
   const [open, setOpen] = useState<string | null>(null)
   const [reprint, setReprint] = useState<Sale | null>(null)
   const [editing, setEditing] = useState<string | null>(null)
+  const [qrFor, setQrFor] = useState<Sale | null>(null)
 
   // Debounce so typing doesn't fire a Postgres query per keystroke.
   useEffect(() => {
@@ -150,6 +154,7 @@ export function HistoryPage() {
                     <span>{t('Balance')} {fmt(balance)}</span>
                   </div>
                   <OrderExamsLazy saleId={s.id} />
+                  <OrderImages sale={s} onQr={() => setQrFor(s)} />
                   <div className="mt-3 flex gap-2">
                     <button
                       onClick={() => setReprint(s)}
@@ -186,6 +191,106 @@ export function HistoryPage() {
       )}
 
       {reprint && <OrderReceiptDialog sale={reprint} onClose={() => setReprint(null)} />}
+      {qrFor && (
+        <QrDialog
+          url={`${window.location.origin}/m-upload?inv=${encodeURIComponent(qrFor.invoice_no)}`}
+          title={`${t('Invoice')} #${qrFor.invoice_no}`}
+          onClose={() => setQrFor(null)}
+        />
+      )}
+    </div>
+  )
+}
+
+/**
+ * Attach/replacement UI for the two order photos. Attaching an EMPTY slot
+ * needs history.edit; REPLACING an attached photo is admin-only. The QR
+ * button opens the mobile upload page for this invoice on a phone.
+ */
+function OrderImages({ sale, onQr }: { sale: Sale; onQr: () => void }) {
+  const { t } = useI18n()
+  const perms = usePermissions()
+  const setImg = useSetOrderImage()
+  const [busy, setBusy] = useState<'rx' | 'frame' | null>(null)
+  const canAttach = perms.isAdmin || perms.can('history.edit' as never)
+
+  async function onFile(slot: 'rx' | 'frame', file: File | undefined) {
+    if (!file) return
+    setBusy(slot)
+    try {
+      const p = await uploadOrderImage(file, sale.invoice_no, slot)
+      await setImg.mutateAsync({ saleId: sale.id, slot, path: p })
+    } catch (e) {
+      alert(e instanceof Error ? e.message : String(e))
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  const renderSlot = (slot: 'rx' | 'frame', label: string) => {
+    const path = slot === 'rx' ? sale.rx_image_path : sale.frame_image_path
+    const has = !!path
+    return (
+      <div className="flex items-center gap-2">
+        {has ? (
+          <a href={prescriptionImageUrl(path!)} target="_blank" rel="noreferrer">
+            <img
+              src={prescriptionImageUrl(path!)}
+              alt={label}
+              className="h-14 w-14 rounded-md border border-line object-cover"
+            />
+          </a>
+        ) : (
+          <div className="flex h-14 w-14 items-center justify-center rounded-md border border-dashed border-line text-faint">
+            🖼
+          </div>
+        )}
+        <div className="text-xs">
+          <div className="font-semibold">{label}</div>
+          {has ? (
+            perms.isAdmin ? (
+              <label className="cursor-pointer text-brand hover:underline">
+                {t('Replace')}
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(e) => onFile(slot, e.target.files?.[0])}
+                />
+              </label>
+            ) : (
+              <span className="text-faint">{t('Replace requires admin')}</span>
+            )
+          ) : canAttach ? (
+            <label className="cursor-pointer text-brand hover:underline">
+              {busy === slot ? '…' : `📎 ${t('Attach')}`}
+              <input
+                type="file"
+                accept="image/*"
+                capture="environment"
+                className="hidden"
+                onChange={(e) => onFile(slot, e.target.files?.[0])}
+              />
+            </label>
+          ) : null}
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="mt-2 flex flex-wrap items-center gap-4 border-t border-line/40 pt-2">
+      <span className="text-xs font-semibold text-faint">{t('Order images')}</span>
+      {renderSlot('rx', t('Rx paper photo'))}
+      {renderSlot('frame', t('Frame photo'))}
+      {canAttach && (
+        <button
+          onClick={onQr}
+          className="ms-auto rounded-md border border-line px-2 py-1 text-xs text-brand hover:bg-surface"
+        >
+          📱 {t('Attach from mobile')}
+        </button>
+      )}
     </div>
   )
 }

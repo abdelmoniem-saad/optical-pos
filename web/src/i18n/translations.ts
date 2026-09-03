@@ -349,4 +349,16 @@ export const ar: Record<string, string> = {
   'You are changing your own access, be careful!': 'أنت تعدّل صلاحياتك أنت, انتبه!',
   'This may lock you out of the Staff page. Continue?':
     'قد يؤدي هذا إلى منعك من الوصول لصفحة الموظفين. متابعة؟',
+  'Order images': 'صور الطلب',
+  'Rx paper photo': 'صورة الروشتة',
+  'Frame photo': 'صورة الفريم',
+  'Attach from mobile': 'إرفاق من الجوال',
+  'Mobile upload': 'رفع من الجوال',
+  'Replace requires admin': 'الاستبدال يتطلب صلاحية المدير',
+  'Take photo': 'التقاط صورة',
+  'Invoice not found': 'لم يتم العثور على الفاتورة',
+  'Sign in to upload': 'سجّل الدخول للرفع',
+  'Enter invoice number': 'أدخل رقم الفاتورة',
+  'Attach image': 'إرفاق صورة',
+  Replace: 'استبدال',
 }

@@ -1,10 +1,9 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { usePOS, localDateISO } from '../POSContext'
 import { useI18n } from '../../../i18n/LanguageContext'
 import { useLensTypes, useFrameColors } from '../../../data/metadata'
 import { useInventory } from '../../../data/inventory'
 import { usePastExaminations, type PastExam } from '../../../data/examinations'
-import { uploadPrescriptionImage } from '../../../lib/storage'
 import { rxArrowNav } from '../enterNav'
 import { emptyExam, type Exam } from '../types'
 
@@ -30,23 +29,6 @@ function ExamRow({ index }: { index: number }) {
   const frames = useInventory('Frame')
 
   const upd = (p: Partial<Exam>) => updateExam(index, p)
-
-  const fileRef = useRef<HTMLInputElement>(null)
-  const [uploading, setUploading] = useState(false)
-  async function onFile(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
-    if (!file) return
-    setUploading(true)
-    try {
-      const path = await uploadPrescriptionImage(file)
-      upd({ image_path: path })
-    } catch (err) {
-      alert(err instanceof Error ? err.message : 'Upload failed')
-    } finally {
-      setUploading(false)
-      e.target.value = ''
-    }
-  }
 
   // Enter-to-next-field for prescription inputs is handled page-wide by the
   // CartStep container (enterMovesNext) - no row-local handler anymore.
@@ -189,17 +171,6 @@ function ExamRow({ index }: { index: number }) {
           </select>
         </label>
 
-        <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={onFile} />
-        <button
-          type="button"
-          onClick={() => fileRef.current?.click()}
-          title={t('Attach Image')}
-          className={`ms-auto rounded-md px-2 py-1.5 text-sm hover:bg-surface ${
-            exam.image_path ? 'text-success' : 'text-muted'
-          }`}
-        >
-          {uploading ? '…' : exam.image_path ? '📎✓' : '📎'}
-        </button>
         <button
           onClick={() => removeExam(index)}
           disabled={state.examinations.length <= 1}

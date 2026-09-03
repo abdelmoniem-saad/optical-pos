@@ -245,6 +245,9 @@ export type CreateSaleInput = {
   paymentMethod?: string
   // Expected delivery date shown on receipts/lab copy (YYYY-MM-DD).
   deliveryDate?: string
+  // Order photo slots (migration 007): prescriptions paper / frame picture.
+  rxImagePath?: string | null
+  frameImagePath?: string | null
   // If provided (assigned earlier in the wizard), reuse it instead of generating.
   invoiceNo?: string
 }
@@ -292,6 +295,8 @@ export function useCreateSale() {
             delivery_date: input.deliveryDate ? input.deliveryDate : null,
             doctor_name: input.doctorName ?? '',
             lab_status: input.examinations?.length ? 'Not Started' : null,
+            rx_image_path: input.rxImagePath ?? null,
+            frame_image_path: input.frameImagePath ?? null,
           }
           const items = input.items.map((i) => ({
             product_id: i.product_id,
@@ -417,6 +422,8 @@ export function useUpdateSaleFull() {
       doctorName,
       deliveryDate,
       paymentMethod,
+      rxImagePath,
+      frameImagePath,
     }: UpdateSaleFullInput): Promise<Sale> => {
       // 1) Header. lab_status only changes when the exam set appears/vanishes;
       //    an in-progress lab status must never be reset by a re-checkout.
@@ -428,6 +435,8 @@ export function useUpdateSaleFull() {
         payment_method: paymentMethod ?? 'Cash',
         delivery_date: deliveryDate ? deliveryDate : null,
         doctor_name: doctorName ?? '',
+        rx_image_path: rxImagePath ?? null,
+        frame_image_path: frameImagePath ?? null,
       }
       const exams = examinations ?? []
       if (exams.length) headerPatch.lab_status = 'Not Started'
@@ -514,6 +523,31 @@ export function useUpdateLabStatus() {
         .from('sales')
         .update({ lab_status: status })
         .eq('id', id)
+      if (error) throw error
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: KEY }),
+  })
+}
+
+/**
+ * Attach/replace one of an order's two photo slots (prescriptions paper or
+ * frame picture). `path === null` clears the slot.
+ */
+export function useSetOrderImage() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({
+      saleId,
+      slot,
+      path,
+    }: {
+      saleId: string
+      slot: 'rx' | 'frame'
+      path: string | null
+    }): Promise<void> => {
+      const patch =
+        slot === 'rx' ? { rx_image_path: path } : { frame_image_path: path }
+      const { error } = await supabase.from('sales').update(patch).eq('id', saleId)
       if (error) throw error
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: KEY }),
