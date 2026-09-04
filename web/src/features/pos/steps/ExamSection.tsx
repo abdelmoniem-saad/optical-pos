@@ -6,6 +6,9 @@ import { useInventory } from '../../../data/inventory'
 import { usePastExaminations, type PastExam } from '../../../data/examinations'
 import { rxArrowNav } from '../enterNav'
 import { emptyExam, type Exam } from '../types'
+import { usePermissions } from '../../../data/permissions'
+import { prescriptionImageUrl, uploadOrderImage } from '../../../lib/storage'
+import { QrDialog } from '../../../components/QrDialog'
 
 const small =
   'rounded-md border border-line bg-white px-2 py-1.5 text-sm outline-none focus:border-brand'
@@ -261,6 +264,7 @@ function PastPrescriptions({ customerId }: { customerId: string }) {
 export function ExamSection() {
   const { t } = useI18n()
   const { state, addExam, setDoctorName, setDeliveryDate } = usePOS()
+  const [qrOpen, setQrOpen] = useState(false)
 
   useEffect(() => {
     if (state.examinations.length === 0) addExam()
@@ -299,7 +303,33 @@ export function ExamSection() {
             onChange={(e) => setDoctorName(e.target.value)}
           />
         </label>
+
+        {/* Order photos: attach the prescriptions paper + frame picture here,
+            or scan the QR with a phone to take both photos directly. Files are
+            stored under the invoice number and attach at checkout. */}
+        <div className="flex flex-wrap items-end gap-2">
+          <span className="mb-0.5 self-end text-xs font-semibold text-faint">
+            {t('Order images')}
+          </span>
+          <OrderImageSlot slot="rx" label={t('Rx paper photo')} />
+          <OrderImageSlot slot="frame" label={t('Frame photo')} />
+          <button
+            type="button"
+            onClick={() => setQrOpen(true)}
+            className="rounded-md border border-line px-2 py-1.5 text-xs text-brand hover:bg-surface"
+          >
+            📱 {t('Attach from mobile')}
+          </button>
+        </div>
       </div>
+
+      {qrOpen && (
+        <QrDialog
+          url={`${window.location.origin}/m-upload?inv=${encodeURIComponent(state.invoiceNo)}`}
+          title={`${t('Invoice')} #${state.invoiceNo}`}
+          onClose={() => setQrOpen(false)}
+        />
+      )}
 
       <div className="mb-3 space-y-2">
         {state.examinations.map((_, i) => (
@@ -314,5 +344,66 @@ export function ExamSection() {
         {t('+ Add Another Exam')}
       </button>
     </section>
+  )
+}
+
+/**
+ * One of the two order photo slots (prescriptions paper / frame picture).
+ * Attaching from the PC is free while the order is being made; photos taken
+ * on the phone land in storage keyed by the invoice and attach at checkout.
+ * Replacing a photo AFTER checkout is admin-only.
+ */
+function OrderImageSlot({ slot, label }: { slot: 'rx' | 'frame'; label: string }) {
+  const { t } = useI18n()
+  const perms = usePermissions()
+  const { state, setOrderImage } = usePOS()
+  const path = slot === 'rx' ? state.rxImagePath : state.frameImagePath
+  const [busy, setBusy] = useState(false)
+  const replaceLocked = !!path && !!state.savedSale && !perms.isAdmin
+
+  return (
+    <label
+      className={`relative cursor-pointer rounded-md border px-2 py-1.5 text-xs font-semibold ${
+        path ? 'border-success/50 text-success' : 'border-line text-muted'
+      } hover:bg-surface ${replaceLocked ? 'opacity-50' : ''}`}
+      title={replaceLocked ? t('Replace requires admin') : label}
+    >
+      {busy ? '…' : path ? `✓ ${label}` : `📎 ${label}`}
+      <input
+        type="file"
+        accept="image/*"
+        className="hidden"
+        disabled={replaceLocked}
+        onChange={async (e) => {
+          const f = e.target.files?.[0]
+          if (!f) return
+          setBusy(true)
+          try {
+            const p = await uploadOrderImage(f, state.invoiceNo, slot)
+            setOrderImage(slot, p)
+          } catch (err) {
+            alert(err instanceof Error ? err.message : String(err))
+          } finally {
+            setBusy(false)
+            e.target.value = ''
+          }
+        }}
+      />
+      {path && (
+        <a
+          href={prescriptionImageUrl(path)}
+          target="_blank"
+          rel="noreferrer"
+          onClick={(e) => {
+            e.preventDefault()
+            e.stopPropagation()
+            window.open(prescriptionImageUrl(path), '_blank')
+          }}
+          className="ms-1 text-brand hover:underline"
+        >
+          {t('View Image')}
+        </a>
+      )}
+    </label>
   )
 }

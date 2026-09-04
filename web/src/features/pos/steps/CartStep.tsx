@@ -1,11 +1,9 @@
-import { useRef, useState } from 'react'
+import { useState } from 'react'
 import { usePOS, type CustomerDraft } from '../POSContext'
 import { useI18n } from '../../../i18n/LanguageContext'
 import { needsExamination } from '../types'
 import { ExamSection } from './ExamSection'
 import { enterMovesNext } from '../enterNav'
-import { usePermissions } from '../../../data/permissions'
-import { prescriptionImageUrl, uploadOrderImage } from '../../../lib/storage'
 
 function money(n: number) {
   return n.toFixed(2)
@@ -66,15 +64,6 @@ export function CartStep() {
           <CustomerField label={t('Address')} field="address" />
         </div>
       )}
-
-      {/* Order photos: the prescriptions paper and the frame picture. Attach
-          here from the PC, or scan the QR shown in the receipt dialog after
-          checkout to take both photos directly with the phone. */}
-      <div className="mb-4 flex flex-wrap items-center gap-3 rounded-xl border border-line bg-white p-3 shadow-sm">
-        <span className="text-xs font-semibold text-faint">{t('Order images')}</span>
-        <OrderImageSlot slot="rx" label={t('Rx paper photo')} />
-        <OrderImageSlot slot="frame" label={t('Frame photo')} />
-      </div>
 
       {showExam && <ExamSection />}
 
@@ -273,67 +262,5 @@ function CustomerField({ label, field }: { label: string; field: keyof CustomerD
         onBlur={(e) => saveCustomerEdits({ [field]: e.target.value } as Partial<CustomerDraft>)}
       />
     </label>
-  )
-}
-
-/**
- * One of the two order photo slots (prescriptions paper / frame picture).
- * Attaching is free while the order is being made; replacing an attached
- * photo AFTER checkout is admin-only.
- */
-function OrderImageSlot({ slot, label }: { slot: 'rx' | 'frame'; label: string }) {
-  const { t } = useI18n()
-  const perms = usePermissions()
-  const { state, setOrderImage } = usePOS()
-  const path = slot === 'rx' ? state.rxImagePath : state.frameImagePath
-  const fileRef = useRef<HTMLInputElement>(null)
-  const [busy, setBusy] = useState(false)
-  const replaceLocked = !!path && !!state.savedSale && !perms.isAdmin
-
-  return (
-    <div className="flex items-center gap-2">
-      <input
-        ref={fileRef}
-        type="file"
-        accept="image/*"
-        className="hidden"
-        onChange={async (e) => {
-          const f = e.target.files?.[0]
-          if (!f) return
-          setBusy(true)
-          try {
-            const p = await uploadOrderImage(f, state.invoiceNo, slot)
-            setOrderImage(slot, p)
-          } catch (err) {
-            alert(err instanceof Error ? err.message : String(err))
-          } finally {
-            setBusy(false)
-            e.target.value = ''
-          }
-        }}
-      />
-      <button
-        type="button"
-        disabled={busy || replaceLocked}
-        title={replaceLocked ? t('Replace requires admin') : label}
-        onClick={() => fileRef.current?.click()}
-        className={`rounded-lg border px-3 py-2 text-sm disabled:opacity-40 ${
-          path ? 'border-success/50 text-success' : 'border-line text-muted'
-        } hover:bg-surface`}
-      >
-        📎 {busy ? '…' : label}
-        {path ? ' ✓' : ''}
-      </button>
-      {path && (
-        <a
-          href={prescriptionImageUrl(path)}
-          target="_blank"
-          rel="noreferrer"
-          className="text-xs text-brand hover:underline"
-        >
-          {t('View Image')}
-        </a>
-      )}
-    </div>
   )
 }

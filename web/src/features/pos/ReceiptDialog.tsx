@@ -1,8 +1,7 @@
-import { useMemo, useState } from 'react'
+import { useMemo } from 'react'
 import { usePOS, type CompletedOrder } from './POSContext'
 import { useI18n } from '../../i18n/LanguageContext'
 import { useSettings } from '../../data/settings'
-import { QrDialog } from '../../components/QrDialog'
 import {
   UNIT_CSS,
   buildOrderDocument,
@@ -22,7 +21,6 @@ export function ReceiptDialog({ order }: { order: CompletedOrder }) {
   // invoice. Only "+ New Sale" throws the wizard away and starts fresh.
   const { closeReceipt, startNewSale } = usePOS()
   const settings = useSettings()
-  const [qrOpen, setQrOpen] = useState(false)
 
   const shop: Shop = useMemo(
     () => ({
@@ -74,15 +72,6 @@ export function ReceiptDialog({ order }: { order: CompletedOrder }) {
           🖨 {t('Print')}
         </button>
 
-        {/* Photos are taken on the phone: QR opens the mobile upload page for
-            this exact invoice. */}
-        <button
-          onClick={() => setQrOpen(true)}
-          className="mt-2 w-full rounded-lg border border-line py-2.5 font-semibold text-brand-dark hover:bg-surface"
-        >
-          📱 {t('Attach from mobile')}
-        </button>
-
         <button
           onClick={closeReceipt}
           className="mt-2 w-full rounded-lg bg-success py-2.5 font-semibold text-white"
@@ -95,14 +84,6 @@ export function ReceiptDialog({ order }: { order: CompletedOrder }) {
         >
           + {t('New Sale')}
         </button>
-
-        {qrOpen && (
-          <QrDialog
-            url={`${window.location.origin}/m-upload?inv=${encodeURIComponent(order.invoiceNo)}`}
-            title={`${t('Invoice')} #${order.invoiceNo}`}
-            onClose={() => setQrOpen(false)}
-          />
-        )}
       </div>
     </div>
   )

@@ -44,15 +44,22 @@ export function MUploadPage() {
   const sale = saleQ.data ?? null
   const [busySlot, setBusySlot] = useState<'rx' | 'frame' | null>(null)
   const [err, setErr] = useState<string | null>(null)
+  // Photos uploaded BEFORE checkout (invoice not in the DB yet) live only in
+  // storage under the invoice number; checkout adopts them.
+  const [uploaded, setUploaded] = useState<Partial<Record<'rx' | 'frame', string>>>({})
 
   async function handleFile(slot: 'rx' | 'frame', file: File | undefined) {
-    if (!file || !sale) return
+    if (!file) return
     setBusySlot(slot)
     setErr(null)
     try {
       const path = await uploadOrderImage(file, inv, slot)
-      await setImg.mutateAsync({ saleId: sale.id, slot, path })
-      await qc.invalidateQueries({ queryKey: ['m-order', inv] })
+      setUploaded((prev) => ({ ...prev, [slot]: path }))
+      // Confirmed order? Link directly. Otherwise checkout adopts the file.
+      if (sale) {
+        await setImg.mutateAsync({ saleId: sale.id, slot, path })
+        await qc.invalidateQueries({ queryKey: ['m-order', inv] })
+      }
     } catch (e) {
       setErr(e instanceof Error ? e.message : String(e))
     } finally {
@@ -109,9 +116,11 @@ export function MUploadPage() {
             )}
 
             {(['rx', 'frame'] as const).map((slot) => {
-              const path = slot === 'rx' ? sale.rx_image_path : sale.frame_image_path
+              const dbPath = slot === 'rx' ? sale?.rx_image_path : sale?.frame_image_path
+              const path = dbPath ?? uploaded[slot]
               const label = slot === 'rx' ? t('Rx paper photo') : t('Frame photo')
               const isBusy = busySlot === slot
+              const canReplace = isAdmin || !dbPath
               return (
                 <div key={slot} className="mb-4">
                   <div className="mb-1 text-sm font-semibold text-brand-dark">{label}</div>
@@ -124,7 +133,7 @@ export function MUploadPage() {
                           className="h-20 w-20 rounded-lg border border-line object-cover"
                         />
                       </a>
-                      {isAdmin ? (
+                      {canReplace ? (
                         <label className="cursor-pointer text-sm text-brand hover:underline">
                           {t('Replace')}
                           <input
@@ -155,6 +164,14 @@ export function MUploadPage() {
                 </div>
               )
             })}
+
+            {!sale && inv.length >= 3 && !saleQ.isFetching && (
+              <p className="rounded-lg bg-brand-bg px-3 py-2 text-xs text-brand-dark">
+                {t(
+                  'Invoice not found in the system. Photos will attach when the order is confirmed.',
+                )}
+              </p>
+            )}
           </div>
         )}
       </div>

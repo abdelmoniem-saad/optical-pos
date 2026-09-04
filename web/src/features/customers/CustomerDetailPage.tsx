@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router-dom'
 import { useCustomer, useUpdateCustomer } from '../../data/customers'
 import { useCustomerOrders } from '../../data/sales'
 import { useI18n } from '../../i18n/LanguageContext'
+import { prescriptionImageUrl } from '../../lib/storage'
 import { ExamList } from '../../components/ExamView'
 import { OrderReceiptDialog } from '../../components/OrderReceiptDialog'
 import type { Customer, Sale } from '../../lib/database.types'
@@ -103,6 +104,40 @@ export function CustomerDetailPage() {
                   {/* Compact one-row layout - multiple Rx on the same order
                       don't need much space per the updated design. */}
                   <ExamList exams={o.order_examinations ?? []} compact />
+                  {(o.rx_image_path || o.frame_image_path) && (
+                    <div className="mt-2 flex flex-wrap items-center gap-3">
+                      {o.rx_image_path && (
+                        <a
+                          href={prescriptionImageUrl(o.rx_image_path)}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-center text-xs text-brand hover:underline"
+                        >
+                          <img
+                            src={prescriptionImageUrl(o.rx_image_path)}
+                            alt={t('Rx paper photo')}
+                            className="mb-1 h-16 w-16 rounded-md border border-line object-cover"
+                          />
+                          {t('Rx paper photo')}
+                        </a>
+                      )}
+                      {o.frame_image_path && (
+                        <a
+                          href={prescriptionImageUrl(o.frame_image_path)}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-center text-xs text-brand hover:underline"
+                        >
+                          <img
+                            src={prescriptionImageUrl(o.frame_image_path)}
+                            alt={t('Frame photo')}
+                            className="mb-1 h-16 w-16 rounded-md border border-line object-cover"
+                          />
+                          {t('Frame photo')}
+                        </a>
+                      )}
+                    </div>
+                  )}
                   <button
                     onClick={() => setReprint(o)}
                     className="mt-3 rounded-lg border border-line px-3 py-1.5 text-sm text-muted hover:bg-surface"

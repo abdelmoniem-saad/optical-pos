@@ -361,4 +361,8 @@ export const ar: Record<string, string> = {
   'Enter invoice number': 'أدخل رقم الفاتورة',
   'Attach image': 'إرفاق صورة',
   Replace: 'استبدال',
+  'Will attach when the order is confirmed': 'سيتم إرفاقها عند تأكيد الطلب',
+  'Invoice not found in the system. Photos will attach when the order is confirmed.':
+    'لم يتم العثور على الفاتورة في النظام. سيتم إرفاق الصور عند تأكيد الطلب.',
+  'Uploading…': 'جارٍ الرفع',
 }

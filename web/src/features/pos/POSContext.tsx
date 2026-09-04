@@ -16,6 +16,7 @@ import {
 import { useAddCustomer, useUpdateCustomer } from '../../data/customers'
 import { resolveStaffUserId } from '../../data/staff'
 import { addMissingOrderMetadata } from '../../data/metadata'
+import { findOrderImages } from '../../lib/storage'
 import type { Customer, CustomerInsert, Product, Sale } from '../../lib/database.types'
 import { addLine, computeTotals, removeLine, setQty, type Totals } from './pricing'
 import {
@@ -447,10 +448,18 @@ export function POSProvider({ children }: { children: ReactNode }) {
       // Allow overselling: stock movements will make inventory go negative,
       // which is intentional per the workflow (record the sale even when
       // qty-on-hand is zero or below).
-      // Order photos: an explicit attach wins; otherwise promote a legacy
-      // per-exam prescription upload if one exists.
+      // Order photos: an explicit PC attach wins; otherwise adopt the photos
+      // taken on the phone BEFORE checkout (stored under the invoice number),
+      // and finally promote a legacy per-exam prescription upload if one exists.
       const legacyRxImage =
         s.examinations.find((e) => (e.image_path ?? '').trim())?.image_path ?? null
+      let rxImagePath = s.rxImagePath ?? legacyRxImage
+      let frameImagePath = s.frameImagePath
+      if (!rxImagePath || !frameImagePath) {
+        const found = await findOrderImages(s.invoiceNo)
+        rxImagePath = rxImagePath ?? found.rx ?? null
+        frameImagePath = frameImagePath ?? found.frame ?? null
+      }
       const payload = {
         items: cartItems,
         examinations: s.examinations.length ? s.examinations : undefined,
@@ -462,8 +471,8 @@ export function POSProvider({ children }: { children: ReactNode }) {
         },
         doctorName: s.doctorName,
         deliveryDate: s.deliveryDate,
-        rxImagePath: s.rxImagePath ?? legacyRxImage,
-        frameImagePath: s.frameImagePath,
+        rxImagePath,
+        frameImagePath,
       }
       const isUpdate = !!s.savedSale
       let sale: Sale

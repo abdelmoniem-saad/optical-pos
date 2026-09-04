@@ -83,7 +83,7 @@ export function useInfiniteSales(range: SalesRange, term: string) {
       let q = supabase
         .from('sales')
         .select(
-          'id, invoice_no, customer_id, user_id, total_amount, discount, net_amount, amount_paid, payment_method, order_date, delivery_date, doctor_name, lab_status, users(full_name, username), customers(name)',
+          'id, invoice_no, customer_id, user_id, total_amount, discount, net_amount, amount_paid, payment_method, order_date, delivery_date, doctor_name, lab_status, rx_image_path, frame_image_path, users(full_name, username), customers(name)',
           { count: 'exact' },
         )
         .order('order_date', { ascending: false })

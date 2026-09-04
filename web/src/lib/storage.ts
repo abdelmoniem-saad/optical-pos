@@ -67,3 +67,27 @@ export async function removeOrderImage(path: string): Promise<void> {
   const { error } = await supabase.storage.from(BUCKET).remove([path])
   if (error) throw error
 }
+
+/**
+ * Find mobile-uploaded photos for an invoice that were stored BEFORE the sale
+ * row existed (pre-checkout QR flow uploads to storage only, keyed by the
+ * invoice number). Checkout adopts them into the sales columns.
+ */
+export async function findOrderImages(
+  invoiceNo: string,
+): Promise<{ rx?: string; frame?: string }> {
+  const safe = invoiceNo.replace(/[^\w-]/g, '') || 'order'
+  const { data, error } = await supabase.storage
+    .from(BUCKET)
+    .list('orders', { limit: 30, search: `${safe}-` })
+  if (error || !data) return {}
+  const bySlot = (slot: 'rx' | 'frame'): string | undefined => {
+    const files = data
+      .filter((f) => f.name.includes(`${safe}-${slot}-`))
+      .map((f) => f.name)
+      .sort()
+    const last = files[files.length - 1]
+    return last ? `orders/${last}` : undefined
+  }
+  return { rx: bySlot('rx'), frame: bySlot('frame') }
+}
