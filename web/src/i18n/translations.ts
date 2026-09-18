@@ -385,4 +385,5 @@ export const ar: Record<string, string> = {
   trial: 'تجريبي',
   standard: 'قياسي',
   pro: 'احترافي',
+  'No entries yet.': 'لا توجد إدخالات بعد.',
 }

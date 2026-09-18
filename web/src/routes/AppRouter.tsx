@@ -12,7 +12,6 @@ const named = <T extends Record<string, unknown>, K extends keyof T>(
   key: K,
 ) => lazy(() => loader().then((m) => ({ default: m[key] as React.ComponentType })))
 
-const DashboardPage = named(() => import('../features/dashboard/DashboardPage'), 'DashboardPage')
 const POSPage = named(() => import('../features/pos/POSPage'), 'POSPage')
 const CustomersPage = named(() => import('../features/customers/CustomersPage'), 'CustomersPage')
 const CustomerDetailPage = named(() => import('../features/customers/CustomerDetailPage'), 'CustomerDetailPage')
@@ -53,8 +52,8 @@ const router = createBrowserRouter([
       {
         index: true,
         element: (
-          <RequirePermission resource="dashboard">
-            <DashboardPage />
+          <RequirePermission resource="pos">
+            <POSPage />
           </RequirePermission>
         ),
       },

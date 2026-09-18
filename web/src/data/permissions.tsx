@@ -16,7 +16,6 @@ import { useCurrentUser } from './staff'
 
 /** Every gated area of the app, in sidebar order. */
 export const RESOURCES = [
-  { key: 'dashboard', label: 'Dashboard' },
   { key: 'pos', label: 'New Sale' },
   { key: 'customers', label: 'Customers' },
   { key: 'inventory', label: 'Inventory' },

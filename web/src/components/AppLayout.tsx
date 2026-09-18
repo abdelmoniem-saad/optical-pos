@@ -8,8 +8,7 @@ import { PermissionsProvider, usePermissions } from '../data/permissions'
 import { useMyLicense, useIsPlatformAdmin } from '../lib/licensing'
 
 const nav: { to: string; label: string; end?: boolean; resource: string }[] = [
-  { to: '/', label: 'Dashboard', end: true, resource: 'dashboard' },
-  { to: '/pos', label: 'New Sale', resource: 'pos' },
+  { to: '/', label: 'New Sale', end: true, resource: 'pos' },
   { to: '/customers', label: 'Customers', resource: 'customers' },
   { to: '/inventory', label: 'Inventory', resource: 'inventory' },
   { to: '/lab', label: 'Lab', resource: 'lab' },
