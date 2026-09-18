@@ -203,7 +203,7 @@ export function OpticalSettings() {
       <h2 className="mb-1 text-lg font-semibold text-brand-dark">{t('Optical Settings')}</h2>
       {/* Frame Types removed: nothing in the app reads that list anymore. */}
       <p className="mb-4 text-sm text-muted">{t('Lens types and colors used in prescriptions.')}</p>
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4">
         <MetaList title={t('Lens Types')} icon="👓" table="lens_types" rows={lens.data ?? []} />
         <MetaList
           title={t('Frame Colors')}
