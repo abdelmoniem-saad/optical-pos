@@ -1,10 +1,11 @@
-﻿import { useState } from 'react'
+﻿import { useMemo, useRef, useState } from 'react'
 import { useI18n } from '../../i18n/LanguageContext'
 import {
   useAddMetadata,
   useDeleteMetadata,
   useFrameColors,
   useLensTypes,
+  useReorderMetadata,
   type NamedRow,
 } from '../../data/metadata'
 
@@ -52,41 +53,98 @@ function MetaList({
   const { t } = useI18n()
   const add = useAddMetadata(table)
   const del = useDeleteMetadata(table)
+  const reorder = useReorderMetadata(table)
   const [name, setName] = useState('')
+  // 'custom' = the persistent order (drag-and-drop); 'alpha' = display-only.
+  const [view, setView] = useState<'custom' | 'alpha'>('custom')
+  const dragId = useRef<string | null>(null)
+
+  const rowsAlpha = useMemo(
+    () => [...rows].sort((a, b) => a.name.localeCompare(b.name)),
+    [rows],
+  )
+  const displayRows = view === 'alpha' ? rowsAlpha : rows
 
   async function submit() {
     const v = name.trim()
     if (!v) return
-    await add.mutateAsync(v)
+    // In custom view a new entry goes LAST.
+    const nextOrder =
+      view === 'custom'
+        ? Math.max(rows.length, ...rows.map((r) => r.sort_order ?? 0)) + 1
+        : undefined
+    await add.mutateAsync({ name: v, sortOrder: nextOrder })
     setName('')
   }
 
-  const err = add.error ?? del.error
+  function dropOn(targetId: string) {
+    const from = rows.findIndex((r) => r.id === dragId.current)
+    const to = rows.findIndex((r) => r.id === targetId)
+    dragId.current = null
+    if (from === -1 || to === -1 || from === to) return
+    const next = [...rows]
+    const [moved] = next.splice(from, 1)
+    next.splice(to, 0, moved)
+    reorder.mutate(next.map((r) => r.id))
+  }
+
+  const err = add.error ?? del.error ?? reorder.error
+
+  const toggleCls = (active: boolean) =>
+    `rounded-md px-2 py-1 text-xs font-semibold transition ${
+      active ? 'bg-brand text-white' : 'text-muted hover:bg-surface'
+    }`
 
   return (
     <div className="overflow-hidden rounded-xl border border-line bg-white shadow-sm">
-      {/* header: icon + title + live count */}
+      {/* header: icon + title + count + view toggle */}
       <div className="flex items-center justify-between border-b border-line/60 px-4 py-3">
         <h3 className="flex items-center gap-2 text-sm font-semibold text-brand-dark">
           <span>{icon}</span>
           {title}
         </h3>
-        <span className="rounded-full bg-surface px-2 py-0.5 text-xs font-semibold text-muted">
-          {rows.length}
-        </span>
+        <div className="flex items-center gap-2">
+          <div className="flex overflow-hidden rounded-md border border-line">
+            <button
+              type="button"
+              onClick={() => setView('custom')}
+              title={t('Custom order')}
+              className={toggleCls(view === 'custom')}
+            >
+              ⇅
+            </button>
+            <button
+              type="button"
+              onClick={() => setView('alpha')}
+              title={t('Alphabetical')}
+              className={toggleCls(view === 'alpha')}
+            >
+              A-Z
+            </button>
+          </div>
+          <span className="rounded-full bg-surface px-2 py-0.5 text-xs font-semibold text-muted">
+            {rows.length}
+          </span>
+        </div>
       </div>
 
       {/* chips */}
       <div className="flex min-h-16 flex-wrap content-start items-start gap-1.5 p-3">
-        {rows.length === 0 && (
+        {displayRows.length === 0 && (
           <span className="py-1 text-sm text-faint">{t('No entries yet.')}</span>
         )}
-        {rows.map((r) => {
+        {displayRows.map((r) => {
           const swatch = colored ? swatchFor(r.name) : undefined
           return (
             <span
               key={r.id}
-              className="inline-flex items-center gap-1.5 rounded-full border border-line bg-surface px-2.5 py-1 text-sm transition hover:border-line/80"
+              draggable={view === 'custom'}
+              onDragStart={() => (dragId.current = r.id)}
+              onDragOver={(e) => view === 'custom' && e.preventDefault()}
+              onDrop={() => view === 'custom' && dropOn(r.id)}
+              className={`inline-flex items-center gap-1.5 rounded-full border border-line bg-surface px-2.5 py-1 text-sm transition hover:border-line/80 ${
+                view === 'custom' ? 'cursor-grab active:cursor-grabbing' : ''
+              }`}
             >
               {swatch && (
                 <span
@@ -108,19 +166,19 @@ function MetaList({
         })}
       </div>
 
-      {/* add row */}
-      <div className="flex gap-2 border-t border-line/40 p-3">
+      {/* add row: min-w-0 + shrink-0 so the button is never cropped */}
+      <div className="flex flex-wrap gap-2 border-t border-line/40 p-3">
         <input
           value={name}
           onChange={(e) => setName(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && submit()}
           placeholder={`${t('Add')}...`}
-          className="flex-1 rounded-lg border border-line px-3 py-2 text-sm outline-none focus:border-brand"
+          className="min-w-0 flex-1 rounded-lg border border-line px-3 py-2 text-sm outline-none focus:border-brand"
         />
         <button
           onClick={submit}
           disabled={add.isPending || !name.trim()}
-          className="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+          className="shrink-0 rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
         >
           {add.isPending ? '...' : t('Add')}
         </button>

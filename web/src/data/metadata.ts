@@ -3,41 +3,70 @@ import { supabase } from '../lib/supabase'
 import { queryClient } from '../lib/queryClient'
 import { ensureFrameProduct } from './inventory'
 
-export type NamedRow = { id: string; name: string }
+export type NamedRow = { id: string; name: string; sort_order?: number | null }
 
-/** Generic id+name lookup table (lens_types, frame_colors, frame_types, roles…).
- *  Mirrors repo.get_metadata(table_name). */
-function useNamedTable(table: string) {
+/** Generic id+name lookup table (lens_types, frame_colors, roles…).
+ *  Mirrors repo.get_metadata(table_name).
+ *  order 'name'   → alphabetical (roles, generic lists)
+ *  order 'custom' → persistent sort_order, then creation order (settings). */
+function useNamedTable(table: string, order: 'name' | 'custom' = 'name') {
   return useQuery({
-    queryKey: [table],
+    queryKey: [table, order],
     queryFn: async (): Promise<NamedRow[]> => {
-      const { data, error } = await supabase
-        .from(table)
-        .select('*')
-        .order('name')
-        .returns<NamedRow[]>()
+      let q = supabase.from(table).select('*')
+      q =
+        order === 'custom'
+          ? q
+              .order('sort_order', { ascending: true, nullsFirst: false })
+              .order('created_at', { ascending: true })
+          : q.order('name')
+      const { data, error } = await q.returns<NamedRow[]>()
       if (error) throw error
       return data ?? []
     },
   })
 }
 
-export const useLensTypes = () => useNamedTable('lens_types')
-export const useFrameColors = () => useNamedTable('frame_colors')
+export const useLensTypes = () => useNamedTable('lens_types', 'custom')
+export const useFrameColors = () => useNamedTable('frame_colors', 'custom')
 export const useRoles = () => useNamedTable('roles')
 
-/** Add a row to a metadata table (lens_types, frame_types, frame_colors). */
+/** Add a row to a metadata table (lens_types, frame_types, frame_colors).
+ *  Pass sortOrder to place the new row in the custom order (settings lists). */
 export function useAddMetadata(table: string) {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: async (name: string): Promise<NamedRow> => {
+    mutationFn: async ({
+      name,
+      sortOrder,
+    }: {
+      name: string
+      sortOrder?: number
+    }): Promise<NamedRow> => {
+      const payload: Record<string, unknown> = { name: name.trim() }
+      if (sortOrder !== undefined) payload.sort_order = sortOrder
       const { data, error } = await supabase
         .from(table)
-        .insert({ name: name.trim() })
+        .insert(payload)
         .select()
         .single<NamedRow>()
       if (error) throw error
       return data
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: [table] }),
+  })
+}
+
+/** Persist a drag-and-drop reorder: every id gets its new position. */
+export function useReorderMetadata(table: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (orderedIds: string[]): Promise<void> => {
+      await Promise.all(
+        orderedIds.map((id, i) =>
+          supabase.from(table).update({ sort_order: i + 1 }).eq('id', id),
+        ),
+      )
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: [table] }),
   })

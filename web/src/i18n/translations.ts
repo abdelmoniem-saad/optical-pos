@@ -386,4 +386,6 @@ export const ar: Record<string, string> = {
   standard: 'قياسي',
   pro: 'احترافي',
   'No entries yet.': 'لا توجد إدخالات بعد.',
+  'Custom order': 'ترتيب مخصص',
+  Alphabetical: 'أبجدي',
 }
