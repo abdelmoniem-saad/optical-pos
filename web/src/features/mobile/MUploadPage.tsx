@@ -7,6 +7,7 @@ import { useI18n } from '../../i18n/LanguageContext'
 import { useIsAdmin } from '../../data/staff'
 import { useSetOrderImage } from '../../data/sales'
 import { prescriptionImageUrl, uploadOrderImage } from '../../lib/storage'
+import { useStoreId } from '../../lib/licensing'
 import type { Sale } from '../../lib/database.types'
 
 /**
@@ -24,6 +25,7 @@ export function MUploadPage() {
   const [invInput, setInvInput] = useState(params.get('inv') ?? '')
   const [inv, setInv] = useState((params.get('inv') ?? '').trim())
   const isAdmin = useIsAdmin()
+  const { data: storeId } = useStoreId()
   const setImg = useSetOrderImage()
   const qc = useQueryClient()
 
@@ -53,7 +55,7 @@ export function MUploadPage() {
     setBusySlot(slot)
     setErr(null)
     try {
-      const path = await uploadOrderImage(file, inv, slot)
+      const path = await uploadOrderImage(file, inv, slot, storeId)
       setUploaded((prev) => ({ ...prev, [slot]: path }))
       // Confirmed order? Link directly. Otherwise checkout adopts the file.
       if (sale) {

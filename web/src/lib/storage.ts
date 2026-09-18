@@ -1,7 +1,7 @@
 import { supabase } from './supabase'
 
 // Supabase Storage bucket for prescription/reading images. Create it once in the
-// dashboard (Storage → New bucket → name "prescriptions", Public) - see
+// dashboard (Storage -> New bucket -> name "prescriptions", Public) - see
 // web/supabase/SETUP.md.
 const BUCKET = 'prescriptions'
 
@@ -43,17 +43,21 @@ async function downscaleImage(file: File, max = 1600): Promise<File> {
 
 /**
  * Upload one of an order's photos (prescriptions paper or frame picture) and
- * return its storage path. Images are downscaled client-side first.
+ * return its storage path. Every file lives under the STORE's folder
+ * (`store/<store_id>/orders/...`) - the tenancy boundary enforced by the
+ * storage policies. Images are downscaled client-side first.
  */
 export async function uploadOrderImage(
   file: File,
   invoiceNo: string,
   slot: 'rx' | 'frame',
+  storeId: string | null | undefined,
 ): Promise<string> {
+  if (!storeId) throw new Error('no-store')
   const safe = invoiceNo.replace(/[^\w-]/g, '') || 'order'
   const compressed = await downscaleImage(file)
   const ext = (compressed.name.split('.').pop() || 'jpg').toLowerCase()
-  const path = `orders/${safe}-${slot}-${Date.now().toString(36)}.${ext}`
+  const path = `store/${storeId}/orders/${safe}-${slot}-${Date.now().toString(36)}.${ext}`
   const { error } = await supabase.storage.from(BUCKET).upload(path, compressed, {
     cacheControl: '3600',
     upsert: false,
@@ -74,12 +78,14 @@ export async function removeOrderImage(path: string): Promise<void> {
  * invoice number). Checkout adopts them into the sales columns.
  */
 export async function findOrderImages(
+  storeId: string,
   invoiceNo: string,
 ): Promise<{ rx?: string; frame?: string }> {
   const safe = invoiceNo.replace(/[^\w-]/g, '') || 'order'
+  const dir = `store/${storeId}/orders`
   const { data, error } = await supabase.storage
     .from(BUCKET)
-    .list('orders', { limit: 30, search: `${safe}-` })
+    .list(dir, { limit: 30, search: `${safe}-` })
   if (error || !data) return {}
   const bySlot = (slot: 'rx' | 'frame'): string | undefined => {
     const files = data
@@ -87,7 +93,7 @@ export async function findOrderImages(
       .map((f) => f.name)
       .sort()
     const last = files[files.length - 1]
-    return last ? `orders/${last}` : undefined
+    return last ? `${dir}/${last}` : undefined
   }
   return { rx: bySlot('rx'), frame: bySlot('frame') }
 }

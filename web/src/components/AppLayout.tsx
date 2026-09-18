@@ -5,6 +5,7 @@ import { useI18n } from '../i18n/LanguageContext'
 import { GlobalSearch } from './GlobalSearch'
 import { Calculator } from './Calculator'
 import { PermissionsProvider, usePermissions } from '../data/permissions'
+import { useMyLicense, useIsPlatformAdmin } from '../lib/licensing'
 
 const nav: { to: string; label: string; end?: boolean; resource: string }[] = [
   { to: '/', label: 'Dashboard', end: true, resource: 'dashboard' },
@@ -27,6 +28,8 @@ function AppShell() {
   const { t, lang, toggle } = useI18n()
   const perms = usePermissions()
   const [calcOpen, setCalcOpen] = useState(false)
+  const license = useMyLicense()
+  const isPlatform = useIsPlatformAdmin()
 
   if (loading) {
     return (
@@ -36,6 +39,33 @@ function AppShell() {
     )
   }
   if (!user) return <Navigate to="/login" replace />
+
+  // License gate: an expired (or missing) license blocks the whole app.
+  const licenseState = license.data?.state
+  const licenseGrace = !isPlatform && licenseState === 'grace'
+  if (!isPlatform && license.data && (licenseState === 'expired' || licenseState === 'none')) {
+    return (
+      <div dir={lang === 'ar' ? 'rtl' : 'ltr'} className="flex h-full flex-col items-center justify-center bg-surface p-6 text-center">
+        <div className="max-w-md rounded-2xl bg-white p-8 shadow-sm">
+          <div className="mb-2 text-3xl">🔒</div>
+          <h1 className="mb-2 text-xl font-bold text-danger">{t('License expired')}</h1>
+          <p className="text-sm text-muted">
+            {t('Your data is safe. Contact the vendor to renew the license for')}{' '}
+            <span className="font-semibold">{license.data.store_name ?? ''}</span>
+          </p>
+          {license.data.expires_at && (
+            <p className="mt-1 text-xs text-faint">{license.data.expires_at.slice(0, 10)}</p>
+          )}
+          <button
+            onClick={() => signOut()}
+            className="mt-4 rounded-lg border border-line px-4 py-2 text-sm text-muted hover:bg-surface"
+          >
+            {t('Sign out')}
+          </button>
+        </div>
+      </div>
+    )
+  }
 
   const visibleNav = nav.filter((item) => perms.can(`${item.resource}.view` as never))
 
@@ -88,6 +118,11 @@ function AppShell() {
       </aside>
 
       <main className="flex min-w-0 flex-1 flex-col overflow-hidden">
+        {licenseGrace && (
+          <div className="bg-warning-bg px-4 py-2 text-center text-xs font-semibold text-warning">
+            {t('License expired - data is read-only during the grace period. Renew to continue working.')}
+          </div>
+        )}
         <header className="flex items-center gap-3 border-b border-line/40 bg-white px-4 py-2.5">
           <GlobalSearch />
           <button

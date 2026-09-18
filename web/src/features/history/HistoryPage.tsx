@@ -13,6 +13,7 @@ import { QrDialog } from '../../components/QrDialog'
 import { EditOrderForm } from './EditOrderForm'
 import { usePermissions } from '../../data/permissions'
 import { prescriptionImageUrl, uploadOrderImage } from '../../lib/storage'
+import { useStoreId } from '../../lib/licensing'
 import type { Sale } from '../../lib/database.types'
 
 function fmt(n: number | null | undefined) {
@@ -211,6 +212,7 @@ function OrderImages({ sale, onQr }: { sale: Sale; onQr: () => void }) {
   const { t } = useI18n()
   const perms = usePermissions()
   const setImg = useSetOrderImage()
+  const { data: storeId } = useStoreId()
   const [busy, setBusy] = useState<'rx' | 'frame' | null>(null)
   const canAttach = perms.isAdmin || perms.can('history.edit' as never)
 
@@ -218,7 +220,7 @@ function OrderImages({ sale, onQr }: { sale: Sale; onQr: () => void }) {
     if (!file) return
     setBusy(slot)
     try {
-      const p = await uploadOrderImage(file, sale.invoice_no, slot)
+      const p = await uploadOrderImage(file, sale.invoice_no, slot, storeId)
       await setImg.mutateAsync({ saleId: sale.id, slot, path: p })
     } catch (e) {
       alert(e instanceof Error ? e.message : String(e))

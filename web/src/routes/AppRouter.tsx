@@ -25,6 +25,7 @@ const NotesPage = named(() => import('../features/notes/NotesPage'), 'NotesPage'
 const StaffPage = named(() => import('../features/staff/StaffPage'), 'StaffPage')
 const SettingsPage = named(() => import('../features/settings/SettingsPage'), 'SettingsPage')
 const MUploadPage = named(() => import('../features/mobile/MUploadPage'), 'MUploadPage')
+const PlatformPage = named(() => import('../features/platform/PlatformPage'), 'PlatformPage')
 
 /** Route-level permission gate. Renders a friendly notice instead of the page
  *  when the signed-in user lacks `<resource>.view`. */
@@ -144,6 +145,10 @@ const router = createBrowserRouter([
             <SettingsPage />
           </RequirePermission>
         ),
+      },
+      {
+        path: 'platform',
+        element: <PlatformPage />,
       },
     ],
   },

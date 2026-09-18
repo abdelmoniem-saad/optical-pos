@@ -16,6 +16,7 @@ export interface User {
   username: string
   full_name: string | null
   role_id: string | null
+  store_id: string | null
   is_active: boolean | null
   // Legacy - Supabase Auth now owns passwords; present only on old rows.
   password_hash?: string | null

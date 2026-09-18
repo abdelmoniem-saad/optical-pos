@@ -28,7 +28,7 @@ Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors })
 
   try {
-    const { username, password, full_name, role_id } = await req.json()
+    const { username, password, full_name, role_id, store_id } = await req.json()
     if (!username || !password) return json({ error: 'username and password are required' }, 400)
     if (String(password).length < 6) return json({ error: 'password must be at least 6 characters' }, 400)
 
@@ -57,6 +57,7 @@ Deno.serve(async (req) => {
       full_name: full_name ?? '',
       password_hash: 'supabase-auth', // password is owned by Supabase Auth now
       role_id: role_id ?? null,
+      store_id: store_id ?? null,
       is_active: true,
     })
 

@@ -17,6 +17,7 @@ import { useAddCustomer, useUpdateCustomer } from '../../data/customers'
 import { resolveStaffUserId } from '../../data/staff'
 import { addMissingOrderMetadata } from '../../data/metadata'
 import { findOrderImages } from '../../lib/storage'
+import { useStoreId } from '../../lib/licensing'
 import type { Customer, CustomerInsert, Product, Sale } from '../../lib/database.types'
 import { addLine, computeTotals, removeLine, setQty, type Totals } from './pricing'
 import {
@@ -181,6 +182,7 @@ export function POSProvider({ children }: { children: ReactNode }) {
   const updateSale = useUpdateSaleFull()
   const addCustomer = useAddCustomer()
   const updateCustomer = useUpdateCustomer()
+  const { data: myStoreId } = useStoreId()
 
   const patch = (p: Partial<State>) => dispatch({ type: 'PATCH', patch: p })
   const totals = computeTotals(state.cartItems, {
@@ -456,7 +458,7 @@ export function POSProvider({ children }: { children: ReactNode }) {
       let rxImagePath = s.rxImagePath ?? legacyRxImage
       let frameImagePath = s.frameImagePath
       if (!rxImagePath || !frameImagePath) {
-        const found = await findOrderImages(s.invoiceNo)
+        const found = await findOrderImages(myStoreId ?? '', s.invoiceNo)
         rxImagePath = rxImagePath ?? found.rx ?? null
         frameImagePath = frameImagePath ?? found.frame ?? null
       }

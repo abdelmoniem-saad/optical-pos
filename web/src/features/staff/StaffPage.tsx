@@ -19,7 +19,7 @@ import { useI18n } from '../../i18n/LanguageContext'
 import { usePermissions } from '../../data/permissions'
 import type { NamedRow } from '../../data/metadata'
 
-function AddUserForm({ onClose }: { onClose: () => void }) {
+function AddUserForm({ onClose, storeId }: { onClose: () => void; storeId: string | null }) {
   const { t } = useI18n()
   const qc = useQueryClient()
   const roles = useRoles()
@@ -43,6 +43,7 @@ function AddUserForm({ onClose }: { onClose: () => void }) {
           password: f.password,
           full_name: f.full_name.trim(),
           role_id: roleId || null,
+          store_id: storeId,
         },
       })
       if (error) {
@@ -418,7 +419,7 @@ export function StaffPage() {
   const roles = useRoles()
   const me = useCurrentUser()
   const updateRole = useUpdateUserRole()
-  const perms = usePermissions()
+    const perms = usePermissions()
   const [adding, setAdding] = useState(false)
   const [tab, setTab] = useState<'people' | 'access'>('people')
 
@@ -522,7 +523,7 @@ export function StaffPage() {
         <AccessControl />
       )}
 
-      {adding && <AddUserForm onClose={() => setAdding(false)} />}
+      {adding && <AddUserForm onClose={() => setAdding(false)} storeId={me.data?.store_id ?? null} />}
     </div>
   )
 }

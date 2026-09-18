@@ -3,6 +3,7 @@ import { usePOS, localDateISO } from '../POSContext'
 import { useI18n } from '../../../i18n/LanguageContext'
 import { useLensTypes, useFrameColors } from '../../../data/metadata'
 import { useInventory } from '../../../data/inventory'
+import { useStoreId } from '../../../lib/licensing'
 import { usePastExaminations, type PastExam } from '../../../data/examinations'
 import { rxArrowNav } from '../enterNav'
 import { emptyExam, type Exam } from '../types'
@@ -357,6 +358,7 @@ function OrderImageSlot({ slot, label }: { slot: 'rx' | 'frame'; label: string }
   const { t } = useI18n()
   const perms = usePermissions()
   const { state, setOrderImage } = usePOS()
+  const { data: storeId } = useStoreId()
   const path = slot === 'rx' ? state.rxImagePath : state.frameImagePath
   const [busy, setBusy] = useState(false)
   const replaceLocked = !!path && !!state.savedSale && !perms.isAdmin
@@ -379,7 +381,7 @@ function OrderImageSlot({ slot, label }: { slot: 'rx' | 'frame'; label: string }
           if (!f) return
           setBusy(true)
           try {
-            const p = await uploadOrderImage(f, state.invoiceNo, slot)
+            const p = await uploadOrderImage(f, state.invoiceNo, slot, storeId)
             setOrderImage(slot, p)
           } catch (err) {
             alert(err instanceof Error ? err.message : String(err))
