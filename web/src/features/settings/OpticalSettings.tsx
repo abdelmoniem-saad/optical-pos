@@ -128,43 +128,49 @@ function MetaList({
         </div>
       </div>
 
-      {/* chips */}
-      <div className="flex min-h-16 flex-wrap content-start items-start gap-1.5 p-3">
+      {/* rows: each entry on its own line */}
+      <div className="divide-y divide-line/40">
         {displayRows.length === 0 && (
-          <span className="py-1 text-sm text-faint">{t('No entries yet.')}</span>
+          <p className="p-3 text-sm text-faint">{t('No entries yet.')}</p>
         )}
         {displayRows.map((r) => {
           const swatch = colored ? swatchFor(r.name) : undefined
           return (
-            <span
+            <div
               key={r.id}
               draggable={view === 'custom'}
               onDragStart={() => (dragId.current = r.id)}
               onDragOver={(e) => view === 'custom' && e.preventDefault()}
               onDrop={() => view === 'custom' && dropOn(r.id)}
-              className={`inline-flex items-center gap-1.5 rounded-full border border-line bg-surface px-2.5 py-1 text-sm transition hover:border-line/80 ${
+              className={`flex items-center gap-2 px-3 py-1.5 text-sm transition hover:bg-surface/60 ${
                 view === 'custom' ? 'cursor-grab active:cursor-grabbing' : ''
               }`}
             >
+              {view === 'custom' && (
+                <span className="text-faint select-none" title={t('Custom order')}>
+                  ⠆
+                </span>
+              )}
               {swatch && (
                 <span
-                  className="h-3 w-3 shrink-0 rounded-full border border-line"
+                  className="h-3.5 w-3.5 shrink-0 rounded-full border border-line"
                   style={{ background: swatch }}
                 />
               )}
-              {r.name}
+              <span className="min-w-0 flex-1 truncate">{r.name}</span>
               <button
                 onClick={() => del.mutate(r.id)}
                 disabled={del.isPending}
-                className="-me-1 text-faint transition hover:text-danger disabled:opacity-40"
+                className="text-faint transition hover:text-danger disabled:opacity-40"
                 title={t('Delete')}
               >
                 ✕
               </button>
-            </span>
+            </div>
           )
         })}
       </div>
+
 
       {/* add row: min-w-0 + shrink-0 so the button is never cropped */}
       <div className="flex flex-wrap gap-2 border-t border-line/40 p-3">
