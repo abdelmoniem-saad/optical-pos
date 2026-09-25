@@ -9,6 +9,7 @@ import {
   removeLine,
   round2,
   setLine,
+  sumByMethod,
   upsertLine,
 } from './payments'
 
@@ -217,5 +218,32 @@ describe('round2', () => {
   it('rounds to cents', () => {
     expect(round2(10.005)).toBe(10.01)
     expect(round2(10.004)).toBe(10)
+  })
+})
+
+describe('sumByMethod (Reports cash-up view)', () => {
+  it('merges rows per method case-insensitively and sorts biggest first', () => {
+    const out = sumByMethod([
+      { method: 'cash', amount: 600 },
+      { method: 'InstaPay', amount: 400 },
+      { method: 'CASH', amount: 150 },
+    ])
+    expect(out).toEqual([
+      { method: 'cash', total: 750 },
+      { method: 'instapay', total: 400 },
+    ])
+  })
+
+  it('coerces string amounts and treats null as 0', () => {
+    expect(sumByMethod([{ method: 'wallet', amount: '25.50' }])).toEqual([
+      { method: 'wallet', total: 25.5 },
+    ])
+    expect(sumByMethod([{ method: 'wallet', amount: null }])).toEqual([
+      { method: 'wallet', total: 0 },
+    ])
+  })
+
+  it('returns [] for no rows', () => {
+    expect(sumByMethod([])).toEqual([])
   })
 })

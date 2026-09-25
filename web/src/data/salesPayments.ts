@@ -74,6 +74,29 @@ export function useAddSalePayments() {
 }
 
 /**
+ * Ledger rows within [from, to] (YYYY-MM-DD, inclusive) for Reports.
+ * from/to = null → unbounded on that side. Powers the per-method
+ * cash-up view (money actually RECEIVED, by paid_at).
+ */
+export function usePaymentsRange(from: string | null, to: string | null) {
+  return useQuery({
+    queryKey: [...KEY, 'range', from ?? '', to ?? ''],
+    queryFn: async (): Promise<SalePayment[]> => {
+      let q = supabase
+        .from('sale_payments')
+        .select('id, method, amount, paid_at')
+        .order('paid_at', { ascending: true })
+      if (from) q = q.gte('paid_at', from)
+      if (to) q = q.lte('paid_at', to)
+      const { data, error } = await q.returns<SalePayment[]>()
+      if (isMissingPaymentLedger(error)) throw paymentLedgerMissingError()
+      if (error) throw error
+      return data ?? []
+    },
+  })
+}
+
+/**
  * Replace an invoice's whole ledger (re-checkout rewrites the tenders).
  * Legacy databases without the ledger table silently no-op - the header's
  * amount_paid (patched separately) keeps behaving exactly as before, and

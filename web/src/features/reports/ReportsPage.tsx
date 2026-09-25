@@ -4,6 +4,8 @@ import { useSalesSummary } from '../../data/sales'
 import { useCustomers } from '../../data/customers'
 import { useInventory } from '../../data/inventory'
 import { useI18n } from '../../i18n/LanguageContext'
+import { usePaymentsRange } from '../../data/salesPayments'
+import { methodLabelKey, sumByMethod } from '../../lib/payments'
 import type { Customer, Product, Sale } from '../../lib/database.types'
 
 type Period = 'today' | 'month' | 'all'
@@ -109,6 +111,14 @@ export function ReportsPage() {
 
   const m = (n: number) => n.toFixed(0)
 
+  // Same period bounds computeReport uses, but for the LEDGER: money actually
+  // RECEIVED (by paid_at), split per tender - the cash-drawer view (011).
+  const todayIso = new Date().toISOString().slice(0, 10)
+  const monthStart = todayIso.slice(0, 8) + '01'
+  const payFrom = period === 'today' ? todayIso : period === 'month' ? monthStart : null
+  const pays = usePaymentsRange(payFrom, period === 'today' ? todayIso : null)
+  const byMethod = useMemo(() => sumByMethod(pays.data ?? []), [pays.data])
+
   return (
     <div className="mx-auto max-w-5xl p-6">
       <div className="mb-4 flex items-center justify-between">
@@ -169,6 +179,35 @@ export function ReportsPage() {
             </ol>
           )}
         </div>
+      </div>
+
+      {/* Cash-up view: money RECEIVED in the selected period, split by tender
+          (sale_payments ledger, migration 011). */}
+      <div className="mt-4 rounded-xl border border-line bg-white p-4">
+        <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
+          <h2 className="font-semibold text-brand-dark">{t('By payment method')}</h2>
+          <span className="text-xs text-faint">
+            {t(period === 'today' ? 'Today' : period === 'month' ? 'This Month' : 'All Time')}
+          </span>
+        </div>
+        {pays.isError ? (
+          <p className="rounded bg-warning-bg px-3 py-2 text-sm text-warning">
+            {t(pays.error.message)}
+          </p>
+        ) : pays.isLoading ? (
+          <p className="text-sm text-faint">{t('Loading…')}</p>
+        ) : byMethod.length === 0 ? (
+          <p className="text-sm text-faint">{t('No payments in this period.')}</p>
+        ) : (
+          <ul className="space-y-1 text-sm">
+            {byMethod.map((row) => (
+              <li key={row.method} className="flex justify-between">
+                <span>{t(methodLabelKey(row.method))}</span>
+                <span className="font-semibold text-success">{row.total.toFixed(2)}</span>
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
     </div>
   )

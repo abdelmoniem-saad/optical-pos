@@ -111,3 +111,18 @@ export function methodLabelKey(method: string): string {
   const k = keyOf(method)
   return LEGACY_LABEL[k] ?? method
 }
+
+/** Group ledger rows into {method, total} pairs, biggest first (Reports /
+ *  cash-up view). Coerces DB strings and nulls; merges case-insensitively. */
+export function sumByMethod(
+  rows: { method: string; amount: number | string | null }[],
+): { method: string; total: number }[] {
+  const totals = new Map<string, number>()
+  for (const r of rows) {
+    const k = keyOf(r.method)
+    totals.set(k, round2((totals.get(k) ?? 0) + (Number(r.amount) || 0)))
+  }
+  return [...totals.entries()]
+    .map(([method, total]) => ({ method, total }))
+    .sort((a, b) => b.total - a.total)
+}

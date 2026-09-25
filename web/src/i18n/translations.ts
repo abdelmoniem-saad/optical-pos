@@ -177,6 +177,8 @@ export const ar: Record<string, string> = {
     'سجّل الدفعات عبر زر إضافة دفعة.',
   'Payment ledger missing - run web/supabase/011_sale_payments.sql in the Supabase SQL editor.':
     'سجل الدفعات غير موجود - نفّذ ملف web/supabase/011_sale_payments.sql في محرر SQL بـ Supabase.',
+  'By payment method': 'حسب طريقة الدفع',
+  'No payments in this period.': 'لا توجد دفعات في هذه الفترة.',
   'Gross Total': 'الإجمالي الكلي',
   'Net Amount': 'المبلغ الصافي',
   'Remaining Balance': 'المبلغ المتبقي',
