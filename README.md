@@ -1,300 +1,177 @@
-# Lensy POS - Optical Shop Point of Sale System
+# LensyPOS — Optical Shop Point of Sale
 
-A comprehensive Point of Sale (POS) system designed specifically for optical shops, built with **Flet** (Flutter for Python) for a modern, cross-platform UI experience.
+LensyPOS is a web-based point-of-sale system for optical shops: a multi-step sale
+wizard with optical examinations, inventory, customers, lab tracking, sales
+history, reports, staff/roles and store licensing — in **Arabic and English**
+(full RTL support).
 
-![Python](https://img.shields.io/badge/Python-3.10+-blue.svg)
-![Flet](https://img.shields.io/badge/Flet-0.28.3-green.svg)
-![License](https://img.shields.io/badge/License-Commercial-yellow.svg)
+The entire UI is a React single-page app in [`web/`](./web) that talks directly
+to [Supabase](https://supabase.com/) (Postgres + Row-Level Security). The legacy
+Flet/Python desktop app was removed from this repository — the web app is the
+only UI (see [History](#history)).
 
-## ✨ Features
+![React](https://img.shields.io/badge/React-19-61DAFB.svg)
+![TypeScript](https://img.shields.io/badge/TypeScript-6-3178C6.svg)
+![Vite](https://img.shields.io/badge/Vite-8-646CFF.svg)
+![Supabase](https://img.shields.io/badge/Supabase-3ECF8E.svg)
+![vitest](https://img.shields.io/badge/vitest-5-729B1B.svg)
+![License](https://img.shields.io/badge/License-MIT-green.svg)
 
-### 🛒 Point of Sale (POS)
-- **Multi-step ordering flow**: Category → Customer → Examination → Items → Payment
-- **5 Product Categories**: Glasses, Sunglasses, Contact Lenses, Accessories, Others
-- **Customer Management**: Quick search, create, and select customers
-- **Optical Examinations**: 
-  - Multiple examination rows per order
-  - Distance, Reading, and Contact Lens prescriptions
-  - Past examinations history and reuse
-  - Automatic lens/frame type management
-- **Smart Cart**: 
-  - Frame auto-add from examination
-  - Quick product search by SKU/name
-  - Quantity adjustment (+/-)
-  - Real-time totals calculation
-- **Payment Tracking**: Discount, amount paid, and balance calculation
-- **Receipt Preview**: Generate and print receipts
+## Features
 
-### 📦 Inventory Management
-- Product catalog with categories (Frame, Sunglasses, Accessory, Contact Lens, Other)
-- **Stock Movements**: Calculated from movement records (sale, purchase, adjustment)
-- Stock adjustment dialog with movement history
-- Optical settings management (lens types, frame types, colors)
-- Supplier management
+- **Point of sale** — multi-step wizard (category → customer → examination →
+  items → payment), keyboard-first entry (Enter/arrow navigation), discounts,
+  partial payments, balance tracking, printable receipts (Arabic + English)
+- **Optical examinations** — multiple Rx rows per order (distance / reading /
+  contact lens), history and reuse, prescription image attachments
+- **Inventory** — product catalog, stock movements (sale, purchase,
+  adjustment…), optical metadata (lens/frame types, colors) with drag-sort
+- **Customers** — CRM with order history, balances and examination history
+- **Lab** — order status pipeline (Not Started → In Lab → Ready → Received)
+  with lab-copy printing
+- **Sales history** — search/filter invoices, record extra payments, reprint
+- **Reports** — revenue summary, low stock, top customers, order statistics
+- **Suppliers & purchase payments**
+- **Staff & roles** — positions with permission grants, per-user overrides,
+  in-app account creation via an Edge Function
+- **Notes** — shared per-customer notes with read/unread state
+- **Platform admin** — multi-store licensing (trial / active / grace / expired)
+- **Global search** across customers, products and invoices
+- **PWA** — installable, offline read cache, shared-tablet hygiene
+  (cache + in-progress draft cleared on sign-out)
 
-### 👥 Customer CRM
-- Customer database with full contact details
-- Order history per customer
-- Total spent and balance tracking
-- Prescription and examination history
+## Stack
 
-### 🔬 Lab Management
-- Track order status: Not Started → In Lab → Ready → Received
-- Status summary badges
-- Lab copy printing for technicians
-- Examination details view
+- **Vite + React 19 + TypeScript** — client-side rendering
+- **Tailwind CSS v4** — design tokens in `web/src/index.css` and `web/src/theme/tokens.ts`
+- **React Router 7** — routing, protected shell, URL-driven filters
+- **TanStack Query** — server-state cache with localStorage persistence (offline reads)
+- **Supabase JS** — browser → Postgres over RLS, Auth, Storage, Edge Functions
+- **vitest + jsdom / oxlint** — tests and linting
 
-### 📊 Reports & Analytics
-- Revenue summary (total, today, this month)
-- Payment tracking and balance due
-- Low stock alerts
-- Top customers ranking
-- Order statistics
+## Repository layout
 
-### 📜 Sales History
-- Search by invoice, customer, or doctor
-- Filter by status and payment status
-- Record additional payments
-- View invoice details
-- Print receipts
-
-### 👤 Staff Management
-- User creation and management
-- Password change functionality
-- Role assignment (Admin, Seller)
-- User activation/deactivation
-
-### ⚙️ Settings
-- Shop information (name, address, phone)
-- Currency configuration
-- Optical metadata management
-- Data backup and reset
-
-### 🔍 Global Search
-- Quick search across customers, products, and invoices
-- Available from dashboard
-
-## 🛠️ Technology Stack
-
-- **Frontend**: [Flet](https://flet.dev/) - Python-based Flutter framework (desktop, mobile, and web from one codebase)
-- **Data Storage**: 
-  - Local: JSON file (`pos_data.json`)
-  - Cloud: [Supabase](https://supabase.com/) (optional)
-- **Authentication**: bcrypt
-
-## 📦 Installation
-
-### Prerequisites
-- Python 3.10+
-- pip (Python package manager)
-
-### Quick Start
-
-1. **Clone the repository**:
-   ```bash
-   git clone <repository-url>
-   cd optical-pos
-   ```
-
-2. **Create virtual environment**:
-   ```bash
-   python -m venv .venv
-   
-   # Windows
-   .\.venv\Scripts\activate
-   
-   # Linux/Mac
-   source .venv/bin/activate
-   ```
-
-3. **Install dependencies**:
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-4. **Run the application**:
-   ```bash
-   python main.py
-   ```
-
-## 🚀 Running the Application
-
-### Desktop Mode (Flet)
-```bash
-python main.py
+```
+web/                    the entire application
+  src/                  app source (features/, data/, lib/, i18n/, routes/, components/)
+  supabase/             SQL migrations 000–010 + SETUP.md (first-time setup)
+  public/               PWA icons and manifest assets
+supabase/functions/     Edge Function: create-user (staff account creation)
+render.yaml             Render blueprint — static site serving web/dist
+.claude/launch.json     dev launch config (npm --prefix web run dev)
 ```
 
-### Web Mode (Flet)
-Build the web target via Flet's own tooling:
-```bash
-flet build web
-```
+## Quick start
 
-### Keep Web and APK on the Same Data
-
-If APK and web show different customers/orders, the APK is using local JSON while web uses Supabase.
-
-Use strict Supabase mode before building APK:
+Prerequisites: **Node.js 20+** and a Supabase project.
 
 ```bash
-# Windows PowerShell
-$env:LENSY_DATA_BACKEND = "supabase"
+git clone https://github.com/abdelmoniem-saad/optical-pos.git
+cd optical-pos/web
+npm ci                      # first install (npm install works too)
+cp .env.example .env.local  # then fill in the values
+npm run dev                 # http://localhost:5173 (LAN-exposed for shop tablets)
 ```
 
-Provide credentials for packaged/mobile runs using one of:
-- `SUPABASE_URL` and `SUPABASE_KEY` environment variables, or
-- `app/supabase_config.json` (copy from `app/supabase_config.example.json` and fill values).
+### Environment (`web/.env.local`)
 
-In strict mode the app fails fast if Supabase is not configured, instead of silently writing to local storage.
+| Variable | Meaning |
+| --- | --- |
+| `VITE_SUPABASE_URL` | Your Supabase project URL |
+| `VITE_SUPABASE_ANON_KEY` | Browser-safe **only** because RLS is on every table |
+| `VITE_AUTH_EMAIL_DOMAIN` | Staff log in with a username, mapped to `<username>@<domain>` (default `lensypos.local`) |
 
-## 🔐 Default Credentials
-- **Username**: `admin`
-- **Password**: `Admin123`
+### Scripts (run inside `web/`)
 
-## 📁 Project Structure
+| Command | What it does |
+| --- | --- |
+| `npm run dev` | Dev server with HMR |
+| `npm run build` | Type-check (`tsc -b`) + production bundle |
+| `npm run preview` | Serve the production build locally |
+| `npm run lint` | oxlint |
+| `npm test` / `npm run test:watch` | vitest suite |
+| `npm run gen:types:reference` | Regenerate `src/lib/database.gen.ts` (reference only, git-ignored) |
 
-```
-optical-pos/
-├── main.py                 # Flet app entry point
-├── pyproject.toml          # Python dependencies and Flet build config
-├── supabase_full_schema.sql # Complete database schema (including licensing)
-├── license_admin.py        # License management CLI tool
-├── build_native_apps.py    # Native app builder script
-├── app/
-│   ├── config.py           # App configuration
-│   ├── flet_compat.py      # Flet version compatibility
-│   ├── core/
-│   │   ├── auth.py         # Password hashing and verification
-│   │   ├── i18n.py         # Internationalization
-│   │   └── licensing.py    # License management & auto-updates
-│   ├── database/
-│   │   └── repository.py   # POSRepository: JSON or Supabase backend
-│   └── ui/
-│       ├── colors.py       # Color helpers (uses flet_compat)
-│       ├── components/     # Shared UI: design helpers, ui_sync event bus, ui_tokens, top_bar, feedback
-│       └── flet_pages/     # Flet UI views
-│           ├── dashboard.py
-│           ├── pos.py      # Main POS view
-│           ├── inventory.py
-│           ├── customers.py
-│           ├── prescriptions.py
-│           ├── history.py
-│           ├── lab.py
-│           ├── reports.py
-│           ├── staff.py
-│           ├── settings.py  # Includes License & Updates tab
-│           ├── login.py
-│           └── activation.py # License activation UI
-├── static/                 # Static files for PWA
-└── uploads/                # Uploaded files
-```
+## Database & migrations
 
-## 🔐 Software Licensing
+First-time setup is documented in [`web/supabase/SETUP.md`](./web/supabase/SETUP.md)
+(RLS, admin login, atomic checkout RPC, storage bucket, Edge Function deploy).
 
-The application includes a built-in licensing system for commercial distribution:
+Migrations run in numeric order in the Supabase SQL editor:
 
-### Features
-- **Machine-locked licenses**: Tied to specific hardware
-- **License types**: Trial, Standard, Professional, Enterprise
-- **Expiration support**: Time-limited or perpetual licenses
-- **Offline grace period**: 7 days offline operation
-- **License transfer**: Optional transferability between machines
-- **Revocation**: Remote license invalidation
+| # | File | What it does |
+| --- | --- | --- |
+| 000 | `000_base_schema.sql` | Historical base bootstrap (kept for reference — see note below) |
+| 001 | `001_security_rls.sql` | Row-Level Security on every table |
+| 002 | `002_create_sale_rpc.sql` | Atomic checkout (`create_sale_order`) |
+| 003 | `003_purchase_payments.sql` | Purchase payments |
+| 004 | `004_rbac_notes.sql` | RBAC tables + notes |
+| 005 | `005_notes_edit.sql` | Note editing |
+| 006 | `006_note_seen.sql` | Read/unread note state |
+| 007 | `007_order_images.sql` | Prescription image attachments |
+| 008 | `008_multi_tenancy.sql` | Store scoping, license-gated write policies |
+| 009 | `009_store_licensing.sql` | Store licensing (trial/grace/expired) |
+| 010 | `010_metadata_sort.sql` | Optical metadata ordering |
 
-### Managing Licenses
+> **Note on 000:** it is the original bootstrap the app shipped with. The live
+> project has drifted from it (e.g. Supabase Auth now owns passwords, not the
+> legacy `users.password_hash`). When convenient, capture a fresh baseline with
+> `supabase db dump` and commit it as the new 000.
 
-Generate licenses using the admin CLI:
+## Security model
+
+- **RLS on every table** (001) — the anon key shipped in the browser bundle
+  cannot read or write anything without it.
+- **Roles → grants, per-user overrides**, admin bypass and a superadmin
+  break-glass; permission codes are mirrored in `web/src/data/permissions.tsx`.
+- **Multi-tenancy** — rows scoped by store (008); license writes are gated
+  server-side by `license_write_ok()` policies.
+- **Fail-open with visibility** — an account with no role still signs in (so a
+  mis-provisioned login never bricks), but the shell shows a visible
+  "no access assigned" marker instead of failing silently.
+
+## Store licensing
+
+Each store is licensed (trial / active / grace / expired) — see
+`008_multi_tenancy.sql` and `009_store_licensing.sql`. During **grace** the app
+is read-only: `SELECT` is allowed, `INSERT/UPDATE/DELETE` policies require
+`license_write_ok(store_id)`, and the shell shows a grace banner. Licenses are
+managed from the in-app **Platform** page.
+
+## Testing
+
 ```bash
-# Set Supabase credentials
-$env:SUPABASE_URL = "your-supabase-url"
-$env:SUPABASE_KEY = "your-supabase-key"
-
-# Generate a license
-python license_admin.py generate --name "Store Name" --email "email@example.com" --type standard --days 365
-
-# List all licenses
-python license_admin.py list
-
-# Revoke a license
-python license_admin.py revoke LICENSE-KEY
+npm test
 ```
 
-### Enabling Licensing
-Set the environment variable:
-```bash
-ENABLE_LICENSING=true
-```
+Vitest suites cover pricing/discounts, invoice numbering (the historically
+buggy path), receipt rendering (Arabic/RTL), POS keyboard navigation,
+permissions resolution, in-progress sale draft storage, and an **i18n test that
+fails when a `t('…')` key has no Arabic translation**.
 
-## 🔄 Automatic Updates
+## Deploy
 
-The application supports automatic update checking:
+[`render.yaml`](./render.yaml) deploys `web/` as a static site:
+build `npm ci && npm run build`, publish `dist/`. The app is installable as a
+PWA; offline reads are served from the persisted query cache.
 
-1. **Check for updates**: Settings → License & Updates → Check for Updates
-2. **View release notes**: See what's new in the latest version
-3. **Download updates**: Direct download from configured URL
-4. **Mandatory updates**: Force critical security updates
+## History
 
-### Publishing Updates
+Until 2026 this repository also contained a Flet (Flutter-for-Python)
+desktop/web UI (`app/`, `main.py`, `tests/`, …) with machine-locked licensing
+and a local JSON database. It was removed in commit `62b9272` because the
+server-driven UI round-tripped every interaction through Python; the web app
+replaced it without a data migration (same Supabase project). Recover anything
+from git history if needed.
 
-Add new versions to the `app_updates` table in Supabase:
-```sql
-INSERT INTO app_updates (app_name, version, download_url, release_notes, is_mandatory, platform)
-VALUES ('LensyPOS', '1.1.0', 'https://download.example.com/LensyPOS-1.1.0.exe', 'Bug fixes and improvements', FALSE, 'windows');
-```
-
-## 💾 Stock Movement Logic
-
-Stock is calculated dynamically from movement records:
-```
-Current Stock = SUM(stock_movements.qty WHERE product_id = ?)
-```
-
-Movement types:
-- `initial` - Initial stock setup
-- `purchase` - Stock received from supplier
-- `sale` - Stock sold to customer (negative qty)
-- `adjustment` - Manual stock adjustment
-- `return` - Stock returned to inventory
-
-## ☁️ Cloud Deployment (Supabase)
-
-1. Create a [Supabase](https://supabase.com/) project
-2. Run the schema from `supabase_full_schema.sql` in the SQL Editor
-3. Set environment variables:
-   ```bash
-   SUPABASE_URL=your_supabase_url
-   SUPABASE_KEY=your_supabase_anon_key
-   ```
-
-The schema includes:
-- Users, roles, and permissions
-- Customers, inventory, and products
-- Sales and order management
-- Prescriptions and examinations
-- Licensing and app updates tables
-
-## 📱 PWA Support
-
-The Flask web bridge supports Progressive Web App (PWA) installation:
-1. Access the web app on mobile
-2. Click "Add to Home Screen"
-3. Use as a native app
-
-## 💾 Backup
-
-For local JSON database:
-- Copy `pos_data.json` to backup location regularly
-- Use Settings → Backup tab to export data
-- Store backups in cloud storage (OneDrive, Google Drive)
-
-## 🤝 Contributing
+## Contributing
 
 1. Fork the repository
 2. Create a feature branch
-3. Make changes
+3. Make changes (run `npm run build && npm run lint && npm test` in `web/`)
 4. Submit a pull request
 
-## 📄 License
+## License
 
 This project is licensed under the MIT License.
 
