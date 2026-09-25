@@ -362,6 +362,22 @@ export const ar: Record<string, string> = {
   'Attach image': 'إرفاق صورة',
   Replace: 'استبدال',
   'Will attach when the order is confirmed': 'سيتم إرفاقها عند تأكيد الطلب',
+
+  // Staff / platform forms (gaps found by src/i18n/translations.test.ts)
+  'New User': 'مستخدم جديد',
+  '+ Add Staff': '+ إضافة موظف',
+  'Username is required': 'اسم المستخدم مطلوب',
+  'Password must be at least 6 characters': 'كلمة المرور 6 أحرف على الأقل',
+  'Platform access only': 'هذه الصفحة لمشرف المنصة فقط',
+  'Store name': 'اسم المتجر',
+  'Store name and admin login (6+ chars) are required':
+    'اسم المتجر وبيانات دخول المدير (6 أحرف على الأقل) مطلوبة',
+  'No license': 'لا يوجد ترخيص',
+
+  // Order photos
+  'Attach': 'إرفاق',
+  'Scan this with the phone camera to attach the two photos':
+    'امسح هذا الرمز بكاميرا الجوال لإرفاق الصورتين',
   'Invoice not found in the system. Photos will attach when the order is confirmed.':
     'لم يتم العثور على الفاتورة في النظام. سيتم إرفاق الصور عند تأكيد الطلب.',
   'Uploading…': 'جارٍ الرفع',

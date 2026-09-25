@@ -55,6 +55,22 @@ export function code(resource: string, action: Action): string {
   return `${resource}.${action}`
 }
 
+/**
+ * Effective answer for a single `<resource>.<action>` code:
+ * an explicit per-person override ALWAYS wins (allow or deny), otherwise the
+ * answer is exactly what the person's position grants. Pure function so the
+ * rule is unit-testable and stated in exactly one place.
+ */
+export function resolveCan(
+  granted: ReadonlySet<string>,
+  overrides: Record<string, boolean>,
+  c: string,
+): boolean {
+  const o = overrides[c]
+  if (o !== undefined) return o
+  return granted.has(c)
+}
+
 export const ALL_CODES: string[] = RESOURCES.flatMap((r) =>
   ACTIONS.map((a) => code(r.key, a)),
 )
@@ -249,11 +265,7 @@ export function PermissionsProvider({ children }: { children: ReactNode }) {
     return {
       loading: false,
       isAdmin: false,
-      can(c) {
-        const o = ov[c]
-        if (o !== undefined) return o // explicit per-person override wins
-        return granted.has(c) // else exactly what the position grants
-      },
+      can: (c) => resolveCan(granted, ov, c),
     }
   }, [isAdmin, user, me.isLoading, me.isError, me.data, grants.isLoading, grants.data, overrides.isLoading, overrides.data])
 
