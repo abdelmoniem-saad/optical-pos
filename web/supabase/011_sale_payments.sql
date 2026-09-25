@@ -49,7 +49,7 @@ create table if not exists public.sale_payments (
     method text not null default 'cash',      -- 'cash' | 'wallet' | 'instapay' (free text on purpose)
     note text,
     paid_at date not null default current_date,
-    recorded_by uuid references auth.users(id) on delete set null, -- who took the money
+    recorded_by uuid references auth.users(id) on delete set null default auth.uid(), -- who took the money
     store_id uuid,                            -- filled by trigger from auth_store_id()
     created_at timestamptz not null default now()
 );
