@@ -8,6 +8,7 @@ import {
 import type { Session, User } from '@supabase/supabase-js'
 import { supabase } from './supabase'
 import { queryClient } from './queryClient'
+import { clearPosDraft } from './posDraft'
 
 // This module intentionally co-locates the AuthProvider with its hook/helpers
 // (useAuth, usernameToEmail, displayName).
@@ -67,6 +68,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   async function signOut() {
     await supabase.auth.signOut()
     // Don't leave another staff member's data cached on a shared tablet.
+    clearPosDraft()
     queryClient.clear()
     try {
       window.localStorage.removeItem('lensy-query-cache')

@@ -18,6 +18,8 @@ import { resolveStaffUserId } from '../../data/staff'
 import { addMissingOrderMetadata } from '../../data/metadata'
 import { findOrderImages } from '../../lib/storage'
 import { useStoreId } from '../../lib/licensing'
+import { useAuth } from '../../lib/auth'
+import { clearPosDraft, readPosDraft, writePosDraft } from '../../lib/posDraft'
 import type { Customer, CustomerInsert, Product, Sale } from '../../lib/database.types'
 import { addLine, computeTotals, removeLine, setQty, type Totals } from './pricing'
 import {
@@ -113,6 +115,11 @@ function initialState(): State {
   }
 }
 
+/** The persisted copy never keeps transient flags (in-flight request, error). */
+function draftSafe(s: State): State {
+  return { ...s, busy: false, error: null }
+}
+
 type Action = { type: 'PATCH'; patch: Partial<State> } | { type: 'RESET' }
 
 function reducer(state: State, action: Action): State {
@@ -173,6 +180,13 @@ export function POSProvider({ children }: { children: ReactNode }) {
   const ref = useRef(state)
   ref.current = state
 
+  // Tab switches keep the wizard in memoryState (module scope). A RELOAD loses
+  // that, so the draft is also mirrored into sessionStorage and restored below,
+  // as soon as we know which user + store it belongs to.
+  const hadMemory = useRef(memoryState !== null)
+  const hydrated = useRef(false)
+  const { user } = useAuth()
+
   // Mirror every change into the module-level snapshot (tab-switch survival).
   useEffect(() => {
     memoryState = state
@@ -182,7 +196,26 @@ export function POSProvider({ children }: { children: ReactNode }) {
   const updateSale = useUpdateSaleFull()
   const addCustomer = useAddCustomer()
   const updateCustomer = useUpdateCustomer()
-  const { data: myStoreId } = useStoreId()
+  const { data: myStoreId, isLoading: storeLoading } = useStoreId()
+
+  // Restore a sessionStorage draft once auth + the store key are known (a draft
+  // from another account or store is ignored).
+  useEffect(() => {
+    if (hydrated.current || hadMemory.current) {
+      hydrated.current = true
+      return
+    }
+    if (!user || storeLoading) return
+    hydrated.current = true
+    const draft = readPosDraft<State>(user.id, myStoreId ?? null)
+    if (draft) dispatch({ type: 'PATCH', patch: draftSafe(draft) })
+  }, [user, storeLoading, myStoreId])
+
+  // Persist every change: sessionStorage survives a reload (not closing the tab).
+  useEffect(() => {
+    if (!hydrated.current) return
+    writePosDraft(user?.id ?? null, myStoreId ?? null, draftSafe(state))
+  }, [state, user, myStoreId])
 
   const patch = (p: Partial<State>) => dispatch({ type: 'PATCH', patch: p })
   const totals = computeTotals(state.cartItems, {
@@ -533,7 +566,10 @@ export function POSProvider({ children }: { children: ReactNode }) {
   // tab: every field stays editable and Finish Checkout can be pressed again
   // to update the SAME invoice.
   const closeReceipt = () => patch({ completed: null })
-  const startNewSale = () => dispatch({ type: 'RESET' })
+  const startNewSale = () => {
+    clearPosDraft()
+    dispatch({ type: 'RESET' })
+  }
 
   const api: POSApi = {
     state,
