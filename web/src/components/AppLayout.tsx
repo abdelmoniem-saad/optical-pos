@@ -97,6 +97,16 @@ function AppShell() {
           </button>
         </nav>
         <div className="space-y-2 border-t border-line/40 px-3 py-3 text-sm">
+          {perms.openAccess && !perms.loading && (
+            <p
+              className="rounded-lg bg-warning-bg px-2 py-1 text-xs font-semibold text-warning"
+              title={t(
+                'No staff record is linked to this account, so access control is not applied.',
+              )}
+            >
+              ⚠ {t('No access group (full access)')}
+            </p>
+          )}
           <button
             onClick={toggle}
             className="w-full rounded-lg border border-line px-3 py-2 text-muted hover:bg-surface"

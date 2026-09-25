@@ -223,6 +223,11 @@ type PermsState = {
   isAdmin: boolean
   /** True when the current user holds this `<resource>.<action>` code. */
   can: (c: string) => boolean
+  /** True when no position/staff record could be resolved, so the app is
+   *  running WITHOUT access control (deliberate break-glass). Surfaced in the
+   *  sidebar so a mis-provisioned account is visible instead of silently
+   *  all-powerful. */
+  openAccess: boolean
 }
 
 const Ctx = createContext<PermsState | undefined>(undefined)
@@ -240,15 +245,15 @@ export function PermissionsProvider({ children }: { children: ReactNode }) {
   const value = useMemo<PermsState>(() => {
     // Super admin + admin/owner positions bypass everything.
     if (isAdmin || isSuperUsername(me.data?.username)) {
-      return { loading: false, isAdmin: true, can: () => true }
+      return { loading: false, isAdmin: true, openAccess: false, can: () => true }
     }
 
-    if (!user) return { loading: false, isAdmin: false, can: () => false }
+    if (!user) return { loading: false, isAdmin: false, openAccess: false, can: () => false }
 
     // While loading stay permissive so the UI doesn't flash locked; this is a
     // UI-level gate by design (the DB keeps its authenticated-trust model).
     if (me.isLoading || grants.isLoading || overrides.isLoading) {
-      return { loading: true, isAdmin: false, can: () => true }
+      return { loading: true, isAdmin: false, openAccess: false, can: () => true }
     }
 
     // Break-glass #1: no staff record could be resolved for this account
@@ -257,7 +262,7 @@ export function PermissionsProvider({ children }: { children: ReactNode }) {
     // trusted too - access control applies to people actually placed in a
     // position by the admin.
     if (!me.data || me.isError || !me.data.role_id) {
-      return { loading: false, isAdmin: false, can: () => true }
+      return { loading: false, isAdmin: false, openAccess: true, can: () => true }
     }
 
     const granted = new Set(grants.data ?? [])
@@ -265,6 +270,7 @@ export function PermissionsProvider({ children }: { children: ReactNode }) {
     return {
       loading: false,
       isAdmin: false,
+      openAccess: false,
       can: (c) => resolveCan(granted, ov, c),
     }
   }, [isAdmin, user, me.isLoading, me.isError, me.data, grants.isLoading, grants.data, overrides.isLoading, overrides.data])

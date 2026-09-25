@@ -32,6 +32,9 @@ const PlatformPage = named(() => import('../features/platform/PlatformPage'), 'P
 function RequirePermission({ resource, children }: { resource: string; children: ReactNode }) {
   const { t } = useI18n()
   const perms = usePermissions()
+  // Permission data is cached, so this only ever shows on the very first load -
+  // and it beats rendering a page the user may turn out not to be allowed.
+  if (perms.loading) return <div className="p-6 text-sm text-muted">{t('Loading…')}</div>
   if (perms.can(`${resource}.view` as never)) return <>{children}</>
   return (
     <div className="p-6">

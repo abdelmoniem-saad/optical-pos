@@ -12,6 +12,10 @@ dist
 dist-ssr
 *.local
 
+# Generated Supabase types: reference/diffing only. The app imports the
+# hand-maintained src/lib/database.types.ts.
+src/lib/database.gen.ts
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

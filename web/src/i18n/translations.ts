@@ -45,6 +45,9 @@ export const ar: Record<string, string> = {
   Cancel: 'إلغاء',
   Close: 'إغلاق',
   'Continue': 'متابعة',
+  'No access group (full access)': 'بدون مجموعة صلاحيات (وصول كامل)',
+  'No staff record is linked to this account, so access control is not applied.':
+    'لا يوجد سجل موظف مرتبط بهذا الحساب، لذلك لا يتم تطبيق صلاحيات الوصول.',
   Edit: 'تعديل',
   Delete: 'حذف',
   Add: 'إضافة',

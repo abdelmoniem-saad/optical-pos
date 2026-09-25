@@ -10,7 +10,7 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
-    "gen:types": "npx supabase@latest gen types typescript --project-id qhbprvavoudetjbyxrsn --schema public > src/lib/database.gen.ts"
+    "gen:types:reference": "npx supabase@latest gen types typescript --project-id qhbprvavoudetjbyxrsn --schema public > src/lib/database.gen.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.108.2",

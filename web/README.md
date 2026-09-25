@@ -50,3 +50,22 @@ src/
 5. Supporting screens — inventory, customers, history, reports, staff, settings
 6. Receipts & printing — HTML receipt + `window.print()` + PDF
 7. PWA, offline & cutover
+
+## Types
+
+`src/lib/database.types.ts` is **hand-maintained**: it declares the shapes the
+app actually uses (Customer, Product, Sale, …). `npm run gen:types:reference`
+writes a full generated `src/lib/database.gen.ts` for reference/diffing only -
+nothing imports it and it is git-ignored, so re-generating can never break the
+build.
+
+## Tests
+
+```bash
+npm test          # vitest run - pure logic (pricing, invoice numbers, receipts,
+                  # permissions, nav keys, i18n coverage, draft storage)
+npm run test:watch
+```
+
+`src/i18n/translations.test.ts` fails the build when a literal `t('…')` key has
+no Arabic translation, so translate new UI strings in the same commit.

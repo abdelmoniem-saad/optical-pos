@@ -26,9 +26,9 @@ export function SettingsPage() {
 
   async function save() {
     setSaved(false)
-    for (const f of FIELDS) {
-      await setSetting.mutateAsync({ key: f.key, value: form[f.key] ?? '' })
-    }
+    await Promise.all(
+      FIELDS.map((f) => setSetting.mutateAsync({ key: f.key, value: form[f.key] ?? '' })),
+    )
     setSaved(true)
   }
 
