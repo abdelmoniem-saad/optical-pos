@@ -31,7 +31,7 @@ const labColor: Record<string, string> = {
 export function HistoryPage() {
   const { t } = useI18n()
   const perms = usePermissions()
-  const [params] = useSearchParams()
+  const [params, setParams] = useSearchParams()
   const [termInput, setTermInput] = useState(params.get('q') ?? '')
   const [term, setTerm] = useState(termInput.trim())
   const [range, setRange] = useState<SalesRange>(
@@ -47,6 +47,15 @@ export function HistoryPage() {
     const id = setTimeout(() => setTerm(termInput.trim()), 300)
     return () => clearTimeout(id)
   }, [termInput])
+
+  // Keep the filter in the URL (replace, not push): switching tabs and coming
+  // back - or refreshing / sharing the link - restores the same view.
+  useEffect(() => {
+    const next = new URLSearchParams()
+    if (term) next.set('q', term)
+    if (range !== 'all') next.set('range', range)
+    setParams(next, { replace: true })
+  }, [term, range, setParams])
 
   // Server-filtered, paged feed - the browser only ever holds ~50 orders per
   // page and loads more as you scroll, so the tab stays fast for years.

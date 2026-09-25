@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import {
   ACTIONS,
@@ -420,8 +421,18 @@ export function StaffPage() {
   const me = useCurrentUser()
   const updateRole = useUpdateUserRole()
     const perms = usePermissions()
+  const [params, setParams] = useSearchParams()
   const [adding, setAdding] = useState(false)
-  const [tab, setTab] = useState<'people' | 'access'>('people')
+  const [tab, setTab] = useState<'people' | 'access'>(
+    params.get('tab') === 'access' ? 'access' : 'people',
+  )
+
+  // Keep the sub-tab in the URL so it survives tab switches and refreshes.
+  useEffect(() => {
+    const next = new URLSearchParams()
+    if (tab === 'access') next.set('tab', 'access')
+    setParams(next, { replace: true })
+  }, [tab, setParams])
 
   // The reserved super-admin account is infrastructure, not an employee row.
   const people = (users.data ?? []).filter((u) => !isSuperUsername(u.username))

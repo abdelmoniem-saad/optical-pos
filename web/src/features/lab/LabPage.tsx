@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import {
   useInfiniteLabSales,
   useUpdateLabStatus,
@@ -31,8 +32,17 @@ function ExamLines({ saleId }: { saleId: string }) {
 export function LabPage() {
   const { t } = useI18n()
   const updateStatus = useUpdateLabStatus()
-  const [filter, setFilter] = useState<string>('All')
+  const [params, setParams] = useSearchParams()
+  const [filter, setFilter] = useState<string>(params.get('status') ?? 'All')
   const [reprint, setReprint] = useState<Sale | null>(null)
+
+  // Keep the status filter in the URL so it survives tab switches and a refresh
+  // restores the same view.
+  useEffect(() => {
+    const next = new URLSearchParams()
+    if (filter !== 'All') next.set('status', filter)
+    setParams(next, { replace: true })
+  }, [filter, setParams])
 
   // Paged server feed - only orders WITH a lab status, 50 at a time.
   const query = useInfiniteLabSales(filter)
