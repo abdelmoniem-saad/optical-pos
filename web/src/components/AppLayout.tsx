@@ -1,24 +1,12 @@
-import { Suspense, useState } from 'react'
-import { Navigate, NavLink, Outlet } from 'react-router-dom'
+import { Suspense, useLayoutEffect, useRef, useState } from 'react'
+import { Navigate, NavLink, Outlet, useLocation } from 'react-router-dom'
 import { displayName, useAuth } from '../lib/auth'
 import { useI18n } from '../i18n/LanguageContext'
 import { GlobalSearch } from './GlobalSearch'
 import { Calculator } from './Calculator'
 import { PermissionsProvider, usePermissions } from '../data/permissions'
 import { useMyLicense, useIsPlatformAdmin } from '../lib/licensing'
-
-const nav: { to: string; label: string; end?: boolean; resource: string }[] = [
-  { to: '/', label: 'New Sale', end: true, resource: 'pos' },
-  { to: '/customers', label: 'Customers', resource: 'customers' },
-  { to: '/inventory', label: 'Inventory', resource: 'inventory' },
-  { to: '/lab', label: 'Lab', resource: 'lab' },
-  { to: '/history', label: 'History', resource: 'history' },
-  { to: '/reports', label: 'Reports', resource: 'reports' },
-  { to: '/suppliers', label: 'Suppliers', resource: 'suppliers' },
-  { to: '/notes', label: 'Notes', resource: 'notes' },
-  { to: '/staff', label: 'Staff', resource: 'staff' },
-  { to: '/settings', label: 'Settings', resource: 'settings' },
-]
+import { NAV_ITEMS } from '../routes/nav'
 
 /** Protected shell: redirects to /login when there's no Supabase session.
  *  Sidebar entries are filtered by the signed-in user's permissions. */
@@ -29,6 +17,15 @@ function AppShell() {
   const [calcOpen, setCalcOpen] = useState(false)
   const license = useMyLicense()
   const isPlatform = useIsPlatformAdmin()
+  const { pathname } = useLocation()
+  const scrollRef = useRef<HTMLDivElement | null>(null)
+
+  // Every tab starts at the top. Without this the one shared scroll container
+  // keeps the previous tab's offset: a long History list left you mid-list, and
+  // a short page (Settings) landed at its bottom.
+  useLayoutEffect(() => {
+    scrollRef.current?.scrollTo({ top: 0 })
+  }, [pathname])
 
   if (loading) {
     return (
@@ -66,7 +63,7 @@ function AppShell() {
     )
   }
 
-  const visibleNav = nav.filter((item) => perms.can(`${item.resource}.view` as never))
+  const visibleNav = NAV_ITEMS.filter((item) => perms.can(`${item.resource}.view` as never))
 
   return (
     <div className="flex h-full overflow-hidden">
@@ -132,12 +129,45 @@ function AppShell() {
             🧮
           </button>
         </header>
-        <div className="flex-1 overflow-auto">
+        {/* pb-16 keeps the last row clear of the phone bottom bar. */}
+        <div ref={scrollRef} className="flex-1 overflow-auto pb-16 sm:pb-0">
           <Suspense fallback={<div className="p-6 text-sm text-muted">{t('Loading…')}</div>}>
             <Outlet />
           </Suspense>
         </div>
       </main>
+
+      {/* Phones have no sidebar, so every permitted tab stays reachable from a
+          bottom bar - which also carries the language toggle and sign-out that
+          otherwise live only in the (hidden) sidebar. */}
+      <nav className="fixed inset-x-0 bottom-0 z-40 flex items-center gap-1 overflow-x-auto border-t border-line bg-white px-1 py-1 sm:hidden">
+        {visibleNav.map((item) => (
+          <NavLink
+            key={item.to}
+            to={item.to}
+            end={item.end}
+            className={({ isActive }) =>
+              `shrink-0 rounded-lg px-3 py-1.5 text-xs font-medium transition ${
+                isActive ? 'bg-brand-bg text-brand-dark' : 'text-muted'
+              }`
+            }
+          >
+            {t(item.label)}
+          </NavLink>
+        ))}
+        <button
+          onClick={toggle}
+          className="ms-auto shrink-0 rounded-lg px-3 py-1.5 text-xs font-semibold text-muted"
+        >
+          {lang === 'ar' ? 'EN' : 'ع'}
+        </button>
+        <button
+          onClick={() => signOut()}
+          className="shrink-0 rounded-lg px-3 py-1.5 text-xs font-semibold text-danger"
+        >
+          {t('Sign out')}
+        </button>
+      </nav>
 
       {calcOpen && <Calculator onClose={() => setCalcOpen(false)} />}
     </div>

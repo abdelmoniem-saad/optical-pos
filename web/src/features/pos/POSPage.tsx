@@ -102,7 +102,7 @@ function RestartButton() {
         }
       }}
       title={t('New Sale')}
-      className="fixed bottom-4 end-4 z-40 rounded-full border border-line bg-white px-4 py-2.5 text-sm font-semibold text-danger shadow-lg transition hover:bg-surface"
+      className="fixed bottom-16 end-4 z-40 rounded-full border border-line bg-white px-4 py-2.5 text-sm font-semibold text-danger shadow-lg transition hover:bg-surface sm:bottom-4"
     >
       ↺ {t('New Sale')}
     </button>

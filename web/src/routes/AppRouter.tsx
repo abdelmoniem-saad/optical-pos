@@ -1,9 +1,10 @@
 import { lazy, type ReactNode } from 'react'
-import { createBrowserRouter, RouterProvider } from 'react-router-dom'
+import { Navigate, createBrowserRouter, RouterProvider } from 'react-router-dom'
 import { AppLayout } from '../components/AppLayout'
 import { LoginPage } from '../features/auth/LoginPage'
 import { usePermissions } from '../data/permissions'
 import { useI18n } from '../i18n/LanguageContext'
+import { NAV_ITEMS } from './nav'
 
 // Lazy-load each screen so the initial bundle stays small and navigation only
 // fetches the code for the screen being opened. The login + shell stay eager.
@@ -41,6 +42,25 @@ function RequirePermission({ resource, children }: { resource: string; children:
   )
 }
 
+/** Landing gate for '/'. The POS is the default screen, but someone whose
+ *  position cannot open the POS should land on the FIRST tab they may open -
+ *  not on a no-access notice with no way forward. */
+function IndexGate() {
+  const { t } = useI18n()
+  const perms = usePermissions()
+  if (perms.loading) return <div className="p-6 text-sm text-muted">{t('Loading…')}</div>
+  if (perms.can('pos.view' as never)) return <POSPage />
+  const first = NAV_ITEMS.find((item) => perms.can(`${item.resource}.view` as never))
+  if (first) return <Navigate to={first.to} replace />
+  return (
+    <div className="p-6">
+      <div className="mx-auto max-w-md rounded-xl border border-warning-bg bg-warning-bg px-4 py-3 text-sm font-semibold text-warning">
+        🚫 {t('You do not have access to this page.')}
+      </div>
+    </div>
+  )
+}
+
 const router = createBrowserRouter([
   { path: '/login', element: <LoginPage /> },
   // Standalone mobile upload page: own minimal layout, own login gate.
@@ -49,22 +69,9 @@ const router = createBrowserRouter([
     path: '/',
     element: <AppLayout />,
     children: [
-      {
-        index: true,
-        element: (
-          <RequirePermission resource="pos">
-            <POSPage />
-          </RequirePermission>
-        ),
-      },
-      {
-        path: 'pos',
-        element: (
-          <RequirePermission resource="pos">
-            <POSPage />
-          </RequirePermission>
-        ),
-      },
+      { index: true, element: <IndexGate /> },
+      // One screen = one URL: old /pos links land on the canonical /.
+      { path: 'pos', element: <Navigate to="/" replace /> },
       {
         path: 'customers',
         element: (
