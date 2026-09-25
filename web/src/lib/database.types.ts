@@ -124,6 +124,32 @@ export interface SaleItem {
 }
 export type SaleItemInsert = Omit<SaleItem, 'id'>
 
+/** One payment received against an invoice (migration 011): split tenders at
+ *  checkout AND payments collected later for the remaining balance. */
+export interface SalePayment {
+  id: string
+  sale_id: string
+  amount: number
+  // 'cash' | 'wallet' | 'instapay' - free text so a future tender needs no migration.
+  method: string
+  note: string | null
+  paid_at: string // YYYY-MM-DD
+  recorded_by: string | null
+  store_id: string | null
+  created_at: string | null
+}
+export type SalePaymentInsert = {
+  sale_id: string
+  amount: number
+  method: string
+  note?: string | null
+  // paid_at / recorded_by / store_id default in the DB (current_date /
+  // auth.uid() / tenant trigger) - the app only ever sends the core three.
+  paid_at?: string
+  recorded_by?: string | null
+  store_id?: string | null
+}
+
 export interface OrderExamination {
   id: string
   sale_id: string

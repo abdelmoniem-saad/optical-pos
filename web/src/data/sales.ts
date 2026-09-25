@@ -1,5 +1,12 @@
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
+import {
+  clampPaymentLines,
+  legacyMethodKey,
+  methodSummary,
+  type PaymentLine,
+} from '../lib/payments'
+import { isMissingPaymentLedger, replaceSalePayments } from './salesPayments'
 import type {
   OrderExaminationInsert,
   Sale,
@@ -243,6 +250,10 @@ export type CreateSaleInput = {
   }
   doctorName?: string
   paymentMethod?: string
+  /** Split tenders for this checkout (migration 011):
+   *  [{method:'cash', amount:600}, {method:'instapay', amount:400}].
+   *  Omitted = legacy single-method flow (one line synthesized from amount_paid). */
+  payments?: PaymentLine[]
   // Expected delivery date shown on receipts/lab copy (YYYY-MM-DD).
   deliveryDate?: string
   // Order photo slots (migration 007): prescriptions paper / frame picture.
@@ -282,6 +293,23 @@ export function useCreateSale() {
             }
           }
 
+          // Payment lines (migration 011): use what the POS sent; callers that
+          // don't know about splits get ONE synthesized line from amount_paid,
+          // so the ledger always agrees with the header (the DB trigger
+          // recomputes sales.amount_paid from the rows we're about to write).
+          const fallbackLines: PaymentLine[] =
+            input.payments ??
+            (input.totals.amount_paid > 0
+              ? [
+                  {
+                    method: legacyMethodKey(input.paymentMethod ?? 'cash'),
+                    amount: input.totals.amount_paid,
+                  },
+                ]
+              : [])
+          const pay = clampPaymentLines(fallbackLines, input.totals.amount_paid)
+          const paymentMethod = input.paymentMethod ?? methodSummary(pay)
+
           const salePayload = {
             invoice_no: invoiceNo,
             customer_id: input.customerId,
@@ -290,7 +318,7 @@ export function useCreateSale() {
             discount: input.totals.discount,
             net_amount: input.totals.net_amount,
             amount_paid: input.totals.amount_paid,
-            payment_method: input.paymentMethod ?? 'Cash',
+            payment_method: paymentMethod,
             order_date: new Date().toISOString(),
             delivery_date: input.deliveryDate ? input.deliveryDate : null,
             doctor_name: input.doctorName ?? '',
@@ -308,12 +336,17 @@ export function useCreateSale() {
           const exams = input.examinations ?? []
 
           // Preferred path: atomic Postgres function (web/supabase/002_create_sale_rpc.sql).
+          // p_payments only rides along when there ARE lines: an 002-only database
+          // (011 not run yet) keeps its atomic 3-arg path, while a missing 4-arg
+          // match surfaces through isMissingFunction and falls back below.
+          const rpcArgs: Record<string, unknown> = {
+            p_sale: salePayload,
+            p_items: items,
+            p_exams: exams,
+          }
+          if (pay.length) rpcArgs.p_payments = pay
           try {
-            const rpc = await supabase.rpc('create_sale_order', {
-              p_sale: salePayload,
-              p_items: items,
-              p_exams: exams,
-            })
+            const rpc = await supabase.rpc('create_sale_order', rpcArgs)
             if (!rpc.error && rpc.data) return rpc.data as Sale
             if (rpc.error) {
               if (isInvoiceNoConflict(rpc.error)) {
@@ -377,6 +410,18 @@ export function useCreateSale() {
             if (exErr) throw exErr
           }
 
+          // Payment lines (migration 011). Legacy databases without the ledger
+          // keep the header amount_paid only; running 011 later backfills rows.
+          if (pay.length) {
+            const payRows = pay.map((p) => ({
+              sale_id: sale.id,
+              amount: p.amount,
+              method: p.method,
+            }))
+            const { error: payErr } = await supabase.from('sale_payments').insert(payRows)
+            if (payErr && !isMissingPaymentLedger(payErr)) throw payErr
+          }
+
           return sale
         } catch (err: any) {
           if (isInvoiceNoConflict(err) && attempt < 2) {
@@ -422,9 +467,25 @@ export function useUpdateSaleFull() {
       doctorName,
       deliveryDate,
       paymentMethod,
+      payments,
       rxImagePath,
       frameImagePath,
     }: UpdateSaleFullInput): Promise<Sale> => {
+      // Payment lines (migration 011): explicit split from the POS, or one
+      // synthesized line so a caller that doesn't know about the ledger still
+      // ends up with header == SUM(ledger) after the replace below.
+      const fallbackLines: PaymentLine[] =
+        payments ??
+        (totals.amount_paid > 0
+          ? [
+              {
+                method: legacyMethodKey(paymentMethod ?? 'cash'),
+                amount: totals.amount_paid,
+              },
+            ]
+          : [])
+      const pay = clampPaymentLines(fallbackLines, totals.amount_paid)
+
       // 1) Header. lab_status only changes when the exam set appears/vanishes;
       //    an in-progress lab status must never be reset by a re-checkout.
       const headerPatch: Partial<Sale> = {
@@ -432,7 +493,7 @@ export function useUpdateSaleFull() {
         discount: totals.discount,
         net_amount: totals.net_amount,
         amount_paid: totals.amount_paid,
-        payment_method: paymentMethod ?? 'Cash',
+        payment_method: paymentMethod ?? methodSummary(pay),
         delivery_date: deliveryDate ? deliveryDate : null,
         doctor_name: doctorName ?? '',
         rx_image_path: rxImagePath ?? null,
@@ -503,6 +564,15 @@ export function useUpdateSaleFull() {
         const { error: movErr } = await supabase.from('stock_movements').insert(movements)
         if (movErr) throw movErr
       }
+
+      // 5) Payment lines: replace the ledger (re-checkout rewrites the tenders).
+      //    The sale_payments_sync trigger recomputes amount_paid from the rows,
+      //    so header and ledger can never disagree; on legacy databases without
+      //    the table this no-ops and the patched header behaves as before.
+      await replaceSalePayments(
+        saleId,
+        pay.map((p) => ({ sale_id: saleId, amount: p.amount, method: p.method })),
+      )
 
       return sale
     },
