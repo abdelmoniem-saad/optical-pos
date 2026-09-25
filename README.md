@@ -112,6 +112,7 @@ Migrations run in numeric order in the Supabase SQL editor:
 | 008 | `008_multi_tenancy.sql` | Store scoping, license-gated write policies |
 | 009 | `009_store_licensing.sql` | Store licensing (trial/grace/expired) |
 | 010 | `010_metadata_sort.sql` | Optical metadata ordering |
+| 011 | `011_sale_payments.sql` | Sale payment ledger — split cash/wallet/instapay + later payments |
 
 > **Note on 000:** it is the original bootstrap the app shipped with. The live
 > project has drifted from it (e.g. Supabase Auth now owns passwords, not the

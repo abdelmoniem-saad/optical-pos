@@ -77,6 +77,18 @@ else to configure. After deploy, **Staff → + Add Staff** creates real logins
 > Until this function is deployed, the "Add Staff" form will return a "function not
 > found" error — everything else works without it.
 
+## Step 6 — Payment ledger (cash / wallet / instapay splits)
+
+Run [`011_sale_payments.sql`](./011_sale_payments.sql). It creates
+`sale_payments` (one row per money received — split tenders at checkout AND
+payments collected later for the remaining balance), backfills every legacy
+`amount_paid` as a single dated row, keeps `sales.amount_paid` in sync via a
+trigger, and extends `create_sale_order` to write the payment lines inside the
+checkout transaction. Until it's installed the app still works with the old
+single-method flow (and shows a "run 011" notice on the payment-history UI).
+Tip: snapshot the schema first — `supabase db dump --schema public` only reads
+the database and gives you an exact "before" picture.
+
 ## Migrating existing staff (later)
 
 Your old `public.users` table (bcrypt `password_hash`) is now **legacy** — Supabase
