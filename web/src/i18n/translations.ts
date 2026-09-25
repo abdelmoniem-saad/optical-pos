@@ -172,6 +172,11 @@ export const ar: Record<string, string> = {
   InstaPay: 'انستاباي',
   'Tap a method to add a line. Split as you like.':
     'اضغط على طريقة لإضافة دفعة — يمكنك التقسيم كما تشاء.',
+  'Payment recorded.': 'تم تسجيل الدفعة.',
+  'Record payments with the Add Payment button.':
+    'سجّل الدفعات عبر زر إضافة دفعة.',
+  'Payment ledger missing - run web/supabase/011_sale_payments.sql in the Supabase SQL editor.':
+    'سجل الدفعات غير موجود - نفّذ ملف web/supabase/011_sale_payments.sql في محرر SQL بـ Supabase.',
   'Gross Total': 'الإجمالي الكلي',
   'Net Amount': 'المبلغ الصافي',
   'Remaining Balance': 'المبلغ المتبقي',

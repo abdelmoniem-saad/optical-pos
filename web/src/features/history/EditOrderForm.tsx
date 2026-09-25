@@ -139,11 +139,14 @@ export function EditOrderForm({ sale, onDone }: { sale: Sale; onDone: () => void
         </label>
         <label className="flex flex-col">
           <span className="mb-0.5 text-xs text-faint">{t('Amount Paid')}</span>
+          {/* Money is recorded as payment rows on the ledger (Add Payment
+              below) - free-hand editing here would contradict the sum the DB
+              keeps in sales.amount_paid. Read-only display. */}
           <input
-            type="number"
             className={field}
             value={form.amount_paid}
-            onChange={(e) => setForm({ ...form, amount_paid: Number(e.target.value) })}
+            readOnly
+            title={t('Record payments with the Add Payment button.')}
           />
         </label>
         <label className="flex flex-col">

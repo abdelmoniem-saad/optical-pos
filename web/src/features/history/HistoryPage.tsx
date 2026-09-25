@@ -11,6 +11,7 @@ import { OrderExamsLazy } from '../../components/ExamView'
 import { OrderReceiptDialog } from '../../components/OrderReceiptDialog'
 import { QrDialog } from '../../components/QrDialog'
 import { EditOrderForm } from './EditOrderForm'
+import { SalePayments } from './SalePayments'
 import { usePermissions } from '../../data/permissions'
 import { prescriptionImageUrl, uploadOrderImage } from '../../lib/storage'
 import { useStoreId } from '../../lib/licensing'
@@ -164,6 +165,9 @@ export function HistoryPage() {
                     <span>{t('Paid')} {fmt(paid)}</span>
                     <span>{t('Balance')} {fmt(balance)}</span>
                   </div>
+                  {/* Ledger of tenders received + "Add Payment" for what is
+                      still due (migration 011). */}
+                  <SalePayments sale={s} balance={balance} />
                   <OrderExamsLazy saleId={s.id} />
                   <OrderImages sale={s} onQr={() => setQrFor(s)} />
                   <div className="mt-3 flex gap-2">
