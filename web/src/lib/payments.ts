@@ -57,6 +57,15 @@ export function removeLine(lines: PaymentLine[], method: string): PaymentLine[] 
   return normalizeLines(lines.filter((l) => keyOf(l.method) !== key))
 }
 
+/** Upsert one line, KEEPING a 0 amount so an input being edited doesn't vanish
+ *  mid-typing; zeros are dropped later by normalize/clamp at checkout. */
+export function upsertLine(lines: PaymentLine[], method: string, amount: number): PaymentLine[] {
+  const key = keyOf(method)
+  const amt = Number(amount)
+  const safe = Number.isFinite(amt) ? Math.max(0, round2(amt)) : 0
+  return [...lines.filter((l) => keyOf(l.method) !== key), { method: key, amount: safe }]
+}
+
 /**
  * Fit the lines inside `max` (never overpay): keep order, trim from the END,
  * drop whatever no longer fits. Result always sums to <= max. Used so the

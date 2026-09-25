@@ -167,6 +167,11 @@ export const ar: Record<string, string> = {
   Pricing: 'التسعير',
   Discount: 'الخصم',
   'Amount Paid': 'المبلغ المدفوع',
+  Cash: 'كاش',
+  Wallet: 'محفظة',
+  InstaPay: 'انستاباي',
+  'Tap a method to add a line. Split as you like.':
+    'اضغط على طريقة لإضافة دفعة — يمكنك التقسيم كما تشاء.',
   'Gross Total': 'الإجمالي الكلي',
   'Net Amount': 'المبلغ الصافي',
   'Remaining Balance': 'المبلغ المتبقي',

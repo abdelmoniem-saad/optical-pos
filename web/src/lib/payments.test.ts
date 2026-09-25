@@ -9,6 +9,7 @@ import {
   removeLine,
   round2,
   setLine,
+  upsertLine,
 } from './payments'
 
 describe('paymentsTotal', () => {
@@ -102,6 +103,32 @@ describe('removeLine', () => {
         'INSTAPAY',
       ),
     ).toEqual([{ method: 'cash', amount: 100 }])
+  })
+})
+
+describe('upsertLine (mid-edit input rows)', () => {
+  it('keeps a 0-amount line so the input being typed in does not vanish', () => {
+    expect(upsertLine([], 'cash', 0)).toEqual([{ method: 'cash', amount: 0 }])
+  })
+
+  it('replaces the row for the same method instead of appending', () => {
+    expect(
+      upsertLine(
+        [
+          { method: 'cash', amount: 100 },
+          { method: 'wallet', amount: 50 },
+        ],
+        'cash',
+        250,
+      ),
+    ).toEqual([
+      { method: 'wallet', amount: 50 },
+      { method: 'cash', amount: 250 },
+    ])
+  })
+
+  it('never allows a negative amount', () => {
+    expect(upsertLine([], 'wallet', -30)).toEqual([{ method: 'wallet', amount: 0 }])
   })
 })
 

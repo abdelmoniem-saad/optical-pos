@@ -40,7 +40,15 @@ export type OrderDoc = {
   customerPhone: string
   doctorName: string
   rows: RxRow[]
-  totals: { gross: number; discount: number; net: number; paid: number; remaining: number }
+  totals: {
+    gross: number
+    discount: number
+    net: number
+    paid: number
+    remaining: number
+    /** One row per tender actually received (drives the breakdown print). */
+    payments: { method: string; amount: number }[]
+  }
 }
 
 const money = (n: number) => n.toFixed(2)
@@ -93,6 +101,7 @@ export function buildOrderDocument(order: CompletedOrder, _shop: Shop): OrderDoc
       net: t.net,
       paid: t.amountPaid,
       remaining: t.balance,
+      payments: (order.payments ?? []).filter((p) => p.amount > 0),
     },
   }
 }
@@ -161,16 +170,29 @@ function rxTable(doc: OrderDoc, wide: boolean): string {
   return `<table class="rcpt-rx${wide ? ' wide' : ''}"><thead><tr>${head1}</tr><tr>${head2}</tr></thead><tbody>${body}</tbody></table>`
 }
 
+/** Tender label on the (always-Arabic) receipt. */
+const METHOD_AR: Record<string, string> = { cash: 'كاش', wallet: 'محفظة', instapay: 'انستاباي' }
+const methodAr = (m: string) => METHOD_AR[(m ?? '').trim().toLowerCase()] ?? m
+
 /**
  * kind 'shop'    → الإجمالي / الخصم / الصافي / المدفوع / المتبقي
  * kind 'customer'→ المطلوب / المدفوع / الباقي (no gross, no discount)
+ * Both copies print the per-tender breakdown under المدفوع, so the customer
+ * receipt itself documents HOW the money was paid (and later installments).
  */
 function totalsTable(doc: OrderDoc, currency: string, kind: 'shop' | 'customer'): string {
   const t = doc.totals
+  const payRows = t.payments
+    .filter((p) => p.amount > 0)
+    .map(
+      (p) =>
+        `<tr><td>└ ${esc(methodAr(p.method))}</td><td class="r">${num(p.amount)}</td></tr>`,
+    )
+    .join('')
   if (kind === 'customer') {
     return `<table class="rcpt-tot">
       <tr class="strong"><td>المطلوب</td><td class="r">${num(t.net, currency)}</td></tr>
-      <tr><td>المدفوع</td><td class="r">${num(t.paid)}</td></tr>
+      <tr><td>المدفوع</td><td class="r">${num(t.paid)}</td></tr>${payRows}
       <tr class="strong"><td>الباقي</td><td class="r">${num(t.remaining)}</td></tr>
     </table>`
   }
@@ -178,7 +200,7 @@ function totalsTable(doc: OrderDoc, currency: string, kind: 'shop' | 'customer')
     <tr><td>الإجمالي</td><td class="r">${num(t.gross, currency)}</td></tr>
     ${t.discount > 0 ? `<tr><td>الخصم</td><td class="r">− ${num(t.discount)}</td></tr>` : ''}
     <tr class="strong"><td>الصافي</td><td class="r">${num(t.net)}</td></tr>
-    <tr><td>المدفوع</td><td class="r">${num(t.paid)}</td></tr>
+    <tr><td>المدفوع</td><td class="r">${num(t.paid)}</td></tr>${payRows}
     <tr class="strong"><td>المتبقي</td><td class="r">${num(t.remaining)}</td></tr>
   </table>`
 }

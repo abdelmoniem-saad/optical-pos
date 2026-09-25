@@ -4,6 +4,8 @@ import { useI18n } from '../i18n/LanguageContext'
 import { useSettings } from '../data/settings'
 import { useCustomer } from '../data/customers'
 import { useOrderExaminations } from '../data/examinations'
+import { useSalePayments } from '../data/salesPayments'
+import { legacyMethodKey } from '../lib/payments'
 import type { CompletedOrder } from '../features/pos/POSContext'
 import {
   UNIT_CSS,
@@ -20,6 +22,7 @@ export function OrderReceiptDialog({ sale, onClose }: { sale: Sale; onClose: () 
   const settings = useSettings()
   const customer = useCustomer(sale.customer_id ?? null)
   const examsQuery = useOrderExaminations(sale.id)
+  const payQuery = useSalePayments(sale.id)
 
   const shop: Shop = useMemo(
     () => ({
@@ -38,6 +41,14 @@ export function OrderReceiptDialog({ sale, onClose }: { sale: Sale; onClose: () 
   )
   const net = Number(sale.net_amount ?? 0)
   const paid = Number(sale.amount_paid ?? 0)
+
+  // Tenders from the ledger (011); legacy fallback = one line from the header
+  // when the ledger is missing or the invoice predates it.
+  const payments = useMemo(() => {
+    const rows = payQuery.data ?? []
+    if (rows.length) return rows.map((r) => ({ method: r.method, amount: Number(r.amount) }))
+    return paid > 0 ? [{ method: legacyMethodKey(sale.payment_method), amount: paid }] : []
+  }, [payQuery.data, paid, sale.payment_method])
 
   const order: CompletedOrder = useMemo(
     () => ({
@@ -73,13 +84,14 @@ export function OrderReceiptDialog({ sale, onClose }: { sale: Sale; onClose: () 
         amountPaid: paid,
         balance: net - paid,
       },
+      payments,
       invoiceNo: sale.invoice_no,
       doctorName: sale.doctor_name ?? '',
       deliveryDate: sale.delivery_date ?? '',
       // Reprint of an already-saved order - not an in-place re-checkout.
       isUpdate: false,
     }),
-    [sale, customer.data, exams, net, paid],
+    [sale, customer.data, exams, net, paid, payments],
   )
 
   const doc = useMemo(() => buildOrderDocument(order, shop), [order, shop])

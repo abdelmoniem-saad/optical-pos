@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { usePOS, type CustomerDraft } from '../POSContext'
 import { useI18n } from '../../../i18n/LanguageContext'
+import { PAYMENT_METHODS, methodLabelKey, paymentsTotal, round2 } from '../../../lib/payments'
 import { needsExamination } from '../types'
 import { ExamSection } from './ExamSection'
 import { enterMovesNext } from '../enterNav'
@@ -20,7 +21,8 @@ export function CartStep() {
     removeFromCart,
     goToAdditional,
     setDiscount,
-    setAmountPaid,
+    setPaymentLine,
+    removePaymentLine,
     setGross,
     finishOrder,
   } = usePOS()
@@ -165,15 +167,68 @@ export function CartStep() {
                 onChange={(e) => setDiscount(Number(e.target.value))}
               />
             </label>
-            <label className="flex flex-col text-xs text-faint">
-              {t('Amount Paid')}
-              <input
-                type="number"
-                className={field}
-                value={state.amountPaid}
-                onChange={(e) => setAmountPaid(Number(e.target.value))}
-              />
-            </label>
+          </div>
+
+          {/* Split tenders: tap a method to add a line (prefilled with what is
+              still due), edit amounts inline, remove with ✕. The rows sum to
+              Amount Paid; checkout clamps them so they can never exceed net. */}
+          <div className="mt-3">
+            <div className="mb-1.5 flex flex-wrap items-center justify-between gap-1">
+              <span className="text-xs font-semibold text-muted">{t('Payment')}</span>
+              <span className="text-[10px] text-faint">
+                {t('Tap a method to add a line. Split as you like.')}
+              </span>
+            </div>
+            <div className="mb-2 flex flex-wrap gap-1.5">
+              {PAYMENT_METHODS.map((m) => {
+                const line = state.payments.find((l) => l.method === m)
+                const others = paymentsTotal(state.payments.filter((l) => l.method !== m))
+                return (
+                  <button
+                    key={m}
+                    type="button"
+                    onClick={() =>
+                      line
+                        ? removePaymentLine(m)
+                        : setPaymentLine(m, round2(Math.max(0, totals.net - others)))
+                    }
+                    className={[
+                      'rounded-full border px-2.5 py-1 text-xs font-semibold transition',
+                      line
+                        ? 'border-brand bg-brand text-white'
+                        : 'border-line bg-white text-muted hover:bg-surface',
+                    ].join(' ')}
+                  >
+                    {t(methodLabelKey(m))}
+                    {line && line.amount > 0 ? ` · ${money(line.amount)}` : ''}
+                  </button>
+                )
+              })}
+            </div>
+            {state.payments.length > 0 && (
+              <div className="space-y-1.5">
+                {state.payments.map((l) => (
+                  <div key={l.method} className="flex items-center gap-2">
+                    <span className="w-24 text-xs text-faint">{t(methodLabelKey(l.method))}</span>
+                    <input
+                      type="number"
+                      min={0}
+                      className={field}
+                      value={l.amount}
+                      onChange={(e) => setPaymentLine(l.method, Number(e.target.value))}
+                    />
+                    <button
+                      type="button"
+                      title={t('Remove')}
+                      onClick={() => removePaymentLine(l.method)}
+                      className="px-1 text-sm text-danger hover:opacity-70"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
 
@@ -183,6 +238,14 @@ export function CartStep() {
           <div className="my-1 border-t border-line/40" />
           <Row label={t('Net Amount')} value={money(totals.net)} big success />
           <Row label={t('Amount Paid')} value={money(totals.amountPaid)} />
+          {state.payments.some((l) => l.amount > 0) && (
+            <div className="text-[11px] text-faint">
+              {state.payments
+                .filter((l) => l.amount > 0)
+                .map((l) => `${t(methodLabelKey(l.method))} ${money(l.amount)}`)
+                .join(' · ')}
+            </div>
+          )}
           <div className="my-1 border-t border-line/40" />
           <Row
             label={t('Remaining Balance')}

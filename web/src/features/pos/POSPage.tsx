@@ -2,6 +2,7 @@ import { POSProvider, usePOS } from './POSContext'
 import { useI18n } from '../../i18n/LanguageContext'
 import { useConfirm } from '../../components/Feedback'
 import { needsExamination, type POSStep } from './types'
+import { paymentsTotal } from '../../lib/payments'
 import { CategoryStep } from './steps/CategoryStep'
 import { CustomerStep } from './steps/CustomerStep'
 import { AdditionalItemsStep } from './steps/AdditionalItemsStep'
@@ -89,7 +90,7 @@ function RestartButton() {
     ) ||
     s.doctorName.trim() !== '' ||
     s.discount > 0 ||
-    s.amountPaid > 0 ||
+    paymentsTotal(s.payments) > 0 ||
     s.grossOverride !== null ||
     !!s.savedSale ||
     !!s.completed

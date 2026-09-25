@@ -23,6 +23,13 @@ import { clearPosDraft, readPosDraft, writePosDraft } from '../../lib/posDraft'
 import type { Customer, CustomerInsert, Product, Sale } from '../../lib/database.types'
 import { addLine, computeTotals, removeLine, setQty, type Totals } from './pricing'
 import {
+  clampPaymentLines,
+  paymentsTotal,
+  removeLine as removePayLine,
+  upsertLine,
+  type PaymentLine,
+} from '../../lib/payments'
+import {
   emptyExam,
   type Category,
   type Exam,
@@ -60,6 +67,8 @@ export type CompletedOrder = {
   cartItems: CartLine[]
   examinations: Exam[]
   totals: Totals
+  /** The tenders actually received (drives the receipt breakdown). */
+  payments: PaymentLine[]
   invoiceNo: string
   doctorName: string
   deliveryDate: string
@@ -75,7 +84,9 @@ type State = {
   cartItems: CartLine[]
   examinations: Exam[]
   discount: number
-  amountPaid: number
+  // Split tenders for this order (cash/wallet/instapay, one row per method).
+  // Sum of the rows = Amount Paid; checkout clamps them to the net amount.
+  payments: PaymentLine[]
   grossOverride: number | null
   doctorName: string
   deliveryDate: string
@@ -100,7 +111,7 @@ function initialState(): State {
     cartItems: [],
     examinations: [],
     discount: 0,
-    amountPaid: 0,
+    payments: [],
     grossOverride: null,
     doctorName: '',
     deliveryDate: plusDays(3),
@@ -115,9 +126,19 @@ function initialState(): State {
   }
 }
 
-/** The persisted copy never keeps transient flags (in-flight request, error). */
+/** The persisted copy never keeps transient flags (in-flight request, error).
+ *  Older drafts (pre split-payments) stored a single `amountPaid` number -
+ *  they load as ONE cash line so nobody's in-progress order breaks. */
 function draftSafe(s: State): State {
-  return { ...s, busy: false, error: null }
+  const legacy = s as State & { amountPaid?: number }
+  const payments = Array.isArray(s.payments)
+    ? s.payments
+    : (legacy.amountPaid ?? 0) > 0
+      ? [{ method: 'cash', amount: legacy.amountPaid as number }]
+      : []
+  const copy = { ...s } as State & { amountPaid?: number }
+  delete copy.amountPaid
+  return { ...copy, payments, busy: false, error: null }
 }
 
 type Action = { type: 'PATCH'; patch: Partial<State> } | { type: 'RESET' }
@@ -163,7 +184,9 @@ type POSApi = {
   removeFromCart: (productId: string) => void
   // pricing
   setDiscount: (n: number) => void
-  setAmountPaid: (n: number) => void
+  /** Upsert one tender row (a 0 amount keeps the row for mid-edit inputs). */
+  setPaymentLine: (method: string, amount: number) => void
+  removePaymentLine: (method: string) => void
   setGross: (n: number) => void
   // checkout
   finishOrder: () => Promise<void>
@@ -220,7 +243,7 @@ export function POSProvider({ children }: { children: ReactNode }) {
   const patch = (p: Partial<State>) => dispatch({ type: 'PATCH', patch: p })
   const totals = computeTotals(state.cartItems, {
     discount: state.discount,
-    amountPaid: state.amountPaid,
+    amountPaid: paymentsTotal(state.payments),
     grossOverride: state.grossOverride,
   })
 
@@ -457,7 +480,10 @@ export function POSProvider({ children }: { children: ReactNode }) {
 
   // ---- pricing ----
   const setDiscount = (n: number) => patch({ discount: Math.max(0, n || 0) })
-  const setAmountPaid = (n: number) => patch({ amountPaid: Math.max(0, n || 0) })
+  const setPaymentLine = (method: string, amount: number) =>
+    patch({ payments: upsertLine(state.payments, method, amount) })
+  const removePaymentLine = (method: string) =>
+    patch({ payments: removePayLine(state.payments, method) })
   // The gross total is always editable; null means "track the items total".
   const setGross = (n: number) => patch({ grossOverride: Math.max(0, n || 0) })
 
@@ -477,9 +503,12 @@ export function POSProvider({ children }: { children: ReactNode }) {
       await addMissingOrderMetadata(s.examinations)
       const t = computeTotals(cartItems, {
         discount: s.discount,
-        amountPaid: s.amountPaid,
+        amountPaid: paymentsTotal(s.payments),
         grossOverride: s.grossOverride,
       })
+      // The ledger rows about to be written: clamped so their sum can never
+      // exceed the paid amount pricing just computed (sum == amount_paid).
+      const payLines = clampPaymentLines(s.payments, t.amountPaid)
       // Allow overselling: stock movements will make inventory go negative,
       // which is intentional per the workflow (record the sale even when
       // qty-on-hand is zero or below).
@@ -504,6 +533,7 @@ export function POSProvider({ children }: { children: ReactNode }) {
           net_amount: t.net,
           amount_paid: t.amountPaid,
         },
+        payments: payLines,
         doctorName: s.doctorName,
         deliveryDate: s.deliveryDate,
         rxImagePath,
@@ -545,6 +575,7 @@ export function POSProvider({ children }: { children: ReactNode }) {
           cartItems,
           examinations: s.examinations,
           totals: t,
+          payments: payLines,
           invoiceNo: sale.invoice_no || s.invoiceNo,
           doctorName: s.doctorName,
           deliveryDate: s.deliveryDate,
@@ -591,7 +622,8 @@ export function POSProvider({ children }: { children: ReactNode }) {
     changeQty,
     removeFromCart,
     setDiscount,
-    setAmountPaid,
+    setPaymentLine,
+    removePaymentLine,
     setGross,
     finishOrder,
     closeReceipt,
