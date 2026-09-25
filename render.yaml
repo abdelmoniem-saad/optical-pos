@@ -1,16 +1,13 @@
-# Render Blueprint — the new React + Supabase web app (LensyPOS).
+# Render Blueprint — LensyPOS web app (React + Supabase), a STATIC site.
 #
-# The OLD Render service ran the Flet/Python app (type: web, env: python). That
-# is why opening the old URL still shows Flet. The React app is a different kind
-# of service — a STATIC SITE — so it can't reuse the same service; this defines a
-# new one named "lensy-web".
+# The old Flet/Python service has been RETIRED from this repo (its code, Procfile
+# and requirements are gone), so this static site with rootDir: web is the only
+# deployment that exists here.
 #
-# To switch over:
-#   1. Render Dashboard → New → Blueprint → select this repo (deploys lensy-web).
-#   2. In the new static site, set env vars VITE_SUPABASE_URL and
-#      VITE_SUPABASE_ANON_KEY (same values as your Supabase project).
-#   3. Verify the new site works, then move your custom domain from the old
-#      Flet service to lensy-web and suspend/delete the old "lensy-pos" service.
+# Setup: Render Dashboard → New → Blueprint → select this repo (deploys
+# "lensy-web"), then set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in the
+# service's environment. If the legacy "lensy-pos" Python service still shows in
+# the dashboard, suspend/delete it there - it can no longer build from main.
 
 services:
   - type: web

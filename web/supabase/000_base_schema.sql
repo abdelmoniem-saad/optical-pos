@@ -1,4 +1,26 @@
 -- ============================================
+-- LensyPOS - BASE schema (historical bootstrap)
+-- ============================================
+-- The ORIGINAL full schema this project was created from. It is kept because
+-- every numbered migration beside it (001+ RLS, sale RPC, purchasing, RBAC &
+-- notes, order images, multi-tenancy, store licensing, metadata order) ASSUMES
+-- these tables already exist.
+--
+-- Order for a brand-new Supabase project:
+--   1. 000_base_schema.sql       (this file - tables + seed roles/permissions)
+--   2. 001_security_rls.sql      (RLS on; authenticated-only policies)
+--   3. 002_create_sale_rpc.sql … through 010_metadata_sort.sql
+--
+-- NOTE: the LIVE project has drifted from this file (e.g. users.password_hash
+-- is no longer required, because web logins are Supabase-Auth users linked by
+-- id). Treat this as the base, not as current truth - a pg_dump snapshot of
+-- the live database is the only exact source of truth.
+--
+-- (Lived at the repo root as supabase_full_schema.sql until the Flet/Python
+-- app was retired; moved here so every schema artefact ships with the web app.)
+-- ============================================
+
+-- ============================================
 -- Lensy POS - Supabase Schema
 -- Run this in Supabase SQL Editor
 -- ============================================
