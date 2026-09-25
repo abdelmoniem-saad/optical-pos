@@ -18,6 +18,7 @@ import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../lib/auth'
 import { useI18n } from '../../i18n/LanguageContext'
 import { usePermissions } from '../../data/permissions'
+import { useConfirm } from '../../components/Feedback'
 import type { NamedRow } from '../../data/metadata'
 
 function AddUserForm({ onClose, storeId }: { onClose: () => void; storeId: string | null }) {
@@ -281,14 +282,15 @@ function AccessControl() {
 
   const toggleGrant = useToggleRoleGrant()
   const setOverride = useSetUserOverride()
+  const confirm = useConfirm()
 
   const editingSelfRole = !!me.data?.role_id && roleId === me.data.role_id
 
   /** Guard: warn before an action could lock the editor out of THIS page. */
-  function guardSelfLockout(permCode: string, willDeny: boolean): boolean {
+  async function guardSelfLockout(permCode: string, willDeny: boolean): Promise<boolean> {
     if (!willDeny || !SENSITIVE_CODES.includes(permCode)) return true
     if (editingSelfRole && roleId === me.data?.role_id) {
-      return window.confirm(t('This may lock you out of the Staff page. Continue?'))
+      return confirm(t('This may lock you out of the Staff page. Continue?'))
     }
     return true
   }
@@ -346,8 +348,8 @@ function AccessControl() {
         <PermissionMatrix
           grants={grants.data}
           disabled={bypass}
-          onToggleGrant={(permCode, next) => {
-            if (!guardSelfLockout(permCode, !next)) return
+          onToggleGrant={async (permCode, next) => {
+            if (!(await guardSelfLockout(permCode, !next))) return
             if (roleId) toggleGrant.mutate({ roleId, permCode, granted: next })
           }}
         />

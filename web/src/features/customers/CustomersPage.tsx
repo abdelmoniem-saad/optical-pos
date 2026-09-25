@@ -9,6 +9,7 @@ import {
 import { useIsAdmin } from '../../data/staff'
 import { usePermissions } from '../../data/permissions'
 import { useI18n } from '../../i18n/LanguageContext'
+import { useConfirm, useToast } from '../../components/Feedback'
 
 /** Customers list + search. The DEFAULT list is paged server-side and grows
  *  via "Load more"; search runs entirely server-side with hard limits, so
@@ -24,6 +25,8 @@ export function CustomersPage() {
   // Admins always can; otherwise a granted customers.delete permission works.
   const perms = usePermissions()
   const isAdmin = useIsAdmin() || perms.can('customers.delete' as never)
+  const confirm = useConfirm()
+  const notify = useToast()
 
   const searching = term.trim().length >= 2
   const rows = useMemo(() => {
@@ -44,7 +47,7 @@ export function CustomersPage() {
   const active = searching ? search : all
 
   async function onDelete(id: string, name: string) {
-    if (!window.confirm(t('Delete customer') + ` "${name}"?`)) return
+    if (!(await confirm(t('Delete customer') + ` "${name}"?`))) return
     try {
       await del.mutateAsync({ id })
     } catch (e) {
@@ -68,15 +71,15 @@ export function CustomersPage() {
           t(
             'Deleting the customer will also permanently delete their orders and prescriptions. Continue?',
           )
-        if (!window.confirm(message)) return
+        if (!(await confirm(message))) return
         try {
           await del.mutateAsync({ id, cascade: true })
         } catch (err) {
-          alert(err instanceof Error ? err.message : String(err))
+          notify(err instanceof Error ? err.message : String(err))
         }
         return
       }
-      alert(e instanceof Error ? e.message : String(e))
+      notify(e instanceof Error ? e.message : String(e))
     }
   }
 

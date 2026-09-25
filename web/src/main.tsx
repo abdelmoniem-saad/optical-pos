@@ -6,6 +6,7 @@ import { AuthProvider } from './lib/auth'
 import { LanguageProvider } from './i18n/LanguageContext'
 import { AppRouter } from './routes/AppRouter'
 import { OfflineBanner } from './components/OfflineBanner'
+import { FeedbackProvider } from './components/Feedback'
 import './index.css'
 
 createRoot(document.getElementById('root')!).render(
@@ -20,8 +21,10 @@ createRoot(document.getElementById('root')!).render(
         }}
       >
         <AuthProvider>
-          <OfflineBanner />
-          <AppRouter />
+          <FeedbackProvider>
+            <OfflineBanner />
+            <AppRouter />
+          </FeedbackProvider>
         </AuthProvider>
       </PersistQueryClientProvider>
     </LanguageProvider>

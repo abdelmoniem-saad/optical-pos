@@ -10,6 +10,7 @@ import { emptyExam, type Exam } from '../types'
 import { usePermissions } from '../../../data/permissions'
 import { prescriptionImageUrl, uploadOrderImage } from '../../../lib/storage'
 import { QrDialog } from '../../../components/QrDialog'
+import { useToast } from '../../../components/Feedback'
 
 const small =
   'rounded-md border border-line bg-white px-2 py-1.5 text-sm outline-none focus:border-brand'
@@ -359,6 +360,7 @@ function OrderImageSlot({ slot, label }: { slot: 'rx' | 'frame'; label: string }
   const perms = usePermissions()
   const { state, setOrderImage } = usePOS()
   const { data: storeId } = useStoreId()
+  const notify = useToast()
   const path = slot === 'rx' ? state.rxImagePath : state.frameImagePath
   const [busy, setBusy] = useState(false)
   const replaceLocked = !!path && !!state.savedSale && !perms.isAdmin
@@ -384,7 +386,7 @@ function OrderImageSlot({ slot, label }: { slot: 'rx' | 'frame'; label: string }
             const p = await uploadOrderImage(f, state.invoiceNo, slot, storeId)
             setOrderImage(slot, p)
           } catch (err) {
-            alert(err instanceof Error ? err.message : String(err))
+            notify(err instanceof Error ? err.message : String(err))
           } finally {
             setBusy(false)
             e.target.value = ''

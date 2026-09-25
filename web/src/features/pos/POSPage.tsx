@@ -1,5 +1,6 @@
 import { POSProvider, usePOS } from './POSContext'
 import { useI18n } from '../../i18n/LanguageContext'
+import { useConfirm } from '../../components/Feedback'
 import { needsExamination, type POSStep } from './types'
 import { CategoryStep } from './steps/CategoryStep'
 import { CustomerStep } from './steps/CustomerStep'
@@ -63,6 +64,7 @@ function CurrentStep() {
 function RestartButton() {
   const { t } = useI18n()
   const { state, startNewSale } = usePOS()
+  const confirm = useConfirm()
   const s = state
   // An auto-added empty exam row doesn't count as progress on its own.
   const dirty =
@@ -96,8 +98,8 @@ function RestartButton() {
 
   return (
     <button
-      onClick={() => {
-        if (window.confirm(t('Discard the current order and start a new sale?'))) {
+      onClick={async () => {
+        if (await confirm(t('Discard the current order and start a new sale?'))) {
           startNewSale()
         }
       }}

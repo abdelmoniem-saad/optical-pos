@@ -44,6 +44,7 @@ export const ar: Record<string, string> = {
   'Save Settings': 'حفظ الإعدادات',
   Cancel: 'إلغاء',
   Close: 'إغلاق',
+  'Continue': 'متابعة',
   Edit: 'تعديل',
   Delete: 'حذف',
   Add: 'إضافة',

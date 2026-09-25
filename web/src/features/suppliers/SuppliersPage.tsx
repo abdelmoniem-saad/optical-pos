@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useI18n } from '../../i18n/LanguageContext'
 import { localDateISO } from '../pos/POSContext'
 import { usePermissions } from '../../data/permissions'
+import { useConfirm } from '../../components/Feedback'
 import {
   useAddPurchase,
   useAddPurchasePayment,
@@ -214,6 +215,7 @@ function Shipments({ supplier }: { supplier: Supplier }) {
 
 export function SuppliersPage() {
   const { t } = useI18n()
+  const confirm = useConfirm()
   const suppliers = useSuppliers()
   const del = useDeleteSupplier()
   // Site-wide ledgers power the per-supplier outstanding badges.
@@ -236,9 +238,9 @@ export function SuppliersPage() {
     outstandingBySupplier.set(s.supplier_id, (outstandingBySupplier.get(s.supplier_id) ?? 0) + rem)
   }
 
-  function remove(s: Supplier) {
+  async function remove(s: Supplier) {
     // The mutation cascades: shipments (and their payment history) go first.
-    const ok = window.confirm(`"${s.name}" - ${t('Delete supplier and all their shipments?')}`)
+    const ok = await confirm(`"${s.name}" - ${t('Delete supplier and all their shipments?')}`)
     if (!ok) return
     del.mutate(s.id, {
       onSuccess: () => {
