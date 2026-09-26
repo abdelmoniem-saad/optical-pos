@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { emptyExam, needsExamination } from './types'
+import { emptyExam, inferLoadedCategory, needsExamination } from './types'
 
 describe('emptyExam', () => {
   it('matches the legacy defaults', () => {
@@ -36,5 +36,30 @@ describe('needsExamination', () => {
     expect(needsExamination('Accessory')).toBe(false)
     expect(needsExamination('Other')).toBe(false)
     expect(needsExamination(null)).toBe(false)
+  })
+})
+
+describe('inferLoadedCategory (opening a saved invoice)', () => {
+  it('maps recognizable product categories, including loose legacy names', () => {
+    expect(inferLoadedCategory('Frame', false)).toBe('Frame')
+    expect(inferLoadedCategory('ContactLens', false)).toBe('ContactLens')
+    expect(inferLoadedCategory('Contact Lenses', false)).toBe('ContactLens')
+    expect(inferLoadedCategory('Sunglasses', false)).toBe('Sunglasses')
+    expect(inferLoadedCategory('sunglasses', false)).toBe('Sunglasses')
+    expect(inferLoadedCategory('Accessory', false)).toBe('Accessory')
+    expect(inferLoadedCategory('نظارة', false)).toBe('Frame')
+  })
+
+  it('falls back to Other when there are no exams and the category is unknown', () => {
+    expect(inferLoadedCategory(null, false)).toBe('Other')
+    // The reported scenario: a legacy junk row whose "category" is nonsense.
+    expect(inferLoadedCategory('قرملس', false)).toBe('Other')
+  })
+
+  it('ALWAYS lands on an exam category when the invoice has examinations', () => {
+    expect(inferLoadedCategory(null, true)).toBe('Frame')
+    expect(inferLoadedCategory('Lens', true)).toBe('Frame')
+    expect(inferLoadedCategory('Accessory', true)).toBe('Frame')
+    expect(inferLoadedCategory('Contact Lenses', true)).toBe('ContactLens')
   })
 })

@@ -32,6 +32,7 @@ import {
 } from '../../lib/payments'
 import {
   emptyExam,
+  inferLoadedCategory,
   type Category,
   type Exam,
   type POSStep,
@@ -638,10 +639,12 @@ export function POSProvider({ children }: { children: ReactNode }) {
       const itemsTotal = cartItems.reduce((s, i) => s + i.total_price, 0)
       const gross = Number(sale.total_amount ?? 0)
 
-      // Category drives whether the ExamSection is visible; infer it from the
-      // first line's product (exam-only invoices default to 'Frame').
-      const categories: Category[] = ['Frame', 'Sunglasses', 'ContactLens', 'Accessory', 'Other']
-      let category: Category = 'Other'
+      // Category drives whether the ExamSection is visible. Infer it from the
+      // first line's product, but an invoice WITH examinations ALWAYS lands on
+      // an exam category (inferLoadedCategory) - prescriptions must never be
+      // hidden just because a legacy product row has an odd/unknown category.
+      const hasExams = (examRows?.length ?? 0) > 0
+      let productCat: string | null = null
       const firstPid = cartItems[0]?.product_id
       if (firstPid) {
         const { data: p } = await supabase
@@ -649,11 +652,9 @@ export function POSProvider({ children }: { children: ReactNode }) {
           .select('category')
           .eq('id', firstPid)
           .maybeSingle()
-        const pc = String(p?.category ?? '')
-        category = categories.includes(pc as Category) ? (pc as Category) : 'Other'
-      } else if ((examRows?.length ?? 0) > 0) {
-        category = 'Frame'
+        productCat = p?.category ?? null
       }
+      const category = inferLoadedCategory(productCat, hasExams)
 
       const amountPaid = Number(sale.amount_paid ?? 0)
       const examList: Exam[] = (examRows ?? []).map(

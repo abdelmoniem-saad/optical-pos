@@ -33,3 +33,23 @@ export function emptyExam(): Exam {
 export function needsExamination(category: Category | null): boolean {
   return category === 'Frame' || category === 'ContactLens'
 }
+
+/**
+ * Category for a LOADED invoice (day navigation). Legacy product rows carry
+ * loose category names ('Contact Lenses', 'نظارة', …), so matching is fuzzy -
+ * and the decisive rule: an invoice WITH examinations must always land on an
+ * exam category, otherwise the prescription section would be hidden on open.
+ */
+export function inferLoadedCategory(
+  productCategory: string | null | undefined,
+  hasExams: boolean,
+): Category {
+  const pc = (productCategory ?? '').toLowerCase()
+  let c: Category = 'Other'
+  if (pc.includes('contact')) c = 'ContactLens'
+  else if (pc.includes('sun') || pc.includes('شمس')) c = 'Sunglasses'
+  else if (pc.includes('frame') || pc.includes('glass') || pc.includes('نظار')) c = 'Frame'
+  else if (pc.includes('access')) c = 'Accessory'
+  if (hasExams && !needsExamination(c)) c = 'Frame'
+  return c
+}

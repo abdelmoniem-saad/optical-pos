@@ -94,60 +94,54 @@ export function CartStep() {
             </button>
           </div>
 
-          <div className="mb-4 overflow-hidden rounded-xl border border-line bg-white">
-            <table className="w-full text-sm">
-              <thead className="bg-surface text-start text-muted">
-                <tr>
-                  <th className="px-4 py-2">{t('Product')}</th>
-                  <th className="px-4 py-2 text-center">{t('Qty')}</th>
-                  <th className="px-4 py-2 text-end">{t('Price')}</th>
-                  <th className="px-4 py-2 text-end">{t('Total')}</th>
-                  <th className="px-4 py-2"></th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-line/40">
-                {state.cartItems.length === 0 && (
-                  <tr>
-                    <td colSpan={5} className="px-4 py-6 text-center text-faint">
-                      {t('Cart is empty.')}
-                    </td>
-                  </tr>
-                )}
-                {state.cartItems.map((i) => (
-                  <tr key={i.product_id}>
-                    <td className="px-4 py-2">{i.name}</td>
-                    <td className="px-4 py-2">
-                      <div className="flex items-center justify-center gap-2">
-                        <button
-                          onClick={() => changeQty(i.product_id, i.qty - 1)}
-                          className="h-7 w-7 rounded-md border border-line text-muted hover:bg-surface"
-                        >
-                          −
-                        </button>
-                        <span className="w-6 text-center font-semibold">{i.qty}</span>
-                        <button
-                          onClick={() => changeQty(i.product_id, i.qty + 1)}
-                          className="h-7 w-7 rounded-md border border-line text-muted hover:bg-surface"
-                        >
-                          +
-                        </button>
-                      </div>
-                    </td>
-                    <td className="px-4 py-2 text-end">{money(i.unit_price)}</td>
-                    <td className="px-4 py-2 text-end">{money(i.total_price)}</td>
-                    <td className="px-4 py-2 text-end">
-                      <button
-                        onClick={() => removeFromCart(i.product_id)}
-                        className="text-danger hover:underline"
-                      >
-                        {t('Remove')}
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          {state.cartItems.length === 0 ? (
+            <div className="mb-4 rounded-xl border border-dashed border-line bg-white/60 px-4 py-6 text-center text-sm text-faint">
+              {t('Cart is empty.')}
+            </div>
+          ) : (
+            // Optical-style list: one item per row, ONE amount on the right.
+            // The grocery-style Product/Qty/Price/Total grid was dropped - a
+            // frame or a pair of lenses is one line, not a basket of stock.
+            <ul className="mb-4 divide-y divide-line/40 overflow-hidden rounded-xl border border-line bg-white">
+              {state.cartItems.map((i) => (
+                <li key={i.product_id} className="flex items-center gap-3 px-4 py-2.5">
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate font-medium">{i.name}</span>
+                    {i.qty > 1 && (
+                      <span className="block text-xs text-faint">
+                        {i.qty} × {money(i.unit_price)}
+                      </span>
+                    )}
+                  </span>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      onClick={() => changeQty(i.product_id, i.qty - 1)}
+                      className="h-7 w-7 rounded-md border border-line text-muted hover:bg-surface"
+                    >
+                      −
+                    </button>
+                    <span className="w-6 text-center font-semibold tabular-nums">{i.qty}</span>
+                    <button
+                      onClick={() => changeQty(i.product_id, i.qty + 1)}
+                      className="h-7 w-7 rounded-md border border-line text-muted hover:bg-surface"
+                    >
+                      +
+                    </button>
+                  </div>
+                  <span className="w-24 text-end font-semibold tabular-nums text-brand-dark">
+                    {money(i.total_price)}
+                  </span>
+                  <button
+                    onClick={() => removeFromCart(i.product_id)}
+                    title={t('Remove')}
+                    className="px-1 text-lg leading-none text-faint hover:text-danger"
+                  >
+                    ×
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
         </>
       )}
 
