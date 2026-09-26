@@ -27,13 +27,9 @@ begin
 end $$;
 
 grant usage on schema public to anon, authenticated, service_role;
--- Supabase grants these too: the migrations (auth_store_id → auth.uid(),
--- sale_payments.recorded_by default) and 008's storage policies resolve
--- objects in these schemas AS the calling role, so `authenticated` needs
--- USAGE on both or every checkout dies with "permission denied for schema auth".
-grant usage on schema auth to anon, authenticated, service_role;
-grant usage on schema storage to anon, authenticated, service_role;
-grant select on all tables in schema auth to authenticated;
+-- NOTE: USAGE on the `auth` and `storage` schemas is granted in their own
+-- sections below, once those schemas exist (Supabase grants both out of the
+-- box; without them every checkout dies with "permission denied for schema auth").
 
 -- Everything the migrations create is owned by the connecting superuser; hand
 -- `authenticated` its privileges up-front (Supabase grants the same defaults).
@@ -69,6 +65,13 @@ language sql stable parallel safe as $$
   )::uuid
 $$;
 
+-- Supabase grants these out of the box: the migrations (auth_store_id →
+-- auth.uid(), sale_payments.recorded_by default) resolve objects in this
+-- schema AS THE CALLING ROLE, so `authenticated` needs USAGE here.
+grant usage on schema auth to anon, authenticated, service_role;
+grant select on all tables in schema auth to authenticated;
+grant execute on all functions in schema auth to authenticated;
+
 -- ---------- 3) storage schema (008 rewrites paths + creates a policy on it) ----------
 create schema if not exists storage;
 
@@ -91,6 +94,10 @@ create or replace function storage.foldername(name text) returns text[]
 language sql immutable strict as $$
   select (string_to_array(name, '/'))[1 : array_length(string_to_array(name, '/'), 1) - 1]
 $$;
+
+-- 008's storage policies call storage.foldername() AS the calling role.
+grant usage on schema storage to anon, authenticated, service_role;
+grant execute on all functions in schema storage to authenticated;
 
 -- ---------- 4) pgTAP (the gate suite's assertion library) ----------
 create extension if not exists pgtap;
