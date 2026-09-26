@@ -10,7 +10,7 @@
  * one-line addition to PAYMENT_METHODS - no migration needed.
  */
 
-export const PAYMENT_METHODS = ['cash', 'wallet', 'instapay'] as const
+export const PAYMENT_METHODS = ['cash', 'wallet', 'instapay', 'card'] as const
 export type PaymentMethodKey = (typeof PAYMENT_METHODS)[number]
 
 export type PaymentLine = { method: string; amount: number }
@@ -88,6 +88,7 @@ const LEGACY_LABEL: Record<string, string> = {
   cash: 'Cash',
   wallet: 'Wallet',
   instapay: 'InstaPay',
+  card: 'Card',
 }
 
 /**

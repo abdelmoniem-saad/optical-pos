@@ -28,6 +28,12 @@ export function CartStep() {
   } = usePOS()
   const [quick, setQuick] = useState('')
   const showExam = needsExamination(state.category)
+  // A line can never grow beyond what is still due once the OTHER lines are
+  // counted - the input refuses an amount that would exceed the net total.
+  const maxFor = (method: string) =>
+    round2(
+      Math.max(0, totals.net - paymentsTotal(state.payments.filter((l) => l.method !== method))),
+    )
 
   async function onQuickAdd() {
     await quickAdd(quick)
@@ -212,7 +218,9 @@ export function CartStep() {
                       min={0}
                       className={field}
                       value={l.amount}
-                      onChange={(e) => setPaymentLine(l.method, Number(e.target.value))}
+                      onChange={(e) =>
+                        setPaymentLine(l.method, Math.min(Number(e.target.value) || 0, maxFor(l.method)))
+                      }
                     />
                     <button
                       type="button"

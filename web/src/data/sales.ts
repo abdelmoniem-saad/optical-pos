@@ -15,6 +15,26 @@ import type {
 
 const KEY = ['sales'] as const
 
+/** Today's invoices (id + invoice_no), oldest first - powers the POS day
+ *  navigation (first / previous / next / last customer of the day).
+ *  Shares the ['sales'] prefix, so every checkout invalidation refetches it. */
+export function useTodaySales() {
+  return useQuery({
+    queryKey: [...KEY, 'today-nav'],
+    queryFn: async (): Promise<Pick<Sale, 'id' | 'invoice_no'>[]> => {
+      const { data, error } = await supabase
+        .from('sales')
+        .select('id, invoice_no')
+        .gte('order_date', localDate())
+        .order('order_date', { ascending: true })
+        .order('invoice_no', { ascending: true })
+        .returns<Pick<Sale, 'id' | 'invoice_no'>[]>()
+      if (error) throw error
+      return data ?? []
+    },
+  })
+}
+
 /** True when an RPC call failed because the function isn't installed yet
  *  (PostgREST returns PGRST202 / 42883 / "not found in schema cache"). Lets checkout
  *  fall back to client-side inserts until 002_create_sale_rpc.sql is run. */

@@ -46,6 +46,10 @@ export function SalePayments({ sale, balance }: { sale: Sale; balance: number })
   const canPay = balance > 0 && (perms.isAdmin || perms.can('history.edit' as never))
   const entered = paymentsTotal(lines)
   const afterRecord = round2(Math.max(0, balance - entered))
+  // Live cap: a line can't grow past what is still owed once the OTHER
+  // lines are counted - typing a bigger number is clamped on the spot.
+  const maxFor = (method: string) =>
+    round2(Math.max(0, balance - paymentsTotal(lines.filter((l) => l.method !== method))))
 
   async function record() {
     // Clamp to what is still owed: you can never overpay an invoice.
@@ -140,7 +144,9 @@ export function SalePayments({ sale, balance }: { sale: Sale; balance: number })
                     className="w-28 rounded-lg border border-line bg-white px-2 py-1 text-sm outline-none focus:border-brand"
                     value={l.amount}
                     onChange={(e) =>
-                      setLines(upsertLine(lines, l.method, Number(e.target.value)))
+                      setLines(
+                        upsertLine(lines, l.method, Math.min(Number(e.target.value) || 0, maxFor(l.method))),
+                      )
                     }
                   />
                   <button

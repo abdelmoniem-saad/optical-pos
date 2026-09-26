@@ -171,6 +171,13 @@ export const ar: Record<string, string> = {
   Wallet: 'محفظة',
   InstaPay: 'انستاباي',
   'Payment recorded.': 'تم تسجيل الدفعة.',
+  Card: 'بطاقة',
+  'First customer of the day': 'أول عميل في اليوم',
+  'Last customer of the day': 'آخر عميل في اليوم',
+  'Next customer': 'العميل التالي',
+  'Previous customer': 'العميل السابق',
+  'Discard the current order and open another invoice?':
+    'تجاهل الطلب الحالي وفتح فاتورة أخرى؟',
   'Record payments with the Add Payment button.':
     'سجّل الدفعات عبر زر إضافة دفعة.',
   'Payment ledger missing - run web/supabase/011_sale_payments.sql in the Supabase SQL editor.':

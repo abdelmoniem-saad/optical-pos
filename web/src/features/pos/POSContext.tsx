@@ -24,6 +24,7 @@ import type { Customer, CustomerInsert, Product, Sale } from '../../lib/database
 import { addLine, computeTotals, removeLine, setQty, type Totals } from './pricing'
 import {
   clampPaymentLines,
+  legacyMethodKey,
   paymentsTotal,
   removeLine as removePayLine,
   upsertLine,
@@ -192,6 +193,10 @@ type POSApi = {
   closeReceipt: () => void
   /** Throw the whole wizard away and start a brand-new sale. */
   startNewSale: () => void
+  /** Open an EXISTING invoice in the wizard (day navigation): hydrates every
+   *  field from the saved sale so Finish Checkout re-checkouts it in place.
+   *  Throws on failure - callers surface the error. */
+  loadSale: (saleId: string) => Promise<void>
 }
 
 const Ctx = createContext<POSApi | undefined>(undefined)
@@ -590,6 +595,110 @@ export function POSProvider({ children }: { children: ReactNode }) {
     }
   }
 
+  /**
+   * Open an EXISTING invoice in the wizard - what the day-navigation buttons
+   * (first / previous / next / last customer of the day) call. Everything is
+   * fetched BEFORE the wizard is wiped, so a failed load leaves the current
+   * order untouched; on success the wizard sits on the order step with
+   * savedSale set, so Finish Checkout re-checkouts THIS invoice in place.
+   */
+  const loadSale = async (saleId: string) => {
+    patch({ busy: true, error: null })
+    try {
+      const { data: sale, error } = await supabase
+        .from('sales')
+        .select('*')
+        .eq('id', saleId)
+        .single<Sale>()
+      if (error) throw error
+
+      const [{ data: itemRows, error: itemsErr }, { data: examRows }] = await Promise.all([
+        supabase.from('sale_items').select('*').eq('sale_id', saleId),
+        supabase.from('order_examinations').select('*').eq('sale_id', saleId),
+      ])
+      if (itemsErr) throw itemsErr
+
+      let cust: Customer | null = null
+      if (sale.customer_id) {
+        const { data } = await supabase
+          .from('customers')
+          .select('*')
+          .eq('id', sale.customer_id)
+          .maybeSingle<Customer>()
+        cust = data
+      }
+
+      const cartItems: CartLine[] = (itemRows ?? []).map((i) => ({
+        product_id: i.product_id,
+        name: i.name ?? '',
+        qty: i.qty,
+        unit_price: Number(i.unit_price ?? 0),
+        total_price: Number(i.total_price ?? 0),
+      }))
+      const itemsTotal = cartItems.reduce((s, i) => s + i.total_price, 0)
+      const gross = Number(sale.total_amount ?? 0)
+
+      // Category drives whether the ExamSection is visible; infer it from the
+      // first line's product (exam-only invoices default to 'Frame').
+      const categories: Category[] = ['Frame', 'Sunglasses', 'ContactLens', 'Accessory', 'Other']
+      let category: Category = 'Other'
+      const firstPid = cartItems[0]?.product_id
+      if (firstPid) {
+        const { data: p } = await supabase
+          .from('products')
+          .select('category')
+          .eq('id', firstPid)
+          .maybeSingle()
+        const pc = String(p?.category ?? '')
+        category = categories.includes(pc as Category) ? (pc as Category) : 'Other'
+      } else if ((examRows?.length ?? 0) > 0) {
+        category = 'Frame'
+      }
+
+      const amountPaid = Number(sale.amount_paid ?? 0)
+      const examList: Exam[] = (examRows ?? []).map(
+        ({ id: _id, sale_id: _saleId, ...rest }) => rest as Exam,
+      )
+
+      dispatch({ type: 'RESET' })
+      patch({
+        step: 'cart',
+        category,
+        customer: cust,
+        customerDraft: cust
+          ? {
+              name: cust.name ?? '',
+              phone: cust.phone ?? '',
+              city: cust.city ?? '',
+              email: cust.email ?? '',
+              address: cust.address ?? '',
+            }
+          : { ...emptyDraft },
+        cartItems,
+        examinations: examList,
+        discount: Number(sale.discount ?? 0),
+        grossOverride: gross !== itemsTotal ? gross : null,
+        payments:
+          amountPaid > 0
+            ? [{ method: legacyMethodKey(sale.payment_method), amount: amountPaid }]
+            : [],
+        doctorName: sale.doctor_name ?? '',
+        deliveryDate: (sale.delivery_date ?? '').slice(0, 10) || plusDays(3),
+        rxImagePath: sale.rx_image_path,
+        frameImagePath: sale.frame_image_path,
+        invoiceNo: sale.invoice_no,
+        savedSale: sale,
+        savedHadExams: (examRows?.length ?? 0) > 0,
+        completed: null,
+        busy: false,
+        error: null,
+      })
+    } catch (e) {
+      patch({ busy: false })
+      throw e
+    }
+  }
+
   // Done closes the receipt but leaves the finished order OPEN on the order
   // tab: every field stays editable and Finish Checkout can be pressed again
   // to update the SAME invoice.
@@ -625,6 +734,7 @@ export function POSProvider({ children }: { children: ReactNode }) {
     finishOrder,
     closeReceipt,
     startNewSale,
+    loadSale,
   }
 
   return <Ctx.Provider value={api}>{children}</Ctx.Provider>

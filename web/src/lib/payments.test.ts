@@ -190,7 +190,11 @@ describe('methodSummary / legacyMethodKey (legacy sales.payment_method)', () => 
   })
 
   it('passes unknown future methods through', () => {
-    expect(methodSummary([{ method: 'card', amount: 10 }])).toBe('card')
+    expect(methodSummary([{ method: 'voucher', amount: 10 }])).toBe('voucher')
+  })
+
+  it('labels the card tender', () => {
+    expect(methodSummary([{ method: 'card', amount: 50 }])).toBe('Card')
   })
 
   it('maps legacy free-text values to canonical keys', () => {
@@ -207,10 +211,11 @@ describe('methodLabelKey (i18n)', () => {
     expect(methodLabelKey('cash')).toBe('Cash')
     expect(methodLabelKey('wallet')).toBe('Wallet')
     expect(methodLabelKey('instapay')).toBe('InstaPay')
+    expect(methodLabelKey('card')).toBe('Card')
   })
 
   it('passes unknown methods through', () => {
-    expect(methodLabelKey('card')).toBe('card')
+    expect(methodLabelKey('voucher')).toBe('voucher')
   })
 })
 
