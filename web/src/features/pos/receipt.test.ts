@@ -13,7 +13,6 @@ function order(over: Partial<CompletedOrder> = {}): CompletedOrder {
     cartItems: [],
     examinations: [{ ...emptyExam(), sphere_od: '-1.25', frame_status: 'Old' }],
     totals: { itemsTotal: 120, gross: 120, discount: 20, net: 100, amountPaid: 40, balance: 60 },
-    payments: [],
     invoiceNo: '000123',
     doctorName: 'د. سامي',
     deliveryDate: '2026-10-01',
@@ -30,14 +29,7 @@ describe('buildOrderDocument', () => {
     expect(doc.deliveryDate).toBe('01/10/2026')
     expect(doc.customerName).toBe('أحمد')
     expect(doc.doctorName).toBe('د. سامي')
-    expect(doc.totals).toEqual({
-      gross: 120,
-      discount: 20,
-      net: 100,
-      paid: 40,
-      remaining: 60,
-      payments: [],
-    })
+    expect(doc.totals).toEqual({ gross: 120, discount: 20, net: 100, paid: 40, remaining: 60 })
     expect(doc.rows[0]).toMatchObject({ index: 1, sphOd: '-1.25', status: 'عميل' })
   })
 
@@ -53,50 +45,6 @@ describe('buildOrderDocument', () => {
     const doc = buildOrderDocument(order({ customer: null, deliveryDate: '' }), shop)
     expect(doc.customerName).toBe('-')
     expect(doc.deliveryDate).toBe('-')
-  })
-
-  it('carries the per-tender payment breakdown onto the document', () => {
-    const doc = buildOrderDocument(
-      order({
-        payments: [
-          { method: 'cash', amount: 600 },
-          { method: 'instapay', amount: 400 },
-        ],
-      }),
-      shop,
-    )
-    expect(doc.totals.payments).toEqual([
-      { method: 'cash', amount: 600 },
-      { method: 'instapay', amount: 400 },
-    ])
-  })
-})
-
-describe('receipt payment breakdown (documents how the money was paid)', () => {
-  it('prints each tender with its Arabic label in BOTH copies', () => {
-    const html = renderOrderUnitHTML(
-      buildOrderDocument(
-        order({
-          payments: [
-            { method: 'cash', amount: 600 },
-            { method: 'instapay', amount: 400 },
-          ],
-        }),
-        shop,
-      ),
-      shop,
-    )
-    expect(html).toContain('كاش')
-    expect(html).toContain('انستاباي')
-    expect(html).toContain('600.00')
-    expect(html).toContain('400.00')
-    // نسخة العميل + نسختا المحل/المعمل share the totals table renderer:
-    expect(html.match(/└ كاش/g)?.length).toBeGreaterThanOrEqual(2)
-  })
-
-  it('prints no breakdown rows for a legacy order without one', () => {
-    const html = renderOrderUnitHTML(buildOrderDocument(order(), shop), shop)
-    expect(html).not.toContain('└')
   })
 })
 

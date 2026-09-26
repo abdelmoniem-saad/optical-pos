@@ -67,8 +67,6 @@ export type CompletedOrder = {
   cartItems: CartLine[]
   examinations: Exam[]
   totals: Totals
-  /** The tenders actually received (drives the receipt breakdown). */
-  payments: PaymentLine[]
   invoiceNo: string
   doctorName: string
   deliveryDate: string
@@ -575,7 +573,6 @@ export function POSProvider({ children }: { children: ReactNode }) {
           cartItems,
           examinations: s.examinations,
           totals: t,
-          payments: payLines,
           invoiceNo: sale.invoice_no || s.invoiceNo,
           doctorName: s.doctorName,
           deliveryDate: s.deliveryDate,
