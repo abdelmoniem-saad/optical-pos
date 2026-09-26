@@ -114,17 +114,22 @@ order: **push every rule into Postgres, then let the app trust it.**
 
 ## 3. Phase 0 — Safety net before changing anything · ~0.5 day
 
-- [ ] **Add CI**, which does not exist today (`.github` is absent). One workflow running the
+- [x] **Add CI**, which does not exist today (`.github` is absent). One workflow running the
   scripts already defined in `web/package.json`: `npm run lint` (oxlint) → `npx tsc -b` →
-  `npm run test` (vitest) → `npm run build`.
+  `npm run test` (vitest) → `npm run build`, plus a second `db` job that applies
+  `000…012` to a throwaway Postgres and runs the pgTAP gate.
 - [ ] **Commit a schema baseline**: a `pg_dump` of the live project stored in the ops notes,
   so every later migration has a "before" picture to diff against.
-- [ ] **Reconcile the types file.** The app imports the hand-maintained
-  `web/src/lib/database.types.ts`, while `package.json` carries a generator command
-  (`gen:types:reference`) that writes a separate reference file. Decide one: generate into
-  `database.types.ts` and delete the hand-written one, or keep it and add a CI step that
-  regenerates and diffs. As things stand, a schema change produces no type error, so drift
-  is invisible.
+  *Status: blocked on credentials — needs `SUPABASE_ACCESS_TOKEN` (repo secret or CLI
+  login), then:*
+  `npx supabase@latest db dump --project-id qhbprvavoudetjbyxrsn --schema-only > web/supabase/baseline/schema_before_012.sql`
+- [x] **Reconcile the types file.** Decision: keep the hand-maintained
+  `web/src/lib/database.types.ts` as the source of truth for now, and give it the drift
+  protection CI can provide token-free — `web/src/lib/database.types.test.ts` lists the
+  money-critical columns with `satisfies readonly (keyof T)[]`, so `tsc -b` (the CI step)
+  fails the moment one disappears. Generating types from the *live* DB as the enforced
+  truth would bless today's drift in the wrong direction; full regen-and-diff enforcement
+  lands in Phase 5 once migrations live under the CLI root.
 
 > **Gate:** CI is green on `main`, and the type file covers the `sale_payments` columns
 > added by `011`. *Do not start Phase 1 without this* — Phase 1 changes both SQL and TS
@@ -190,6 +195,30 @@ availability check in `features/pos/steps`.
 > two concurrent checkouts draw two different invoice numbers · double-submit with the same
 > key creates exactly one sale · `stock_qty` equals the sum of movements on a seeded
 > dataset. *Money and stock stop being promises once these five tests exist.*
+
+> **Status — implemented.** `web/supabase/012_integrity.sql` + the 26-assertion pgTAP gate
+> (`web/supabase/tests/012_integrity_test.sql`, run by `npm run test:db` and CI job `db`)
+> + the client switch are in. Deliberate deviations from the sketch above:
+> - **Oversell follows the code's documented intent** (`POSContext`): new
+>   `stores.allow_negative_stock` column, **default `true`** preserves today's behaviour;
+>   set it `false` per store to enforce the guard. The gate proves BOTH states
+>   (allowed + stock goes negative / refused with the product named).
+> - **Invoice numbers are reserved at cart entry** via `next_invoice_no()` rather than
+>   drawn only inside the checkout transaction, because the cart header, the mobile-upload
+>   QR and pre-checkout photo adoption all use the number before Finish is pressed; the
+>   counter's row lock plus the RPC's in-transaction draw (when no number is supplied)
+>   keep the atomicity guarantee. Gaps from abandoned carts are accepted.
+> - **The legacy JS numbering survives** behind `isMissingRpc('next_invoice_no')` until 012
+>   is confirmed deployed everywhere — deprecated and warned, never silent (removed in
+>   Phase 5 with the other fallbacks).
+> - **Re-checkout (`useUpdateSaleFull`) still writes client-side** — it is not
+>   server-validated yet; Phase 2's "header edits" item owns that.
+> - The suite was written *before* the migration, but the red run was never executed
+>   (no Docker/psql on the dev machine) — CI is the only runner, so only the green state
+>   is verified. Honest gap: demonstrating red→green needs a CI run against a branch
+>   containing the tests without the migration.
+> - **Flip the switch:** `update public.stores set allow_negative_stock = false where id = '…';`
+>   (a Platform-page toggle needs the stores write policy loosened — Phase 3 territory).
 
 ---
 
@@ -415,7 +444,7 @@ nothing in the database has ever been tested — which is exactly where the mone
 | Layer | Tool | Covers | Status |
 |---|---|---|---|
 | Pure logic | Vitest (`npm run test`) | pricing, receipt text, payment split maths, draft shape | ✅ exists |
-| **Database** | **pgTAP** (`npm run test:db`) | re-priced totals, stock guard, invoice uniqueness, idempotency, constraints | ❌ Phase 0/1 |
+| **Database** | **pgTAP** (`npm run test:db`) | re-priced totals, stock guard, invoice uniqueness, idempotency, constraints | ✅ Phase 1 (26 assertions, CI `db` job) |
 | **Authorisation** | pgTAP + REST probe with a cashier JWT + one `create-user` invocation | RLS matrix per role × table, denied deletes, denied cross-store reads, denied admin minting | ❌ Phase 2/3 |
 | Migration safety | `supabase db push` on a preview project + `pg_dump` diff | drift between live and repo | ❌ Phase 5 |
 | Query cost | `EXPLAIN (ANALYZE)` assertions in pgTAP | no seq scans on the hot paths | ❌ Phase 4 |
@@ -520,12 +549,13 @@ map of what each file is responsible for, so a review can tell which phase owns 
 | `009_store_licensing.sql` | Licenses/plans, `license_read_ok()`, `license_write_ok()`, `is_platform_admin()` | Good design; quota enforcement still missing — Phase 3 |
 | `010_metadata_sort.sql` | Re-numbers lens/frame metadata by name (`:18`, `:26`) | Cosmetic |
 | `011_sale_payments.sql` | Payment ledger (`:48` positivity check), store-id trigger (`:88`), `sync_sale_amount_paid()` (`:90-112`), RLS (`:118-155`), 4-arg `create_sale_order` (`:164-248`) | The RPC Phase 1 rewrites from "record" to "validate" |
-| **`012_integrity.sql`** *(planned)* | Server re-pricing, `available_stock()`, `stock_qty` read model, `invoice_counter`, idempotency key, money constraints | Phase 1 |
+| `012_integrity.sql` | Server re-pricing, stock guard (`stores.allow_negative_stock`, default allow), `available_stock()`, `stock_qty` read model, `invoice_counter` / `next_invoice_no()`, idempotency key, money constraints | Implemented — gate: `tests/012_integrity_test.sql` |
 | **`013_void_refunds.sql`** *(planned)* | `void_sale()`, refund tenders, movement vocabulary, `paid_at` → `timestamptz`, delete revocation | Phase 2 |
 | **`014_server_rbac.sql`** *(planned)* | `can()` / `require_perm()`, tenant RLS on the three RBAC tables, store resolution without username fallback | Phase 3 |
 | **`015_reporting_search.sql`** *(planned)* | Report RPCs, `store_day_range()`, `search_text()` + `pg_trgm`/GIN, index sweep | Phase 4 |
 | `supabase/config.toml` *(repo root)* | CLI project root; `verify_jwt = true` for `create-user` | Split from the SQL in `web/supabase/` — Phase 5 |
 | `supabase/functions/create-user/index.ts` | Creates an Auth user + mirrors it into `public.users` using the service-role key | JWT-only gate, caller-supplied `role_id`/`store_id` — Phase 3 |
+| `web/supabase/tests/_shim.sql`, `tests/012_integrity_test.sql` | Plain-Postgres shims (roles, `auth/`, `storage/`, pgTAP) + the Phase 1 gate (26 assertions) | Run by `npm run test:db` and CI job `db` — no live project touched |
 
 **Migration rules that apply to every one of these:**
 

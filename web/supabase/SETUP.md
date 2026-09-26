@@ -89,6 +89,39 @@ single-method flow (and shows a "run 011" notice on the payment-history UI).
 Tip: snapshot the schema first — `supabase db dump --schema public` only reads
 the database and gives you an exact "before" picture.
 
+## Step 7 — Money & stock integrity (server-side checkout)
+
+Run [`012_integrity.sql`](./012_integrity.sql). It rewrites `create_sale_order`
+so the **database** re-prices every line from `inventory.sale_price` and
+recomputes the header — your negotiated, round-up and free totals survive
+exactly (any gap below the catalog sum is stored as an explicit discount),
+while a stale cart is refused with `price changed: <name>` instead of silently
+re-priced. It also:
+
+- guards stock inside the transaction via a new
+  **`stores.allow_negative_stock` column — default `true` keeps today's
+  intentional overselling**; set it to `false` on a store (SQL for now) to make
+  checkout refuse shortages with `insufficient stock: <name>`;
+- moves invoice numbering into an atomic counter (`next_invoice_no()`), so two
+  registers can never draw the same number and the client's `Date.now()`
+  fallback can never fire;
+- adds `sales.idempotency_key` — replaying a checkout (double-tap, retry after
+  a dropped response) returns the **same** sale instead of a second one;
+- adds `inventory.stock_qty`, a trigger-maintained read model over
+  `stock_movements`, so the Inventory screen stops downloading every movement
+  row;
+- adds the money constraints (`net = total - discount`, `qty > 0`, …) as
+  `not valid` → `validate`, warning (not failing) if legacy rows disagree —
+  the remediation queries are in the file's header.
+
+Until it is installed the app keeps working on the old paths (client-side
+numbering, browser-summed stock) with a console warning. Tip: snapshot the
+schema first — `supabase db dump --schema public`.
+
+The pgTAP gate for this migration lives in
+[`tests/012_integrity_test.sql`](./tests/012_integrity_test.sql) and runs in CI
+on every push (`bash web/scripts/test-db.sh` against a throwaway Postgres).
+
 ## Migrating existing staff (later)
 
 Your old `public.users` table (bcrypt `password_hash`) is now **legacy** — Supabase
