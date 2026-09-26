@@ -302,6 +302,13 @@ select ok(
   'money constraints exist and are VALIDATED (not left NOT VALID)');
 
 -- ============================================================================
+-- Every checkout outcome that was NOT what the assertion expected, printed as
+-- one line per _cap row (picked up by CI's annotation pass):
 reset role;
+select 'CAPERR ' || k || ' -> ' || coalesce(err, 'ok')
+  from _cap
+ where err is not null
+ order by k;
+
 select * from finish();
 rollback;

@@ -27,6 +27,13 @@ begin
 end $$;
 
 grant usage on schema public to anon, authenticated, service_role;
+-- Supabase grants these too: the migrations (auth_store_id → auth.uid(),
+-- sale_payments.recorded_by default) and 008's storage policies resolve
+-- objects in these schemas AS the calling role, so `authenticated` needs
+-- USAGE on both or every checkout dies with "permission denied for schema auth".
+grant usage on schema auth to anon, authenticated, service_role;
+grant usage on schema storage to anon, authenticated, service_role;
+grant select on all tables in schema auth to authenticated;
 
 -- Everything the migrations create is owned by the connecting superuser; hand
 -- `authenticated` its privileges up-front (Supabase grants the same defaults).
