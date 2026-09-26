@@ -21,12 +21,18 @@ DB_URL="${DATABASE_URL:-postgresql://postgres:postgres@localhost:5432/lensy}"
 PSQL=(psql "$DB_URL" -X -q -v ON_ERROR_STOP=1)
 
 echo "== 1/3 harness shims (plain-Postgres objects: roles, auth/, storage/, pgtap)"
-"${PSQL[@]}" -f web/supabase/tests/_shim.sql
+if ! "${PSQL[@]}" -f web/supabase/tests/_shim.sql; then
+  echo "FAIL: harness shims (_shim.sql) did not apply - see psql error above" >&2
+  exit 1
+fi
 
 echo "== 2/3 migrations 000 -> 012 (database must be empty)"
 for f in web/supabase/[0-9][0-9][0-9]_*.sql; do
   echo "     - $(basename "$f")"
-  "${PSQL[@]}" -f "$f"
+  if ! "${PSQL[@]}" -f "$f"; then
+    echo "FAIL: migration $(basename "$f") did not apply - see psql error above" >&2
+    exit 1
+  fi
 done
 
 echo "== 3/3 pgTAP gate"

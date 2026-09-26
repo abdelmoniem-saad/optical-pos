@@ -14,9 +14,9 @@ jobs:
       run:
         working-directory: web
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: 24
           cache: npm
@@ -41,7 +41,7 @@ jobs:
     name: pgTAP · migration gate
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Throwaway Postgres 16 with pgTAP
         run: |
@@ -58,4 +58,18 @@ jobs:
       - name: Apply 000…012 and run the pgTAP gate
         env:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/lensy
-        run: bash web/scripts/test-db.sh
+        run: |
+          set -o pipefail
+          status=0
+          bash web/scripts/test-db.sh 2>&1 | tee db-gate.log || status=$?
+          if [ "$status" -ne 0 ]; then
+            {
+              echo "### db gate failed (exit $status)"
+              echo ""
+              echo '```'
+              tail -80 db-gate.log
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+            echo "::error::db gate failed (exit $status): $(tail -5 db-gate.log | tr '\n' ' ' | cut -c1-800)"
+            exit "$status"
+          fi
