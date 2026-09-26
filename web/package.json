@@ -10,6 +10,7 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:db": "bash scripts/test-db.sh",
     "gen:types:reference": "npx supabase@latest gen types typescript --project-id qhbprvavoudetjbyxrsn --schema public > src/lib/database.gen.ts"
   },
   "dependencies": {
