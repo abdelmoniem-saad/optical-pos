@@ -213,10 +213,16 @@ availability check in `features/pos/steps`.
 >   Phase 5 with the other fallbacks).
 > - **Re-checkout (`useUpdateSaleFull`) still writes client-side** — it is not
 >   server-validated yet; Phase 2's "header edits" item owns that.
-> - The suite was written *before* the migration, but the red run was never executed
->   (no Docker/psql on the dev machine) — CI is the only runner, so only the green state
->   is verified. Honest gap: demonstrating red→green needs a CI run against a branch
->   containing the tests without the migration.
+> - **Red→green was demonstrated in CI itself** (runs #1–#5 red, run #6 green — there is no
+>   Docker/psql on the dev machine, so CI is the only runner). The red states exposed three
+>   *harness/test* gaps, never a flaw in `012`'s money logic: missing `USAGE` grants on the
+>   `auth`/`storage` schemas for `authenticated`, then that grant being placed *before*
+>   `create schema`, and finally the assertion form `f(...) IS NOT NULL` (PostgreSQL's
+>   row-wise null test evaluates false for a composite function call here — replaced with a
+>   field-based `is()`). With the auth grant fixed, 25/26 passed immediately — all six
+>   rejection paths returned exactly the designed messages (`price changed: …`,
+>   `invalid line quantity`, `payment exceeds net amount`, `unknown product in cart`,
+>   `negative net amount`, `insufficient stock: …`); 26/26 followed with the assertion fix.
 > - **Flip the switch:** `update public.stores set allow_negative_stock = false where id = '…';`
 >   (a Platform-page toggle needs the stores write policy loosened — Phase 3 territory).
 
