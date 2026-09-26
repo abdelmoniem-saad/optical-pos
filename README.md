@@ -90,6 +90,7 @@ npm run dev                 # http://localhost:5173 (LAN-exposed for shop tablet
 | `npm run preview` | Serve the production build locally |
 | `npm run lint` | oxlint |
 | `npm test` / `npm run test:watch` | vitest suite |
+| `npm run test:db` | pgTAP database gate — applies `000…012` to a throwaway Postgres and runs every assertion (needs `psql`/`bash`; CI runs it on every push) |
 | `npm run gen:types:reference` | Regenerate `src/lib/database.gen.ts` (reference only, git-ignored) |
 
 ## Database & migrations
@@ -113,11 +114,15 @@ Migrations run in numeric order in the Supabase SQL editor:
 | 009 | `009_store_licensing.sql` | Store licensing (trial/grace/expired) |
 | 010 | `010_metadata_sort.sql` | Optical metadata ordering |
 | 011 | `011_sale_payments.sql` | Sale payment ledger — split cash/wallet/instapay + later payments |
+| 012 | `012_integrity.sql` | Server-side checkout pricing + stock guard, atomic invoice counter, checkout idempotency, `stock_qty` read model |
 
 > **Note on 000:** it is the original bootstrap the app shipped with. The live
 > project has drifted from it (e.g. Supabase Auth now owns passwords, not the
-> legacy `users.password_hash`). When convenient, capture a fresh baseline with
-> `supabase db dump` and commit it as the new 000.
+> legacy `users.password_hash`). To capture the *actual* live schema, run the
+> **Schema baseline** workflow (`.github/workflows/schema-baseline.yml`) — see
+> [`web/supabase/SETUP.md`](./web/supabase/SETUP.md) → "Schema baseline"; it
+> commits a `pg_dump` under `web/supabase/baseline/` without needing Docker
+> locally.
 
 ## Security model
 

@@ -1,0 +1,107 @@
+name: Schema baseline (manual)
+
+# PHASED_ROADMAP.md Phase 0: capture the LIVE `public` schema of the production
+# project so every later migration has a "before" picture to diff against.
+#
+# Why it runs here and not on a workstation:
+#   * `supabase db dump` / `db pull` run pg_dump inside a Docker container, and
+#     Docker is not installed locally; and
+#   * the direct host `db.<ref>.supabase.co` is IPv6-only on newer projects,
+#     while GitHub-hosted runners have no IPv6 outbound. The Supavisor pooler
+#     answers on IPv4, so the dump happens on a runner and reaches the database
+#     through the **session pooler**.
+#
+# One-time setup: repo Settings -> Secrets and variables -> Actions -> New
+# repository secret named SUPABASE_DB_URL, valued with the Session pooler
+# connection string (Dashboard -> Project Settings -> Database -> Connection
+# string -> Session pooler), password included:
+#   postgresql://postgres.<project-ref>:<password>@aws-0-<region>.pooler.supabase.com:5432/postgres
+# Session mode (port 5432) is required - pg_dump cannot run through the
+# transaction pooler (port 6543).
+
+on:
+  workflow_dispatch:
+    inputs:
+      label:
+        description: 'Baseline file label (letters, digits, dot, dash, underscore)'
+        required: true
+        default: schema_before_012
+
+permissions:
+  contents: write
+
+jobs:
+  dump:
+    name: pg_dump the live public schema
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Validate the label
+        env:
+          LABEL: ${{ inputs.label }}
+        run: |
+          case "$LABEL" in
+            '' | *[!A-Za-z0-9_.-]*)
+              echo "::error::label may only contain letters, digits, dot, dash and underscore"
+              exit 1
+              ;;
+          esac
+
+      - name: Check the connection secret
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          if [ -z "$SUPABASE_DB_URL" ]; then
+            echo "::error::secret SUPABASE_DB_URL is not set. Copy the Session pooler URI from Dashboard -> Project Settings -> Database -> Connection string, then add it under Settings -> Secrets and variables -> Actions."
+            exit 1
+          fi
+
+      - name: Dump the live schema
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+          LABEL: ${{ inputs.label }}
+        run: |
+          set -euo pipefail
+          out="web/supabase/baseline/$LABEL.sql"
+          mkdir -p web/supabase/baseline
+          {
+            echo "-- Live 'public' schema of the production project (pg_dump --schema-only)."
+            echo "-- Captured $(date -u +%Y-%m-%dT%H:%M:%SZ) from commit ${GITHUB_SHA} (run ${{ github.run_id }})."
+            echo "-- Purpose: PHASED_ROADMAP.md Phase 0 - the before picture later migrations diff against."
+            echo "-- No rows and no owners; privileges are kept (they are part of the authority surface)."
+            echo
+          } > "$out"
+          # postgres:18 client: a newer pg_dump can dump older servers, while the
+          # runner's preinstalled client (16) cannot dump a 17/18 server.
+          docker run --rm --entrypoint pg_dump postgres:18 \
+            "$SUPABASE_DB_URL" --schema-only --schema=public --no-owner >> "$out"
+          tables=$(grep -c '^CREATE TABLE' "$out" 2>/dev/null || true)
+          tables=${tables:-0}
+          echo "captured $tables CREATE TABLE statements"
+          if [ "$tables" -eq 0 ]; then
+            echo "::error::the dump contains no CREATE TABLE statements - confirm SUPABASE_DB_URL is the Session pooler URI (port 5432, user postgres.<ref>)."
+            exit 1
+          fi
+
+      - name: Upload the dump as a workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: schema-baseline
+          path: web/supabase/baseline/*.sql
+          if-no-files-found: error
+
+      - name: Commit it (no-op when unchanged)
+        env:
+          LABEL: ${{ inputs.label }}
+        run: |
+          set -euo pipefail
+          if [ -z "$(git status --porcelain -- web/supabase/baseline)" ]; then
+            echo "live schema already matches the committed baseline - nothing to commit"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add web/supabase/baseline
+          git commit -m "chore(db): refresh the live schema baseline ($LABEL)"
+          git push origin "HEAD:${GITHUB_REF_NAME}"

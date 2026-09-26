@@ -118,11 +118,15 @@ order: **push every rule into Postgres, then let the app trust it.**
   scripts already defined in `web/package.json`: `npm run lint` (oxlint) → `npx tsc -b` →
   `npm run test` (vitest) → `npm run build`, plus a second `db` job that applies
   `000…012` to a throwaway Postgres and runs the pgTAP gate.
-- [ ] **Commit a schema baseline**: a `pg_dump` of the live project stored in the ops notes,
-  so every later migration has a "before" picture to diff against.
-  *Status: blocked on credentials — needs `SUPABASE_ACCESS_TOKEN` (repo secret or CLI
-  login), then:*
-  `npx supabase@latest db dump --project-id qhbprvavoudetjbyxrsn --schema-only > web/supabase/baseline/schema_before_012.sql`
+- [ ] **Commit a schema baseline**: a `pg_dump` of the live `public` schema stored in
+  `web/supabase/baseline/`, so every later migration has a "before" picture to diff against.
+  *Status: the workflow is committed (`.github/workflows/schema-baseline.yml`) and only the
+  `SUPABASE_DB_URL` repo secret is missing — see `web/supabase/SETUP.md` → "Schema baseline"
+  for the two-minute setup. Why not the local CLI: `supabase db dump` runs `pg_dump` inside a
+  Docker container (Docker is not installed on the dev machine), and the direct host
+  `db.<ref>.supabase.co` is IPv6-only, which GitHub-hosted runners cannot reach — so the dump
+  runs on a runner through the IPv4 **session pooler** (`?pgbouncer`-free, port `5432`) using
+  the `postgres:18` client image.*
 - [x] **Reconcile the types file.** Decision: keep the hand-maintained
   `web/src/lib/database.types.ts` as the source of truth for now, and give it the drift
   protection CI can provide token-free — `web/src/lib/database.types.test.ts` lists the

@@ -86,8 +86,8 @@ payments collected later for the remaining balance), backfills every legacy
 trigger, and extends `create_sale_order` to write the payment lines inside the
 checkout transaction. Until it's installed the app still works with the old
 single-method flow (and shows a "run 011" notice on the payment-history UI).
-Tip: snapshot the schema first — `supabase db dump --schema public` only reads
-the database and gives you an exact "before" picture.
+Tip: snapshot the schema first — see "Schema baseline" below; it only reads the
+database and gives you an exact "before" picture.
 
 ## Step 7 — Money & stock integrity (server-side checkout)
 
@@ -116,11 +116,44 @@ re-priced. It also:
 
 Until it is installed the app keeps working on the old paths (client-side
 numbering, browser-summed stock) with a console warning. Tip: snapshot the
-schema first — `supabase db dump --schema public`.
+schema first — see "Schema baseline" below.
 
 The pgTAP gate for this migration lives in
 [`tests/012_integrity_test.sql`](./tests/012_integrity_test.sql) and runs in CI
 on every push (`bash web/scripts/test-db.sh` against a throwaway Postgres).
+
+## Schema baseline (recommended, ~2 minutes)
+
+The hardening roadmap (Phase 0) wants a `pg_dump` of the **live** `public`
+schema committed under [`baseline/`](./baseline), so every later migration has a
+"before" picture to diff against.
+
+The dump runs in CI (`.github/workflows/schema-baseline.yml`) instead of on a
+workstation, for two reasons: `supabase db dump` runs `pg_dump` inside a Docker
+container, and the direct host `db.<project-ref>.supabase.co` is IPv6-only while
+GitHub-hosted runners have no IPv6 — so the runner reaches the database through
+the Supavisor **session pooler** instead.
+
+1. **Add the secret.** Dashboard → **Project Settings → Database → Connection
+   string → Session pooler** (port `5432`, user `postgres.<project-ref>`) → copy
+   the URI, password included. Then GitHub → repo **Settings → Secrets and
+   variables → Actions → New repository secret** → name `SUPABASE_DB_URL` →
+   paste the URI.
+   > Session mode (port `5432`) is required — `pg_dump` cannot run through the
+   > transaction pooler (port `6543`).
+2. **Run it.** GitHub → **Actions → "Schema baseline (manual)" → Run workflow**
+   (leave the label `schema_before_012`). It writes
+   `web/supabase/baseline/schema_before_012.sql`, uploads it as an artifact, and
+   commits it to `main`. Re-running with an unchanged schema is a no-op, so a
+   new commit from this workflow is itself the drift signal.
+3. **If it fails** with `no CREATE TABLE statements`, `SUPABASE_DB_URL` is not
+   the session-pooler URI — check the port (`5432`) and the `postgres.<ref>`
+   username.
+
+Without a runner, the equivalent is
+`pg_dump "<session-pooler-uri>" --schema-only --schema=public --no-owner`
+(a host with `pg_dump` ≥ the server's major version; the runner uses the
+`postgres:18` image for exactly that reason).
 
 ## Migrating existing staff (later)
 
