@@ -175,9 +175,6 @@ export function CartStep() {
           <div className="mt-3">
             <div className="mb-1.5 flex flex-wrap items-center justify-between gap-1">
               <span className="text-xs font-semibold text-muted">{t('Payment')}</span>
-              <span className="text-[10px] text-faint">
-                {t('Tap a method to add a line. Split as you like.')}
-              </span>
             </div>
             <div className="mb-2 flex flex-wrap gap-1.5">
               {PAYMENT_METHODS.map((m) => {

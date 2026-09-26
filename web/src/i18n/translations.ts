@@ -170,8 +170,6 @@ export const ar: Record<string, string> = {
   Cash: 'كاش',
   Wallet: 'محفظة',
   InstaPay: 'انستاباي',
-  'Tap a method to add a line. Split as you like.':
-    'اضغط على طريقة لإضافة دفعة — يمكنك التقسيم كما تشاء.',
   'Payment recorded.': 'تم تسجيل الدفعة.',
   'Record payments with the Add Payment button.':
     'سجّل الدفعات عبر زر إضافة دفعة.',
