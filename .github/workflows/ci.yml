@@ -67,9 +67,19 @@ jobs:
               echo "### db gate failed (exit $status)"
               echo ""
               echo '```'
-              tail -80 db-gate.log
+              cat db-gate.log
               echo '```'
             } >> "$GITHUB_STEP_SUMMARY"
-            echo "::error::db gate failed (exit $status): $(tail -5 db-gate.log | tr '\n' ' ' | cut -c1-800)"
+            # Annotations are the only log channel visible without signing in
+            # to GitHub: emit one per failed assertion, pgTAP diagnostics
+            # folded onto the same line.
+            awk '
+              /^not ok/ { if (buf) print buf; buf=$0; n=6; next }
+              /^#/ && n > 0 { buf = buf " | " $0; n-- }
+              END { if (buf) print buf }
+            ' db-gate.log | head -20 | while IFS= read -r line; do
+              echo "::error::${line:0:1800}"
+            done
+            echo "::error::db gate failed (exit $status)"
             exit "$status"
           fi
