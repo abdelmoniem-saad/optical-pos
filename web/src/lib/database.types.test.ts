@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { Sale, SaleItem, SalePayment } from './database.types'
+import type { Product, Sale, SaleItem, SalePayment } from './database.types'
 
 /**
  * Phase 0 gate: `database.types.ts` is hand-maintained (see its header), so
@@ -40,6 +40,10 @@ const SALE_ITEM_MONEY = [
   'total_price',
 ] as const satisfies readonly (keyof SaleItem)[]
 
+// Migration 012 additions (kept honest by the same satisfies trick).
+const SALE_012 = ['idempotency_key'] as const satisfies readonly (keyof Sale)[]
+const PRODUCT_012 = ['stock_qty'] as const satisfies readonly (keyof Product)[]
+
 describe('database.types coverage (Phase 0 gate)', () => {
   it('SalePayment covers every 011 sale_payments column', () => {
     expect(SALE_PAYMENT_011).toContain('paid_at')
@@ -55,5 +59,10 @@ describe('database.types coverage (Phase 0 gate)', () => {
     for (const k of ['qty', 'unit_price', 'total_price'] as const) {
       expect(SALE_ITEM_MONEY).toContain(k)
     }
+  })
+
+  it('012 additions are present (idempotency key, stock read model)', () => {
+    expect(SALE_012).toContain('idempotency_key')
+    expect(PRODUCT_012).toContain('stock_qty')
   })
 })

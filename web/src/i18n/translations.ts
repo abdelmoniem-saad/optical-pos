@@ -193,6 +193,7 @@ export const ar: Record<string, string> = {
   'Cart is empty and no examinations. Cannot checkout.':
     'السلة فارغة ولا توجد فحوصات. لا يمكن إتمام الطلب.',
   'Insufficient stock for:': 'مخزون غير كافٍ لـ:',
+  'Price changed for:': 'تغيّر السعر أثناء المراجعة لـ:',
   'Error saving order': 'خطأ أثناء حفظ الطلب',
 
   // Receipt

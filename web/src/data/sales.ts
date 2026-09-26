@@ -7,6 +7,7 @@ import {
   type PaymentLine,
 } from '../lib/payments'
 import { isMissingPaymentLedger, replaceSalePayments } from './salesPayments'
+import { isMissingRpc, type RpcErrorLike } from './rpc'
 import type {
   OrderExaminationInsert,
   Sale,
@@ -38,11 +39,8 @@ export function useTodaySales() {
 /** True when an RPC call failed because the function isn't installed yet
  *  (PostgREST returns PGRST202 / 42883 / "not found in schema cache"). Lets checkout
  *  fall back to client-side inserts until 002_create_sale_rpc.sql is run. */
-function isMissingFunction(error: { code?: string; message?: string; details?: string; hint?: string } | null | undefined): boolean {
-  if (!error) return false
-  if (error.code === 'PGRST202' || error.code === '42883' || error.code === 'PGRST200' || error.code === '404') return true
-  const combined = `${error.message ?? ''} ${error.details ?? ''} ${error.hint ?? ''}`
-  return /create_sale_order/i.test(combined) && /(does not exist|not found|schema cache|could not find)/i.test(combined)
+function isMissingFunction(error: RpcErrorLike): boolean {
+  return isMissingRpc('create_sale_order', error)
 }
 
 /** True when a sale insert or RPC fails due to unique constraint collision on invoice_no. */
@@ -186,7 +184,10 @@ export function useCustomerOrders(customerId: string | null) {
   })
 }
 
-/** Next zero-padded invoice number. Mirrors repo.get_next_invoice_no(). */
+/** Next zero-padded invoice number by scanning the table client-side.
+ *  @deprecated legacy fallback ONLY - used while migration 012 is unapplied.
+ *  Prefer nextInvoiceNo() below: this scan invents a timestamp number on
+ *  error instead of failing, which is exactly the defect 012 removes. */
 export async function getNextInvoiceNo(): Promise<string> {
   try {
     const [{ data: byInv }, { data: byDate }] = await Promise.all([
@@ -249,6 +250,26 @@ export async function getNextInvoiceNo(): Promise<string> {
   }
 }
 
+/**
+ * Next invoice number from the atomic DB counter (migration 012). This is the
+ * numbering path the app uses: the row-locked counter can never hand two
+ * registers the same number and never invents a meaningless one. Falls back to
+ * the legacy JS scan only while 012 is unapplied (same contract as checkout's
+ * isMissingFunction); any other failure SURFACES instead of inventing a number.
+ */
+export async function nextInvoiceNo(): Promise<string> {
+  const { data, error } = await supabase.rpc('next_invoice_no')
+  if (error) {
+    if (isMissingRpc('next_invoice_no', error)) {
+      console.warn('next_invoice_no() missing (run 012_integrity.sql) - falling back to legacy JS numbering')
+      return getNextInvoiceNo()
+    }
+    throw error
+  }
+  if (typeof data === 'string' && data) return data
+  throw new Error('next_invoice_no() returned no number')
+}
+
 export type CartLine = {
   product_id: string
   qty: number
@@ -281,6 +302,10 @@ export type CreateSaleInput = {
   frameImagePath?: string | null
   // If provided (assigned earlier in the wizard), reuse it instead of generating.
   invoiceNo?: string
+  // One key per checkout attempt (migration 012): replaying the same key
+  // (double-tap, retry after a lost response) returns the SAME sale instead
+  // of creating a second one. Minted by the POS wizard and kept with the draft.
+  idempotencyKey?: string | null
 }
 
 /**
@@ -301,7 +326,7 @@ export function useCreateSale() {
         try {
           let invoiceNo = input.invoiceNo
           if (!invoiceNo || attempt > 0) {
-            invoiceNo = await getNextInvoiceNo()
+            invoiceNo = await nextInvoiceNo()
           } else if (!invoiceNo.startsWith('PRESC-')) {
             const { data: existing } = await supabase
               .from('sales')
@@ -309,7 +334,7 @@ export function useCreateSale() {
               .eq('invoice_no', invoiceNo)
               .limit(1)
             if (existing && existing.length > 0) {
-              invoiceNo = await getNextInvoiceNo()
+              invoiceNo = await nextInvoiceNo()
             }
           }
 
@@ -365,6 +390,10 @@ export function useCreateSale() {
             p_exams: exams,
           }
           if (pay.length) rpcArgs.p_payments = pay
+          // Idempotency (migration 012): the same key means "this checkout
+          // already happened" - the RPC returns the existing sale instead of
+          // writing a second one. Omitted on pre-012 databases (4-arg call).
+          if (input.idempotencyKey) rpcArgs.p_idempotency_key = input.idempotencyKey
           try {
             const rpc = await supabase.rpc('create_sale_order', rpcArgs)
             if (!rpc.error && rpc.data) return rpc.data as Sale
@@ -700,7 +729,10 @@ export function useUpdateSale() {
 }
 
 /** Insert a standalone prescription for a customer with no cart items.
- *  Creates a zero-total sale (invoice `PRESC-<epoch>`) and attaches the exam. */
+ *  Creates a zero-total sale and attaches the exam. Since migration 012 the
+ *  invoice number comes from the DB counter like every other sale - the old
+ *  `PRESC-<epoch>` namespace (which polluted Reports and broke the numeric
+ *  invoice scan) is gone for new rows. */
 export function useAddStandalonePrescription() {
   const qc = useQueryClient()
   const create = useCreateSale()
@@ -714,11 +746,9 @@ export function useAddStandalonePrescription() {
       exam: Omit<OrderExaminationInsert, 'sale_id'>
       doctorName?: string
     }): Promise<Sale> => {
-      const invoiceNo = 'PRESC-' + Date.now().toString(36).toUpperCase()
       return create.mutateAsync({
         customerId,
         userId: null,
-        invoiceNo,
         items: [],
         examinations: [exam],
         totals: { total_amount: 0, discount: 0, net_amount: 0, amount_paid: 0 },

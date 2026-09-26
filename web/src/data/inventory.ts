@@ -1,16 +1,45 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import { queryClient } from '../lib/queryClient'
+import { isMissingRpc } from './rpc'
 import type { Product, ProductInsert } from '../lib/database.types'
 
 const KEY = ['inventory'] as const
 
+/** True when the query failed because inventory.stock_qty doesn't exist yet
+ *  (migration 012 unapplied - PostgREST answers PGRST204, plain SQL 42703). */
+function isMissingStockColumn(
+  error: { code?: string; message?: string } | null | undefined,
+): boolean {
+  if (!error) return false
+  return error.code === 'PGRST204' || error.code === '42703'
+}
+
+/** Cached answer to "does inventory.stock_qty exist?" (migration 012).
+ *  One tiny probe per session: 012+ databases read the column and never
+ *  download the movement ledger again; pre-012 databases keep the old
+ *  browser-side aggregation (with a console warning) instead of showing 0. */
+let stockColumnProbe: boolean | null = null
+async function hasStockQtyColumn(): Promise<boolean> {
+  if (stockColumnProbe !== null) return stockColumnProbe
+  const { error } = await supabase.from('inventory').select('stock_qty').limit(1)
+  if (error && isMissingStockColumn(error)) {
+    stockColumnProbe = false
+    console.warn(
+      'inventory.stock_qty missing (run 012_integrity.sql) - aggregating movements in the browser',
+    )
+    return false
+  }
+  if (error) throw error
+  stockColumnProbe = true
+  return true
+}
+
 /**
- * Inventory with stock_qty computed from stock_movements.
- *
- * repository.py does this per-item (N+1). We instead pull all movements once
- * and aggregate client-side - one extra query total, no N+1. A future
- * optimization is a Postgres view/RPC `inventory_with_stock` (Phase 7).
+ * Inventory list. Since migration 012 `stock_qty` is a real, DB-maintained
+ * column, so this is ONE table query no matter how much history exists.
+ * Pre-012 databases (probe fails) fall back to pulling all movements once and
+ * aggregating client-side - the slow path 012 exists to remove.
  */
 export function useInventory(category?: string) {
   return useQuery({
@@ -20,6 +49,8 @@ export function useInventory(category?: string) {
       if (category) q = q.eq('category', category)
       const { data: items, error } = await q.order('name').returns<Product[]>()
       if (error) throw error
+
+      if (await hasStockQtyColumn()) return items ?? []
 
       const { data: movements, error: mErr } = await supabase
         .from('stock_movements')
@@ -81,11 +112,22 @@ export async function ensureFrameProduct(name: string): Promise<Product | null> 
   }
 }
 
-/** Current stock for a single product. Mirrors repo.get_product_stock(). */export function useProductStock(productId: string | null) {
+/** Current stock for a single product (012: the stock_qty read model;
+ *  pre-012: sum of that product's movement rows). */
+export function useProductStock(productId: string | null) {
   return useQuery({
     queryKey: ['stock', productId],
     enabled: !!productId,
     queryFn: async (): Promise<number> => {
+      if (await hasStockQtyColumn()) {
+        const { data, error } = await supabase
+          .from('inventory')
+          .select('stock_qty')
+          .eq('id', productId as string)
+          .maybeSingle<{ stock_qty: number | null }>()
+        if (error) throw error
+        return data?.stock_qty ?? 0
+      }
       const { data, error } = await supabase
         .from('stock_movements')
         .select('qty')
@@ -102,6 +144,20 @@ export function useAddProduct() {
   return useMutation({
     mutationFn: async (input: ProductInsert): Promise<Product> => {
       const { stock_qty = 0, ...fields } = input
+
+      // Preferred path (migration 012): product + opening stock in ONE
+      // transaction, so a failure can never leave one without the other.
+      const { data: created, error: rpcErr } = await supabase.rpc('add_inventory_item', {
+        p_product: fields,
+        p_initial_stock: stock_qty,
+      })
+      if (!rpcErr) {
+        if (created) return created as Product
+        throw new Error('add_inventory_item() returned nothing')
+      }
+      if (!isMissingRpc('add_inventory_item', rpcErr)) throw rpcErr
+
+      // Legacy (pre-012): the historical two-step insert.
       const { data, error } = await supabase
         .from('inventory')
         .insert(fields)

@@ -8,7 +8,7 @@ import {
 } from 'react'
 import { supabase } from '../../lib/supabase'
 import {
-  getNextInvoiceNo,
+  nextInvoiceNo,
   useCreateSale,
   useUpdateSaleFull,
   type CartLine,
@@ -19,6 +19,7 @@ import { addMissingOrderMetadata } from '../../data/metadata'
 import { findOrderImages } from '../../lib/storage'
 import { useStoreId } from '../../lib/licensing'
 import { useAuth } from '../../lib/auth'
+import { useI18n } from '../../i18n/LanguageContext'
 import { clearPosDraft, readPosDraft, writePosDraft } from '../../lib/posDraft'
 import type { Customer, CustomerInsert, Product, Sale } from '../../lib/database.types'
 import { addLine, computeTotals, removeLine, setQty, type Totals } from './pricing'
@@ -50,6 +51,21 @@ function plusDays(days: number): string {
   const d = new Date()
   d.setDate(d.getDate() + days)
   return localDateISO(d)
+}
+
+/** Idempotency key for ONE checkout attempt (migration 012). Uses
+ *  crypto.randomUUID when available; POS tablets often run over plain-http
+ *  LAN where randomUUID is withheld (insecure context), so fall back to
+ *  getRandomValues and pack the hex into uuid form (any valid uuid shape
+ *  satisfies the column - only uniqueness matters). */
+function newIdempotencyKey(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID()
+  }
+  const h = Array.from(crypto.getRandomValues(new Uint8Array(16)), (x) =>
+    x.toString(16).padStart(2, '0'),
+  ).join('')
+  return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20, 32)}`
 }
 
 /** Editable customer info, shared by the customer step and the order step. */
@@ -94,6 +110,9 @@ type State = {
   rxImagePath: string | null
   frameImagePath: string | null
   invoiceNo: string
+  /** Idempotency key of the current checkout attempt (migration 012).
+   *  Mirrored into the draft so a reload-resume replays the SAME attempt. */
+  idempotencyKey: string | null
   /** Sale created by the FIRST Finish Checkout; later checkouts update it. */
   savedSale: Sale | null
   savedHadExams: boolean
@@ -118,6 +137,7 @@ function initialState(): State {
     rxImagePath: null,
     frameImagePath: null,
     invoiceNo: '',
+    idempotencyKey: null,
     savedSale: null,
     savedHadExams: false,
     completed: null,
@@ -206,6 +226,10 @@ export function POSProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(reducer, undefined, () => memoryState ?? initialState())
   const ref = useRef(state)
   ref.current = state
+  // One idempotency key per checkout attempt: a REF so a double-click on
+  // Finish reuses the key before React re-renders, mirrored into state so the
+  // sessionStorage draft survives a reload mid-attempt (migration 012).
+  const idemRef = useRef<string | null>(state.idempotencyKey)
 
   // Tab switches keep the wizard in memoryState (module scope). A RELOAD loses
   // that, so the draft is also mirrored into sessionStorage and restored below,
@@ -213,6 +237,7 @@ export function POSProvider({ children }: { children: ReactNode }) {
   const hadMemory = useRef(memoryState !== null)
   const hydrated = useRef(false)
   const { user } = useAuth()
+  const { t } = useI18n()
 
   // Mirror every change into the module-level snapshot (tab-switch survival).
   useEffect(() => {
@@ -235,7 +260,10 @@ export function POSProvider({ children }: { children: ReactNode }) {
     if (!user || storeLoading) return
     hydrated.current = true
     const draft = readPosDraft<State>(user.id, myStoreId ?? null)
-    if (draft) dispatch({ type: 'PATCH', patch: draftSafe(draft) })
+    if (draft) {
+      dispatch({ type: 'PATCH', patch: draftSafe(draft) })
+      idemRef.current = draft.idempotencyKey ?? null
+    }
   }, [user, storeLoading, myStoreId])
 
   // Persist every change: sessionStorage survives a reload (not closing the tab).
@@ -318,7 +346,7 @@ export function POSProvider({ children }: { children: ReactNode }) {
       }
     }
     if (!invoiceNo) {
-      invoiceNo = await getNextInvoiceNo()
+      invoiceNo = await nextInvoiceNo()
     }
     patch({ customer, invoiceNo, step: 'cart' })
   }
@@ -499,6 +527,15 @@ export function POSProvider({ children }: { children: ReactNode }) {
       return
     }
     patch({ busy: true, error: null })
+    // Idempotency (migration 012): mint this attempt's key once. The ref makes
+    // a double-click reuse it before re-render, the draft makes a reload-resume
+    // reuse it, and it is cleared only once the sale is safely saved - so a
+    // replay returns the SAME sale instead of creating a second one.
+    if (!idemRef.current) {
+      idemRef.current = newIdempotencyKey()
+      patch({ idempotencyKey: idemRef.current })
+    }
+    const idempotencyKey = idemRef.current
     try {
       const cartItems = await addNewFramesFromExams(s.cartItems, s.examinations)
       // Settings sync (lens types / frame colors used by this order) happens
@@ -513,9 +550,11 @@ export function POSProvider({ children }: { children: ReactNode }) {
       // The ledger rows about to be written: clamped so their sum can never
       // exceed the paid amount pricing just computed (sum == amount_paid).
       const payLines = clampPaymentLines(s.payments, t.amountPaid)
-      // Allow overselling: stock movements will make inventory go negative,
-      // which is intentional per the workflow (record the sale even when
-      // qty-on-hand is zero or below).
+      // Stock is guarded INSIDE create_sale_order (migration 012): stores with
+      // stores.allow_negative_stock = false get 'insufficient stock: <name>'
+      // and no sale. The default keeps this workflow's documented behaviour -
+      // record the sale even when qty-on-hand is zero or below, letting
+      // inventory go negative on purpose.
       // Order photos: an explicit PC attach wins; otherwise adopt the photos
       // taken on the phone BEFORE checkout (stored under the invoice number),
       // and finally promote a legacy per-exam prescription upload if one exists.
@@ -565,6 +604,7 @@ export function POSProvider({ children }: { children: ReactNode }) {
           customerId: s.customer?.id ?? null,
           userId: staffId,
           invoiceNo: s.invoiceNo || undefined,
+          idempotencyKey,
           ...payload,
         })
       }
@@ -587,11 +627,19 @@ export function POSProvider({ children }: { children: ReactNode }) {
       })
     } catch (e: any) {
       console.error('finishOrder failed:', e)
-      const msg =
+      let msg =
         e?.message ||
         e?.error_description ||
         e?.details ||
         (typeof e === 'string' ? e : 'Error saving order')
+      // 012's guards speak 'reason: detail' - turn them into the shop's
+      // language instead of leaking a raw Postgres message.
+      const short = /^insufficient stock:\s*(.*)$/i.exec(msg)
+      if (short) msg = `${t('Insufficient stock for:')} ${short[1]}`
+      else {
+        const stale = /^price changed:\s*(.*)$/i.exec(msg)
+        if (stale) msg = `${t('Price changed for:')} ${stale[1]}`
+      }
       patch({ busy: false, error: msg })
     }
   }
@@ -661,6 +709,8 @@ export function POSProvider({ children }: { children: ReactNode }) {
         ({ id: _id, sale_id: _saleId, ...rest }) => rest as Exam,
       )
 
+      // Saved safely: the next checkout is a NEW attempt (new key).
+      idemRef.current = null
       dispatch({ type: 'RESET' })
       patch({
         step: 'cart',
@@ -706,6 +756,7 @@ export function POSProvider({ children }: { children: ReactNode }) {
   const closeReceipt = () => patch({ completed: null })
   const startNewSale = () => {
     clearPosDraft()
+    idemRef.current = null
     dispatch({ type: 'RESET' })
   }
 

@@ -52,12 +52,16 @@ export interface Product {
   category: ProductCategory | string | null
   sale_price: number | null
   cost_price: number | null
-  // Computed from stock_movements, not a stored column.
+  // Real column since migration 012 (trigger-maintained cache over
+  // stock_movements). Kept optional because pre-012 schemas lack it - the
+  // client feature-detects (data/inventory.ts) and falls back to the old
+  // browser-side sum instead of showing 0.
   stock_qty?: number
 }
 export type ProductInsert = Omit<Product, 'id' | 'stock_qty'> & {
   name: string
-  // add_inventory_item() accepts an initial stock_qty and converts it to a movement.
+  // add_inventory_item() (migration 012) accepts an initial stock_qty and
+  // converts it to a movement in the same transaction.
   stock_qty?: number
 }
 
@@ -107,6 +111,10 @@ export interface Sale {
   users?: Pick<User, 'id' | 'username' | 'full_name'> | null
   // Present when selected with `customers(name)` - display name only.
   customers?: Pick<Customer, 'name'> | null
+  // One checkout attempt (migration 012): unique per store, so replaying the
+  // same key returns this sale instead of writing a second one. Optional
+  // because pre-012 schemas don't have the column.
+  idempotency_key?: string | null
 }
 export type SaleInsert = Omit<
   Sale,
