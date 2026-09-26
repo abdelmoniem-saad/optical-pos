@@ -89,9 +89,11 @@ $$;
 
 -- ===== impersonate the signed-in cashier =====================================
 set role authenticated;
-select set_config('request.jwt.claim.sub', 'aaaaaaaa-aaaa-4aaa-8aaa-000000000001', false);
-select set_config('request.jwt.claims',
-                  '{"sub":"aaaaaaaa-aaaa-4aaa-8aaa-000000000001"}', false);
+do $$ begin
+  perform set_config('request.jwt.claim.sub', 'aaaaaaaa-aaaa-4aaa-8aaa-000000000001', false);
+  perform set_config('request.jwt.claims',
+                     '{"sub":"aaaaaaaa-aaaa-4aaa-8aaa-000000000001"}', false);
+end $$;
 
 -- ---------- G1: server re-pricing ------------------------------------------
 -- T1 normal checkout at catalog prices succeeds.
@@ -205,7 +207,9 @@ update public.stores
    set allow_negative_stock = false
  where id = (select id from public.stores order by created_at limit 1);
 set role authenticated;
-select set_config('request.jwt.claim.sub', 'aaaaaaaa-aaaa-4aaa-8aaa-000000000001', false);
+do $$ begin
+  perform set_config('request.jwt.claim.sub', 'aaaaaaaa-aaaa-4aaa-8aaa-000000000001', false);
+end $$;
 select _checkout('t13',
   '{"total_amount": 80, "discount": 0, "net_amount": 80, "amount_paid": 80}'::jsonb,
   '[{"product_id": "bbbbbbbb-bbbb-4bbb-8bbb-000000000003", "qty": 1, "unit_price": 80, "total_price": 80, "name": "Test Frame C"}]'::jsonb,
@@ -218,7 +222,9 @@ update public.stores
    set allow_negative_stock = true
  where id = (select id from public.stores order by created_at limit 1);
 set role authenticated;
-select set_config('request.jwt.claim.sub', 'aaaaaaaa-aaaa-4aaa-8aaa-000000000001', false);
+do $$ begin
+  perform set_config('request.jwt.claim.sub', 'aaaaaaaa-aaaa-4aaa-8aaa-000000000001', false);
+end $$;
 
 -- ---------- G3: atomic invoice numbers -------------------------------------
 insert into _cap (k, note) values ('inv1', public.next_invoice_no());
@@ -271,11 +277,15 @@ select is(
   'G5b available_stock() reads the same number as the read model');
 
 -- ---------- add_inventory_item: product + opening stock in ONE call --------
-select ok(
-  public.add_inventory_item(
+-- Assert on the RETURNED row's name (field selection) rather than
+-- `f(...) IS NOT NULL`: is() prints have/want diagnostics on failure, so a
+-- regression here says what actually came back instead of just "not ok".
+select is(
+  (public.add_inventory_item(
     '{"name": "RPC Item", "category": "Other", "sale_price": 10, "cost_price": 4}'::jsonb,
-    3) is not null,
-  'add_inventory_item() creates the product and its opening stock atomically');
+    3)).name,
+  'RPC Item',
+  'add_inventory_item() returns the created product');
 select is(
   (select stock_qty from public.inventory where name = 'RPC Item'),
   3::integer, 'opening stock is live in stock_qty immediately');
@@ -303,11 +313,13 @@ select ok(
 
 -- ============================================================================
 -- Every checkout outcome that was NOT what the assertion expected, printed as
--- one line per _cap row (picked up by CI's annotation pass):
+-- one line per _cap row (picked up by CI's annotation pass). The keys excluded
+-- below are the tests that EXPECT a rejection, so their errors are successes.
 reset role;
 select 'CAPERR ' || k || ' -> ' || coalesce(err, 'ok')
   from _cap
  where err is not null
+   and k not in ('t7', 't8', 't9', 't10', 't11', 't13')
  order by k;
 
 select * from finish();
