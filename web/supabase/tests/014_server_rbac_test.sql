@@ -20,7 +20,7 @@
 
 begin;
 create extension if not exists pgtap;
-select plan(34);
+select plan(33);
 
 -- ===== fixtures ============================================================
 -- Two stores, so every tenant assertion has something to fail against.
@@ -241,37 +241,53 @@ select ok((select count(*) from public.permissions) > 0,
 -- exception that never arrives.
 
 -- ...but nobody may rewrite it.
-insert into public.permissions (code) values ('evil.backdoor');
-select is((select count(*) from public.permissions where code = 'evil.backdoor'), 0::bigint,
+-- A denied write RAISES (SQLSTATE 42501), and ON_ERROR_STOP would abort the
+-- whole file - so each probe runs in a DO block. A DO block is a plain
+-- statement, not dynamic SQL, so RLS is evaluated exactly as it is for a real
+-- client; only the exception is swallowed. The effect is then measured.
+do $$ begin
+  insert into public.permissions (code) values ('evil.backdoor');
+exception when others then null;
+end $$;
+select is((select count(*) from public.permissions where code = 'evil.backdoor')::bigint, 0::bigint,
   'G-R2 a cashier cannot INSERT a permission code');
 
-update public.permissions set name = 'pwned' where code = 'settings.delete';
-select is((select count(*) from public.permissions where code = 'settings.delete' and name = 'pwned'), 0::bigint,
+do $$ begin
+  update public.permissions set name = 'pwned' where code = 'settings.delete';
+exception when others then null;
+end $$;
+select is((select count(*) from public.permissions where code = 'settings.delete' and name = 'pwned')::bigint, 0::bigint,
   'G-R3 a cashier cannot UPDATE the permission catalogue');
 
--- Nor self-grant through the role matrix.
-insert into public.role_permissions (role_id, permission_id)
-select 'dddddddd-dddd-4ddd-8ddd-000000000003'::uuid, id
-  from public.permissions where code = 'settings.delete';
+do $$ begin
+  insert into public.role_permissions (role_id, permission_id)
+  select 'dddddddd-dddd-4ddd-8ddd-000000000003'::uuid, id
+    from public.permissions where code = 'settings.delete';
+exception when others then null;
+end $$;
 select is((select count(*) from public.role_permissions rp
             join public.permissions p on p.id = rp.permission_id
            where rp.role_id = 'dddddddd-dddd-4ddd-8ddd-000000000003'
-             and p.code = 'settings.delete'), 0::bigint,
+             and p.code = 'settings.delete')::bigint, 0::bigint,
   'G-R4 a cashier cannot grant themselves a code through role_permissions');
 
-insert into public.user_permissions (user_id, permission_id, allow)
-select 'aaaaaaaa-aaaa-4aaa-8aaa-000000000001'::uuid, id, true
-  from public.permissions where code = 'settings.delete';
+do $$ begin
+  insert into public.user_permissions (user_id, permission_id, allow)
+  select 'aaaaaaaa-aaaa-4aaa-8aaa-000000000001'::uuid, id, true
+    from public.permissions where code = 'settings.delete';
+exception when others then null;
+end $$;
 select is((select count(*) from public.user_permissions up
             join public.permissions p on p.id = up.permission_id
            where up.user_id = 'aaaaaaaa-aaaa-4aaa-8aaa-000000000001'
-             and p.code = 'settings.delete'), 0::bigint,
+             and p.code = 'settings.delete')::bigint, 0::bigint,
   'G-R5 a cashier cannot grant themselves an override through user_permissions');
 
-delete from public.role_permissions
- where role_id = 'dddddddd-dddd-4ddd-8ddd-000000000002';
-select is((select count(*) from public.role_permissions
-            where role_id = 'dddddddd-dddd-4ddd-8ddd-000000000002'), 2::bigint,
+do $$ begin
+  delete from public.role_permissions
+   where role_id = 'dddddddd-dddd-4ddd-8ddd-000000000002';
+exception when others then null;
+end $$;
 select is((select count(*) from public.role_permissions
             where role_id = 'dddddddd-dddd-4ddd-8ddd-000000000002')::bigint, 4::bigint,
   'G-R6 a cashier cannot DELETE grants (the supervisor''s four survive)');
