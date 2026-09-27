@@ -21,7 +21,7 @@
 
 begin;
 create extension if not exists pgtap;
-select plan(14);
+select plan(17);
 
 -- ===== fixtures ============================================================
 -- The real account that triggered this: a staff row created by hand with its
@@ -83,8 +83,24 @@ select is((select created_by::text from public.notes
   'eeeeeeee-eeee-4eee-8eee-000000000001',
   'G3b notes.created_by followed the re-pointed id');
 select is((select body from public.notes where id = 'eeeeeeee-eeee-4eee-8eee-0000000000aa'),
+select is((select body from public.notes where id = 'eeeeeeee-eeee-4eee-8eee-0000000000aa'),
   'keep me', 'G3c the note itself survived');
 
+-- ===== G3d: the constraints came back ================================
+-- The repair drops six foreign keys to re-point the id, because none of them
+-- is ON UPDATE CASCADE. If it forgot to put one back, the database would be
+-- quietly less protected than before - so the count is asserted, not assumed.
+select is((select count(*) from pg_constraint
+            where conname in ('sales_user_id_fkey', 'notes_created_by_fkey',
+                              'notes_user_id_fkey', 'note_seen_user_id_fkey',
+                              'licenses_created_by_fkey',
+                              'user_permissions_user_id_fkey')
+              and contype = 'f')::bigint, 6::bigint,
+  'G3d all six foreign keys onto users.id are back in place');
+select is((select count(*) from pg_constraint
+            where conname = 'notes_user_id_fkey'
+              and confdeltype = 'c')::bigint, 1::bigint,
+  'G3e the two that cascade still cascade afterwards');
 -- ===== G4: an ambiguous name is left alone ============================
 select is((select count(*) from public.users
             where id = 'eeeeeeee-eeee-4eee-8eee-0000000000bb'

@@ -56,16 +56,41 @@ begin
      where split_part(coalesce(a.email, ''), '@', 1) = r.username
      limit 1;
 
-    -- id is the primary key and six columns reference it, so the references
-    -- move FIRST and the key changes last.
-    update public.sales            set user_id    = v_auth where user_id    = r.id;
-    update public.notes            set created_by = v_auth where created_by = r.id;
-    update public.notes            set user_id    = v_auth where user_id    = r.id;
-    update public.note_seen        set user_id    = v_auth where user_id    = r.id;
-    update public.licenses         set created_by = v_auth where created_by = r.id;
-    update public.user_permissions set user_id    = v_auth where user_id    = r.id;
-    update public.audit_log        set actor      = v_auth where actor      = r.id;
-    update public.users set id = v_auth where id = r.id;
+    -- users.id is the primary key and six columns reference it, and NONE of
+    -- those constraints is ON UPDATE CASCADE. So the references cannot be
+    -- moved to the new id first - it does not exist yet - and the key cannot
+    -- be moved first either, because the references would be orphaned. The
+    -- constraints come off, everything moves, and they go back on: all inside
+    -- this one transaction, so a failure rolls the drops back with it.
+    alter table public.sales            drop constraint if exists sales_user_id_fkey;
+    alter table public.notes            drop constraint if exists notes_created_by_fkey;
+    alter table public.notes            drop constraint if exists notes_user_id_fkey;
+    alter table public.note_seen        drop constraint if exists note_seen_user_id_fkey;
+    alter table public.licenses         drop constraint if exists licenses_created_by_fkey;
+    alter table public.user_permissions drop constraint if exists user_permissions_user_id_fkey;
+
+    update public.users      set id      = v_auth where id      = r.id;
+    update public.sales      set user_id  = v_auth where user_id  = r.id;
+    update public.notes      set created_by = v_auth where created_by = r.id;
+    update public.notes      set user_id  = v_auth where user_id  = r.id;
+    update public.note_seen  set user_id  = v_auth where user_id  = r.id;
+    update public.licenses   set created_by = v_auth where created_by = r.id;
+    update public.user_permissions set user_id = v_auth where user_id = r.id;
+    update public.audit_log  set actor    = v_auth where actor    = r.id;
+
+    -- back on, with the exact definitions they had (two of them cascade)
+    alter table public.sales add constraint sales_user_id_fkey
+      foreign key (user_id) references public.users(id);
+    alter table public.notes add constraint notes_created_by_fkey
+      foreign key (created_by) references public.users(id);
+    alter table public.notes add constraint notes_user_id_fkey
+      foreign key (user_id) references public.users(id) on delete cascade;
+    alter table public.note_seen add constraint note_seen_user_id_fkey
+      foreign key (user_id) references public.users(id);
+    alter table public.licenses add constraint licenses_created_by_fkey
+      foreign key (created_by) references public.users(id);
+    alter table public.user_permissions add constraint user_permissions_user_id_fkey
+      foreign key (user_id) references public.users(id) on delete cascade;
 
     action   := 're-pointed';
     username := r.username;
