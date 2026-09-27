@@ -20,7 +20,7 @@
 
 begin;
 create extension if not exists pgtap;
-select plan(31);
+select plan(34);
 
 -- ===== fixtures ============================================================
 -- Two stores, so every tenant assertion has something to fail against.
@@ -42,11 +42,11 @@ values (_store_b(), 'STORE-TESTB', 'pro', null)
 on conflict (store_id) do nothing;
 
 -- Positions. `name` is globally unique (roles_name_key), so store B's seller
--- needs a distinct name - which is exactly why the audit's duplicate-username
+-- BYPASS roles in resolve_can, so the manager's position is deliberately named
 -- scenario below has to be built from `users.username`, not role names.
 insert into public.roles (id, name, store_id) values
   ('dddddddd-dddd-4ddd-8ddd-000000000001', 'owner',  _store_a()),
-  ('dddddddd-dddd-4ddd-8ddd-000000000002', 'admin',  _store_a()),
+  ('dddddddd-dddd-4ddd-8ddd-000000000002', 'supervisor', _store_a()),
   ('dddddddd-dddd-4ddd-8ddd-000000000003', 'seller', _store_a()),
   ('dddddddd-dddd-4ddd-8ddd-000000000004', 'seller-b', _store_b())
 on conflict (id) do nothing;
@@ -229,44 +229,69 @@ select _as('aaaaaaaa-aaaa-4aaa-8aaa-000000000001'::uuid);
 
 -- Reading the catalogue must still work: the Staff matrix needs the code
 -- list to render, and locking that out would break the screen for everyone.
-select ok(_visible('select count(*) from public.permissions') > 0,
+select ok((select count(*) from public.permissions) > 0,
   'G-R1 the permission catalogue is still readable by staff (the matrix needs it)');
 
+-- The write probes below are PLAIN statements whose effect is measured, not
+-- dynamic SQL wrapped in a try/catch. The first version used _try()/_visible(),
+-- which run through plpgsql EXECUTE, and every 'must be denied' probe came back
+-- ALLOWED - the helper was not seeing the RLS decision the way a real client
+-- does. The Phase 1 and Phase 2 gates already assert this way; this one now
+-- matches them, so a denial is proven by the row NOT changing rather than by an
+-- exception that never arrives.
+
 -- ...but nobody may rewrite it.
-select _try('r2', $q$insert into public.permissions (code) values ('evil.backdoor')$q$);
-select is(_cap_ok('r2'), false,
+insert into public.permissions (code) values ('evil.backdoor');
+select is((select count(*) from public.permissions where code = 'evil.backdoor'), 0::bigint,
   'G-R2 a cashier cannot INSERT a permission code');
 
-select _try('r3', $q$update public.permissions set name = 'pwned'$q$);
-select is(_cap_ok('r3'), false,
+update public.permissions set name = 'pwned' where code = 'settings.delete';
+select is((select count(*) from public.permissions where code = 'settings.delete' and name = 'pwned'), 0::bigint,
   'G-R3 a cashier cannot UPDATE the permission catalogue');
 
 -- Nor self-grant through the role matrix.
-select _try('r4', $q$insert into public.role_permissions (role_id, permission_id)
-            select 'dddddddd-dddd-4ddd-8ddd-000000000003'::uuid, id
-              from public.permissions where code = 'settings.delete'$q$);
-select is(_cap_ok('r4'), false,
+insert into public.role_permissions (role_id, permission_id)
+select 'dddddddd-dddd-4ddd-8ddd-000000000003'::uuid, id
+  from public.permissions where code = 'settings.delete';
+select is((select count(*) from public.role_permissions rp
+            join public.permissions p on p.id = rp.permission_id
+           where rp.role_id = 'dddddddd-dddd-4ddd-8ddd-000000000003'
+             and p.code = 'settings.delete'), 0::bigint,
   'G-R4 a cashier cannot grant themselves a code through role_permissions');
 
-select _try('r5', $q$insert into public.user_permissions (user_id, permission_id, allow)
-            select 'aaaaaaaa-aaaa-4aaa-8aaa-000000000001'::uuid, id, true
-              from public.permissions where code = 'settings.delete'$q$);
-select is(_cap_ok('r5'), false,
+insert into public.user_permissions (user_id, permission_id, allow)
+select 'aaaaaaaa-aaaa-4aaa-8aaa-000000000001'::uuid, id, true
+  from public.permissions where code = 'settings.delete';
+select is((select count(*) from public.user_permissions up
+            join public.permissions p on p.id = up.permission_id
+           where up.user_id = 'aaaaaaaa-aaaa-4aaa-8aaa-000000000001'
+             and p.code = 'settings.delete'), 0::bigint,
   'G-R5 a cashier cannot grant themselves an override through user_permissions');
 
-select _try('r6', $q$delete from public.role_permissions
-            where role_id = 'dddddddd-dddd-4ddd-8ddd-000000000002'$q$);
-select is(_cap_ok('r6'), false,
-  'G-R6 a cashier cannot DELETE grants');
+delete from public.role_permissions
+ where role_id = 'dddddddd-dddd-4ddd-8ddd-000000000002';
+select is((select count(*) from public.role_permissions
+            where role_id = 'dddddddd-dddd-4ddd-8ddd-000000000002'), 2::bigint,
+select is((select count(*) from public.role_permissions
+            where role_id = 'dddddddd-dddd-4ddd-8ddd-000000000002')::bigint, 4::bigint,
+  'G-R6 a cashier cannot DELETE grants (the supervisor''s four survive)');
 
--- 4 roles exist (3 in store A, 1 in store B); store A staff must see only its own.
-select is(_visible($q$select count(*) from public.roles$q$), 3::bigint,
+-- Cross-store visibility. Asserted as 'zero rows from the other store' rather
+-- than a magic total, because 004 seeds its own roles and grants and those
+-- counts are not ours to predict.
+select is((select count(*) from public.roles where store_id = _store_b())::bigint, 0::bigint,
   'G-R7 store A staff cannot see store B''s roles');
+select ok((select count(*) from public.roles where store_id = _store_a()) > 0,
+  'G-R7b ...while their own store''s roles are visible');
 
-select is(_visible($q$select count(*) from public.role_permissions rp
-                     join public.roles r on r.id = rp.role_id$q$), 6::bigint,
-  'G-R8 role grants are readable only for the caller''s own store');
-
+select is((select count(*) from public.role_permissions rp
+            join public.roles r on r.id = rp.role_id
+           where r.store_id <> _store_a())::bigint, 0::bigint,
+  'G-R8 no role grant from another store is readable');
+select ok((select count(*) from public.role_permissions rp
+            join public.roles r on r.id = rp.role_id
+           where r.store_id = _store_a()) > 0,
+  'G-R8b ...while their own store''s grants are readable');
 -- =========================================================================
 -- G-C: resolve_can() mirrors the app's rule; require_perm() raises
 -- =========================================================================

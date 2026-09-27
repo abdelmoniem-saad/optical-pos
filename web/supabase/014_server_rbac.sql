@@ -275,36 +275,35 @@ create policy lensy_catalog_delete on public.permissions for delete to authentic
 
 
 -- ============================================================
--- 4) auth_store_id(): the id match wins, and ambiguity is a hard failure
+-- ============================================================
+-- 4) auth_store_id(): the username fallback is GONE
 -- ============================================================
 -- Before (008:176-183):
 --   where u.id = auth.uid() or u.username = split_part(email,'@',1) limit 1
--- With no ORDER BY, a username that exists in two stores picks a tenant at
--- random, and every policy in the database trusts this answer.
 --
--- Now: the id match is authoritative and always preferred; the username
--- fallback survives for genuinely legacy rows (public.users.id that does not
--- match the auth identity) but ONLY when the username is unique across every
--- store. An ambiguous username resolves to NO store - which every policy
--- already treats as deny - instead of to the wrong tenant.
+-- The first attempt here kept the fallback and added a 'that username is unique
+-- across stores' clause. The gate killed it: public.users.username already
+-- carries a global UNIQUE constraint (users_username_key), so the clause can
+-- never fire - and an auth identity with NO staff row of its own, whose email
+-- local part happened to match a real user's username, still resolved to that
+-- user's store. Matching a caller to a tenant by an email-derived string is
+-- impersonation with extra steps; no uniqueness rule makes it safe.
 --
--- Kept rather than cut on purpose: deleting the fallback outright would lock
--- out any real user whose users.id is stale, and a locked-out shop is a worse
--- outcome than a narrowed one.
-
+-- Is anything depending on the fallback? No. create-user writes public.users
+-- with id = the auth identity's own UUID, so every account created through the
+-- app already matches on the id. The fallback only ever mattered for Flet-era
+-- rows whose password_hash is long dead - they cannot sign in at all.
+--
+-- So: no id match means NO STORE, which every policy already treats as deny.
+-- The app side of that - a clear 'this account is not linked to a store' screen
+-- instead of an empty shell - ships with this phase's client commit. A
+-- locked-out user with a clear message is recoverable; an invisible
+-- cross-tenant leak is not.
 create or replace function public.auth_store_id() returns uuid
 language sql stable security definer set search_path = public, auth as $$
   select u.store_id
     from public.users u
    where u.id = auth.uid()
-  union all
-  -- fallback, only for identities with no row of their own
-  select u.store_id
-    from public.users u
-   where u.id is distinct from auth.uid()
-     and u.username = split_part(coalesce((select email from auth.users where id = auth.uid()), ''), '@', 1)
-     and (select count(*) from public.users u2
-           where u2.username = u.username) = 1
   limit 1
 $$;
 
