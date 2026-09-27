@@ -72,7 +72,7 @@ begin
     --   4. drop the old row - nothing points at it any more, so the CASCADE on
     --      notes.user_id has nothing left to take
     update public.users
-       set username = username || '-unlinked-' || left(id::text, 8)
+       set username = public.users.username || '-unlinked-' || left(public.users.id::text, 8)
      where id = r.id;
 
     insert into public.users
