@@ -43,7 +43,10 @@ export function SalePayments({ sale, balance }: { sale: Sale; balance: number })
   const [busy, setBusy] = useState(false)
 
   const rows = query.data ?? []
-  const canPay = balance > 0 && (perms.isAdmin || perms.can('history.edit' as never))
+  // A voided invoice is closed: no more money may be taken against it, and
+  // its ledger only grows if the void is itself reversed in the future.
+  const canPay =
+    !sale.voided_at && balance > 0 && (perms.isAdmin || perms.can('history.edit' as never))
   const entered = paymentsTotal(lines)
   const afterRecord = round2(Math.max(0, balance - entered))
   // Live cap: a line can't grow past what is still owed once the OTHER
@@ -94,13 +97,24 @@ export function SalePayments({ sale, balance }: { sale: Sale; balance: number })
         <div className="text-xs text-faint">{t('No payments yet.')}</div>
       ) : (
         <div className="space-y-0.5">
-          {rows.map((r) => (
-            <div key={r.id} className="flex items-center justify-between text-xs">
-              <span className="text-faint">{r.paid_at}</span>
-              <span className="font-semibold text-muted">{t(methodLabelKey(r.method))}</span>
-              <span className="font-semibold">{money(Number(r.amount))}</span>
-            </div>
-          ))}
+          {rows.map((r) => {
+            // A refund is money going BACK (migration 013): negative amount,
+            // kind='refund', written by void_sale() once per original tender.
+            const isRefund = Number(r.amount) < 0 || (r.kind ?? 'payment') === 'refund'
+            return (
+              <div key={r.id} className="flex items-center justify-between text-xs">
+                <span className="text-faint">
+                  {(r.paid_at ?? '').slice(0, 16).replace('T', ' ')}
+                </span>
+                <span className={isRefund ? 'font-semibold text-danger' : 'font-semibold text-muted'}>
+                  {isRefund ? t('Refund') : t(methodLabelKey(r.method))}
+                </span>
+                <span className={isRefund ? 'font-semibold text-danger' : 'font-semibold'}>
+                  {money(Math.abs(Number(r.amount)))}
+                </span>
+              </div>
+            )
+          })}
         </div>
       )}
 

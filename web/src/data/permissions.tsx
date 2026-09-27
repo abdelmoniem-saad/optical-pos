@@ -28,7 +28,11 @@ export const RESOURCES = [
   { key: 'settings', label: 'Settings' },
 ] as const
 
-export const ACTIONS = ['view', 'create', 'edit', 'delete'] as const
+// 'void' (migration 013) is separate from 'delete': voiding is an audited
+// EVENT that keeps every row, whereas delete was the destructive verb we
+// revoked. A shop manager who may correct a mis-keyed invoice should not
+// thereby gain the ability to erase history - so they get their own code.
+export const ACTIONS = ['view', 'create', 'edit', 'delete', 'void'] as const
 export type Action = (typeof ACTIONS)[number]
 
 /** Positions whose members ALWAYS have full access regardless of the matrix.

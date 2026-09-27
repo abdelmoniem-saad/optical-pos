@@ -12,6 +12,7 @@ import { OrderReceiptDialog } from '../../components/OrderReceiptDialog'
 import { QrDialog } from '../../components/QrDialog'
 import { EditOrderForm } from './EditOrderForm'
 import { SalePayments } from './SalePayments'
+import { VoidSaleButton } from './VoidSaleButton'
 import { usePermissions } from '../../data/permissions'
 import { prescriptionImageUrl, uploadOrderImage } from '../../lib/storage'
 import { useStoreId } from '../../lib/licensing'
@@ -146,10 +147,19 @@ export function HistoryPage() {
                   </div>
                 </div>
                 <div className="flex items-center gap-3">
-                  {s.lab_status && (
-                    <span className={`rounded-full px-2 py-0.5 text-xs ${labColor[s.lab_status] ?? 'bg-surface text-muted'}`}>
-                      {t(s.lab_status)}
+                  {s.voided_at ? (
+                    <span
+                      className="rounded-full bg-danger-bg px-2 py-0.5 text-xs text-danger"
+                      title={s.void_reason ?? undefined}
+                    >
+                      {t('Voided')}
                     </span>
+                  ) : (
+                    s.lab_status && (
+                      <span className={`rounded-full px-2 py-0.5 text-xs ${labColor[s.lab_status] ?? 'bg-surface text-muted'}`}>
+                        {t(s.lab_status)}
+                      </span>
+                    )
                   )}
                   <div className="text-end">
                     <div className="font-semibold">{fmt(net)}</div>
@@ -177,7 +187,7 @@ export function HistoryPage() {
                     >
                       🖨 {t('Print')}
                     </button>
-                    {perms.can('history.edit' as never) && (
+                    {perms.can('history.edit' as never) && !s.voided_at && (
                       <button
                         onClick={() => setEditing(editing === s.id ? null : s.id)}
                         className="rounded-lg border border-line px-3 py-1.5 text-sm text-muted hover:bg-surface"
@@ -185,6 +195,9 @@ export function HistoryPage() {
                         ✎ {editing === s.id ? t('Cancel') : t('Edit')}
                       </button>
                     )}
+                    {/* Void is an event, not a delete - it stays available
+                        after the fact and the DB keeps every row. */}
+                    <VoidSaleButton sale={s} />
                   </div>
                   {editing === s.id && <EditOrderForm sale={s} onDone={() => setEditing(null)} />}
                 </div>

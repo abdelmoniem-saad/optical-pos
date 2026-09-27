@@ -184,6 +184,18 @@ export const ar: Record<string, string> = {
     'سجل الدفعات غير موجود - نفّذ ملف web/supabase/011_sale_payments.sql في محرر SQL بـ Supabase.',
   'By payment method': 'حسب طريقة الدفع',
   'No payments in this period.': 'لا توجد دفعات في هذه الفترة.',
+  // Migration 013 — voiding
+  'Void': 'إلغاء',
+  'Voided': 'ملغاة',
+  'Void invoice': 'إلغاء الفاتورة',
+  'Invoice voided.': 'تم إلغاء الفاتورة.',
+  'Void this invoice? The stock goes back and the money is refunded. Nothing is deleted.':
+    'إلغاء هذه الفاتورة؟ سيعود المخزون وتُسترد المبالغ. لن يتم حذف أي شيء.',
+  'Why is this invoice being voided?': 'لماذا يتم إلغاء هذه الفاتورة؟',
+  'wrong customer, cancelled order…': 'عميل خاطئ، طلب ملغى…',
+  'Put the items back into stock': 'إعادة الأصناف إلى المخزون',
+  'The goods left the shop, so stock stays down.': 'البضاعة غادرت المحل، لذلك يبقى المخزون كما هو.',
+  'Refund': 'استرداد',
   'Gross Total': 'الإجمالي الكلي',
   'Net Amount': 'المبلغ الصافي',
   'Remaining Balance': 'المبلغ المتبقي',
