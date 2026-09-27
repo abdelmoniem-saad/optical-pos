@@ -23,13 +23,44 @@ export type Totals = {
  * clamped to net; balance is net − paid.
  */
 export function computeTotals(items: CartLine[], p: PricingInput): Totals {
-  const itemsTotal = items.reduce((sum, i) => sum + (i.total_price || 0), 0)
+  // Line-level discounts (migration 013) are already off the table by the time
+  // it reaches the server; the POS mirrors that so the cashier sees the same
+  // number the database will store. total_price stays the GROSS line
+  // (qty x unit_price) - the discount is its own column.
+  const lineDiscounts = items.reduce((sum, i) => sum + (i.discount ?? 0), 0)
+  const itemsTotal = items.reduce((sum, i) => sum + (i.total_price || 0), 0) - lineDiscounts
   const gross = p.grossOverride !== null ? Math.max(0, p.grossOverride) : itemsTotal
   const discount = Math.min(Math.max(0, p.discount), gross)
   const net = Math.max(0, gross - discount)
   const amountPaid = Math.min(Math.max(0, p.amountPaid), net)
   const balance = net - amountPaid
   return { itemsTotal, gross, discount, net, amountPaid, balance }
+}
+
+/**
+ * Set (or clear) one line's discount, immutably.
+ *
+ * Clamped to the line's own gross value, because that is exactly what the
+ * database refuses ('line discount exceeds the line') - clamping here means the
+ * cashier can never type something the server will reject. A discount of 0
+ * clears the field and its reason together, so no stale reason lingers.
+ */
+export function setLineDiscount(
+  items: CartLine[],
+  productId: string,
+  amount: number,
+  reason?: string | null,
+): CartLine[] {
+  return items.map((i) => {
+    if (i.product_id !== productId) return i
+    const gross = i.total_price || 0
+    const value = Math.min(Math.max(0, Number.isFinite(amount) ? amount : 0), gross)
+    return {
+      ...i,
+      discount: value,
+      discount_reason: value > 0 ? (reason ?? i.discount_reason ?? null) : null,
+    }
+  })
 }
 
 /** Add a product to a cart immutably, incrementing qty if already present. */

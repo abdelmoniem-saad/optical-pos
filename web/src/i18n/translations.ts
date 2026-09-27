@@ -196,6 +196,10 @@ export const ar: Record<string, string> = {
   'Put the items back into stock': 'إعادة الأصناف إلى المخزون',
   'The goods left the shop, so stock stays down.': 'البضاعة غادرت المحل، لذلك يبقى المخزون كما هو.',
   'Refund': 'استرداد',
+  // Migration 013 - line-level discount
+  'Line discount': 'خصم على الصنف',
+  'Reason': 'السبب',
+  'loyal customer, agreed price…': 'عميل قديم، سعر متفق عليه...',
   'Gross Total': 'الإجمالي الكلي',
   'Net Amount': 'المبلغ الصافي',
   'Remaining Balance': 'المبلغ المتبقي',

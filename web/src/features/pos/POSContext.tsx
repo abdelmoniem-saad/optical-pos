@@ -22,7 +22,14 @@ import { useAuth } from '../../lib/auth'
 import { useI18n } from '../../i18n/LanguageContext'
 import { clearPosDraft, readPosDraft, writePosDraft } from '../../lib/posDraft'
 import type { Customer, CustomerInsert, Product, Sale } from '../../lib/database.types'
-import { addLine, computeTotals, removeLine, setQty, type Totals } from './pricing'
+import {
+  addLine,
+  computeTotals,
+  removeLine,
+  setLineDiscount as setLineDiscountValue,
+  setQty,
+  type Totals,
+} from './pricing'
 import {
   clampPaymentLines,
   legacyMethodKey,
@@ -201,6 +208,8 @@ type POSApi = {
   quickAdd: (term: string) => Promise<void>
   addProduct: (p: Product) => void
   changeQty: (productId: string, qty: number) => void
+  /** Line-level discount (migration 013), clamped to the line's gross value. */
+  setLineDiscount: (productId: string, amount: number, reason?: string | null) => void
   removeFromCart: (productId: string) => void
   // pricing
   setDiscount: (n: number) => void
@@ -510,6 +519,15 @@ export function POSProvider({ children }: { children: ReactNode }) {
   const removeFromCart = (productId: string) =>
     patch({ cartItems: removeLine(ref.current.cartItems, productId) })
 
+  // Line-level discount (migration 013). The database is the authority: it
+  // refuses a discount larger than the line and folds the sum into the
+  // header discount, so this is a request, not a stored truth. Clamped here
+  // too so the cashier never sees a value the server would reject.
+  const setLineDiscount = (productId: string, amount: number, reason?: string | null) =>
+    patch({
+      cartItems: setLineDiscountValue(ref.current.cartItems, productId, amount, reason),
+    })
+
   // ---- pricing ----
   const setDiscount = (n: number) => patch({ discount: Math.max(0, n || 0) })
   const setPaymentLine = (method: string, amount: number) =>
@@ -778,6 +796,7 @@ export function POSProvider({ children }: { children: ReactNode }) {
     quickAdd,
     addProduct,
     changeQty,
+  setLineDiscount,
     removeFromCart,
     setDiscount,
     setPaymentLine,

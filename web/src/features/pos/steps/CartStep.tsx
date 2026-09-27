@@ -18,6 +18,7 @@ export function CartStep() {
     back,
     quickAdd,
     changeQty,
+    setLineDiscount,
     removeFromCart,
     goToAdditional,
     setDiscount,
@@ -27,6 +28,8 @@ export function CartStep() {
     finishOrder,
   } = usePOS()
   const [quick, setQuick] = useState('')
+  // Which line has its discount editor open (migration 013).
+  const [editingLine, setEditingLine] = useState<string | null>(null)
   const showExam = needsExamination(state.category)
   // A line can never grow beyond what is still due once the OTHER lines are
   // counted - the input refuses an amount that would exceed the net total.
@@ -103,43 +106,102 @@ export function CartStep() {
             // The grocery-style Product/Qty/Price/Total grid was dropped - a
             // frame or a pair of lenses is one line, not a basket of stock.
             <ul className="mb-4 divide-y divide-line/40 overflow-hidden rounded-xl border border-line bg-white">
-              {state.cartItems.map((i) => (
-                <li key={i.product_id} className="flex items-center gap-3 px-4 py-2.5">
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate font-medium">{i.name}</span>
-                    {i.qty > 1 && (
-                      <span className="block text-xs text-faint">
-                        {i.qty} × {money(i.unit_price)}
+              {state.cartItems.map((i) => {
+                const lineDiscount = i.discount ?? 0
+                return (
+                  <li key={i.product_id} className="px-4 py-2.5">
+                    <div className="flex items-center gap-3">
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate font-medium">{i.name}</span>
+                        {i.qty > 1 && (
+                          <span className="block text-xs text-faint">
+                            {i.qty} × {money(i.unit_price)}
+                          </span>
+                        )}
+                        {lineDiscount > 0 && (
+                          <span className="block text-xs text-danger">
+                            {t('Discount')} {money(lineDiscount)}
+                            {i.discount_reason ? ` · ${i.discount_reason}` : ''}
+                          </span>
+                        )}
                       </span>
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          onClick={() => changeQty(i.product_id, i.qty - 1)}
+                          className="h-7 w-7 rounded-md border border-line text-muted hover:bg-surface"
+                        >
+                          −
+                        </button>
+                        <span className="w-6 text-center font-semibold tabular-nums">
+                          {i.qty}
+                        </span>
+                        <button
+                          onClick={() => changeQty(i.product_id, i.qty + 1)}
+                          className="h-7 w-7 rounded-md border border-line text-muted hover:bg-surface"
+                        >
+                          +
+                        </button>
+                      </div>
+                      <span className="w-24 text-end font-semibold tabular-nums text-brand-dark">
+                        {money(i.total_price - lineDiscount)}
+                      </span>
+                      <button
+                        onClick={() => setEditingLine(i.product_id)}
+                        title={t('Line discount')}
+                        className="px-1 text-sm leading-none text-faint hover:text-brand"
+                      >
+                        %
+                      </button>
+                      <button
+                        onClick={() => removeFromCart(i.product_id)}
+                        title={t('Remove')}
+                        className="px-1 text-lg leading-none text-faint hover:text-danger"
+                      >
+                        ×
+                      </button>
+                    </div>
+                    {editingLine === i.product_id && (
+                      <div className="mt-2 flex items-end gap-2 rounded-lg bg-surface/60 p-2">
+                        <label className="flex flex-col text-xs text-faint">
+                          {t('Line discount')}
+                          <input
+                            type="number"
+                            min={0}
+                            max={i.total_price}
+                            value={lineDiscount || ''}
+                            placeholder="0"
+                            onChange={(e) =>
+                              setLineDiscount(
+                                i.product_id,
+                                Number(e.target.value),
+                                i.discount_reason,
+                              )
+                            }
+                            className="w-28 rounded-lg border border-line bg-white px-2 py-1 text-sm text-ink"
+                          />
+                        </label>
+                        <label className="flex min-w-0 flex-1 flex-col text-xs text-faint">
+                          {t('Reason')}
+                          <input
+                            value={i.discount_reason ?? ''}
+                            placeholder={t('loyal customer, agreed price…')}
+                            onChange={(e) =>
+                              setLineDiscount(i.product_id, lineDiscount, e.target.value)
+                            }
+                            className="w-full rounded-lg border border-line bg-white px-2 py-1 text-sm text-ink"
+                          />
+                        </label>
+                        <button
+                          onClick={() => setEditingLine(null)}
+                          className="rounded-lg border border-line px-2 py-1 text-xs text-muted"
+                        >
+                          {t('Done')}
+                        </button>
+                      </div>
                     )}
-                  </span>
-                  <div className="flex items-center gap-1.5">
-                    <button
-                      onClick={() => changeQty(i.product_id, i.qty - 1)}
-                      className="h-7 w-7 rounded-md border border-line text-muted hover:bg-surface"
-                    >
-                      −
-                    </button>
-                    <span className="w-6 text-center font-semibold tabular-nums">{i.qty}</span>
-                    <button
-                      onClick={() => changeQty(i.product_id, i.qty + 1)}
-                      className="h-7 w-7 rounded-md border border-line text-muted hover:bg-surface"
-                    >
-                      +
-                    </button>
-                  </div>
-                  <span className="w-24 text-end font-semibold tabular-nums text-brand-dark">
-                    {money(i.total_price)}
-                  </span>
-                  <button
-                    onClick={() => removeFromCart(i.product_id)}
-                    title={t('Remove')}
-                    className="px-1 text-lg leading-none text-faint hover:text-danger"
-                  >
-                    ×
-                  </button>
-                </li>
-              ))}
+                  </li>
+                )
+              })}
             </ul>
           )}
         </>

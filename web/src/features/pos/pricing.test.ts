@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { CartLine } from '../../data/sales'
-import { addLine, computeTotals, removeLine, setQty } from './pricing'
+import { addLine, computeTotals, removeLine, setLineDiscount, setQty } from './pricing'
 
 function line(over: Partial<CartLine> = {}): CartLine {
   return {
@@ -114,5 +114,57 @@ describe('removeLine', () => {
   it('drops the matching line and keeps the rest', () => {
     const next = removeLine([line(), line({ product_id: 'p2' })], 'p1')
     expect(next.map((i) => i.product_id)).toEqual(['p2'])
+  })
+})
+
+describe('setLineDiscount (migration 013)', () => {
+  const cart = [line(), line({ product_id: 'p2', unit_price: 25, total_price: 25 })]
+
+  it('sets the discount and keeps the gross line untouched', () => {
+    const next = setLineDiscount(cart, 'p1', 4, 'loyal')
+    expect(next[0].discount).toBe(4)
+    expect(next[0].discount_reason).toBe('loyal')
+    // total_price stays qty x unit_price - that is a validated DB constraint.
+    expect(next[0].total_price).toBe(10)
+  })
+
+  it('clamps to the line gross - the database refuses more', () => {
+    // 013 raises 'line discount exceeds the line' above the line value, so
+    // the UI must never let the cashier type one.
+    const next = setLineDiscount(cart, 'p1', 999)
+    expect(next[0].discount).toBe(10)
+  })
+
+  it('treats a negative or non-finite amount as no discount', () => {
+    expect(setLineDiscount(cart, 'p1', -5)[0].discount).toBe(0)
+    expect(setLineDiscount(cart, 'p1', Number.NaN)[0].discount).toBe(0)
+  })
+
+  it('clears the reason when the discount returns to zero', () => {
+    const withReason = setLineDiscount(cart, 'p1', 4, 'loyal')
+    const cleared = setLineDiscount(withReason, 'p1', 0)
+    expect(cleared[0].discount).toBe(0)
+    expect(cleared[0].discount_reason).toBeNull()
+  })
+
+  it('leaves the other lines alone', () => {
+    const next = setLineDiscount(cart, 'p1', 4)
+    expect(next[1]).toBe(cart[1])
+  })
+
+  it('takes the discount off the items total the cashier sees', () => {
+    const next = setLineDiscount(cart, 'p1', 4)
+    const t = computeTotals(next, noAdj)
+    // 10 + 25 gross, minus the 4 line discount.
+    expect(t.itemsTotal).toBe(31)
+    expect(t.net).toBe(31)
+    expect(t.balance).toBe(31)
+  })
+
+  it('still respects a gross override on top of line discounts', () => {
+    const next = setLineDiscount(cart, 'p1', 4)
+    const t = computeTotals(next, { discount: 0, amountPaid: 0, grossOverride: 20 })
+    expect(t.gross).toBe(20)
+    expect(t.net).toBe(20)
   })
 })
