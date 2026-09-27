@@ -72,14 +72,19 @@ jobs:
             } >> "$GITHUB_STEP_SUMMARY"
             # Annotations are the only log channel visible without signing in
             # to GitHub: emit one per failed assertion, pgTAP diagnostics
-            # folded onto the same line.
+            # folded onto the same line, plus any ERROR anywhere in the line
+            # (psql indents some of them) and a tail of the log.
             awk '
               /^not ok/ { if (buf) print buf; buf=$0; n=6; next }
               /^#/ && n > 0 { buf = buf " | " $0; n-- }
               /^CAPERR/ { if (buf) print buf; buf=""; print; next }
-              /^ERROR:|^FATAL:|^FAIL:/ { if (buf) print buf; buf=""; print; next }
+              /ERROR|FATAL|^FAIL:/ { if (buf) print buf; buf=""; print; next }
               END { if (buf) print buf }
             ' db-gate.log | head -40 | while IFS= read -r line; do
+              echo "::error::${line:0:1800}"
+            done
+            echo "::error file=web/db-gate.log::last 30 lines of the db gate:"
+            tail -30 db-gate.log | while IFS= read -r line; do
               echo "::error::${line:0:1800}"
             done
             echo "::error::db gate failed (exit $status)"
