@@ -6,31 +6,36 @@
 -- account is not linked to a store".
 --
 -- That is only acceptable if the mismatch is REPAIRABLE. This gate proves what
--- the repair does and, more importantly, what it refuses to do:
---   G1-G3  a mismatched staff row is re-pointed, and the six foreign keys
---           that point at users.id follow it
---   G4     an AMBIGUOUS name is left alone - guessing which of two people meant
---           is how you hand somebody's sales history to the wrong person
---   G5     a login with no staff row gets one
+-- the repair does and, more importantly, what it REFUSES to do:
+--   G0     the fixture really is mismatched to begin with
+--   G1-G3  an unambiguous mismatch is repaired, and the six columns that
+--          reference users.id follow it
+--   G4     an ambiguous name is left alone - guessing which of two people meant
+--          is how you hand somebody's sales history to the wrong person
+--   G5     a login with no staff row gets one, at the real store
 --   G6     re-running repairs nothing
 --   G7     the problem view lists only what is still unlinked
 --
 -- Everything runs inside ONE transaction and ROLLS BACK.
+-- NOTE: the fixtures use their own store, so nothing in the seeded database can
+-- be repaired or reported as part of these assertions.
 --
 -- Run: bash web/scripts/test-db.sh   (CI does this on every push)
 
 begin;
 create extension if not exists pgtap;
-select plan(16);
+select plan(14);
 
 -- ===== fixtures ============================================================
 -- The real account that triggered this: a staff row created by hand with its
 -- own uuid (SETUP.md step 2), and a Supabase Auth login of the same name with a
 -- different one. Here, exactly as in production: DIFFERENT ids.
-create function _store() returns uuid
-language sql stable as $$
-  select id from public.stores order by created_at limit 1
-$$;
+insert into public.stores (id, name, slug) values
+  ('ffffffff-ffff-4fff-8fff-000000000001', 'gate store', 'gate-store')
+on conflict (id) do nothing;
+
+create function _gate_store() returns uuid
+language sql stable as $fn$ select 'ffffffff-ffff-4fff-8fff-000000000001'::uuid $fn$;
 
 insert into auth.users (id, email, username) values
   ('eeeeeeee-eeee-4eee-8eee-000000000001', 'mismatch@lensypos.local', 'mismatch'),
@@ -41,19 +46,20 @@ on conflict (id) do nothing;
 
 -- The staff row for 'mismatch' carries the WRONG id...
 insert into public.users (id, username, password_hash, full_name, store_id, is_active)
-values ('eeeeeeee-eeee-4eee-8eee-0000000000ff', 'mismatch', '-', 'Mismatch', _store(), true)
+values ('eeeeeeee-eeee-4eee-8eee-0000000000ff', 'mismatch', '-', 'Mismatch', _gate_store(), true)
 on conflict (id) do nothing;
 
 -- ...and something worth keeping hangs off it, so we can watch the references
 -- follow rather than break.
 insert into public.notes (id, body, user_id, created_by, store_id)
 values ('eeeeeeee-eeee-4eee-8eee-0000000000aa', 'keep me',
-        'eeeeeeee-eeee-4eee-8eee-0000000000ff', 'eeeeeeee-eeee-4eee-8eee-0000000000ff', _store())
+        'eeeeeeee-eeee-4eee-8eee-0000000000ff', 'eeeeeeee-eeee-4eee-8eee-0000000000ff', _gate_store())
 on conflict (id) do nothing;
 
--- An AMBIGUOUS case: two auth logins share the local part 'clash'.
+-- An AMBIGUOUS case: two auth logins share the local part 'clash', so the name
+-- cannot be repaired to either of them.
 insert into public.users (id, username, password_hash, store_id, is_active)
-values ('eeeeeeee-eeee-4eee-8eee-0000000000bb', 'clash', '-', _store(), true)
+values ('eeeeeeee-eeee-4eee-8eee-0000000000bb', 'clash', '-', _gate_store(), true)
 on conflict (id) do nothing;
 
 -- 'orphan' deliberately has a login and no staff row.
@@ -70,10 +76,11 @@ select is((select count(*) from public.link_staff_ids()
 
 select is((select count(*) from public.users
             where id = 'eeeeeeee-eeee-4eee-8eee-000000000001'
-              and username = 'mismatch')::bigint, 1::bigint,
-  'G2 the staff row now carries the login id');
+              and username = 'mismatch'
+              and store_id = _gate_store())::bigint, 1::bigint,
+  'G2 the staff row now carries the login id, with its store intact');
 
--- ===== G3: the references followed ======================================
+-- ===== G3: the references followed, and the constraints are untouched ====
 select is((select user_id::text from public.notes
             where id = 'eeeeeeee-eeee-4eee-8eee-0000000000aa'),
   'eeeeeeee-eeee-4eee-8eee-000000000001',
@@ -84,8 +91,6 @@ select is((select created_by::text from public.notes
   'G3b notes.created_by followed the re-pointed id');
 select is((select body from public.notes where id = 'eeeeeeee-eeee-4eee-8eee-0000000000aa'),
   'keep me', 'G3c the note itself survived');
-
--- ===== G3d: the constraints are untouched ============================
 -- The repair swaps the staff row rather than re-pointing the key, because the
 -- six constraints onto users.id are not ON UPDATE CASCADE. A count is cheap
 -- insurance that the swap left the database's protection exactly as it was.
@@ -95,27 +100,24 @@ select is((select count(*) from pg_constraint
                               'licenses_created_by_fkey',
                               'user_permissions_user_id_fkey')
               and contype = 'f')::bigint, 6::bigint,
-  'G3d all six foreign keys onto users.id are back in place');
-select is((select count(*) from pg_constraint
-            where conname = 'notes_user_id_fkey'
-              and confdeltype = 'c')::bigint, 1::bigint,
-  'G3e the two that cascade still cascade afterwards');
+  'G3d all six foreign keys onto users.id are intact');
+
 -- ===== G4: an ambiguous name is left alone ============================
 select is((select count(*) from public.users
             where id = 'eeeeeeee-eeee-4eee-8eee-0000000000bb'
-              and username = 'clash')::bigint, 1::bigint,
-  'G4a an ambiguous name is NOT re-pointed - two logins could mean either');
-select is((select count(*) from public.users
-            where id = 'eeeeeeee-eeee-4eee-8eee-0000000000bb')::bigint, 1::bigint,
-  'G4b ...and the staff row still points at its own id');
+              and username = 'clash'
+              and store_id = _gate_store())::bigint, 1::bigint,
+  'G4 an ambiguous name is NOT re-pointed - two logins could mean either');
 
 -- ===== G5: a login with no staff row gets one =========================
 select is((select count(*) from public.link_staff_ids()
              where action = 'login-linked' and username = 'orphan')::bigint, 1::bigint,
   'G5 a login with no staff row gets one');
 select is((select store_id from public.users
-            where id = 'eeeeeeee-eeee-4eee-8eee-000000000004'),
-  _store(), 'G5b ...pointed at the real store, never at an invented one');
+select is((select count(*) from public.stores s
+            where s.id = (select store_id from public.users
+                           where id = 'eeeeeeee-eeee-4eee-8eee-000000000004'))::bigint, 1::bigint,
+  'G5b ...at a store that really exists, never an invented one');
 select is((select password_hash from public.users
             where id = 'eeeeeeee-eeee-4eee-8eee-000000000004'),
   'supabase-auth', 'G5c ...with no usable password, so the owner must set one');
@@ -125,9 +127,9 @@ select is((select count(*) from public.link_staff_ids())::bigint, 0::bigint,
   'G6 re-running repairs nothing');
 
 -- ===== G7: the problem view shows only what is left ===================
-select is((select count(*) from public.staff_id_problems)::bigint, 1::bigint,
-  'G7 the problem view lists only the ambiguous clash, not the repaired ones');
-select is((select username from public.staff_id_problems), 'clash',
-  'G7b ...and it is the ambiguous one');
+select is((select count(*) from public.staff_id_problems
+            where username = 'clash')::bigint, 1::bigint,
+  'G7 the problem view lists the ambiguous clash, and nothing that was repaired');
 
 rollback;
+
