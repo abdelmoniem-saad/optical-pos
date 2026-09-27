@@ -57,6 +57,11 @@ values
 insert into public.stock_movements (product_id, qty, type, note, store_id)
 values ('bbbbbbbb-bbbb-4bbb-8bbb-000000000001', 5, 'initial', 'seed', test_store_id());
 
+-- NOTE on the ::bigint casts below: pgTAP's is() has no (bigint, integer,
+-- text) overload, so comparing count(*) to a bare integer literal does not
+-- resolve and aborts the file with 'function is(bigint, integer, unknown) does
+-- not exist'. The expected side is cast to bigint everywhere.
+--
 -- Scratch register: one row per probe, so a rejected call cannot abort the
 -- whole TAP stream. Same trick the Phase 1 gate uses.
 create table _cap (k text primary key, sale_id uuid, note text, err text);
@@ -180,45 +185,45 @@ delete from public.stock_movements where ref_no = (
 delete from public.sales         where id = (select sale_id from _cap where k = 's1');
 
 select is((select count(*) from public.sale_items
-            where sale_id = (select sale_id from _cap where k = 's1')), 1,
+            where sale_id = (select sale_id from _cap where k = 's1')), 1::bigint,
   'G3a DELETE cannot remove a sale_items row');
 select is((select count(*) from public.sale_payments
-            where sale_id = (select sale_id from _cap where k = 's1')), 1,
+            where sale_id = (select sale_id from _cap where k = 's1')), 1::bigint,
   'G3b DELETE cannot remove a payment-ledger row');
 select is((select count(*) from public.sales
-            where id = (select sale_id from _cap where k = 's1')), 1,
+            where id = (select sale_id from _cap where k = 's1')), 1::bigint,
   'G3c DELETE cannot remove the sale header');
-select is((select count(*) from public.stock_movements where type = 'sale'), 1,
+select is((select count(*) from public.stock_movements where type = 'sale'), 1::bigint,
   'G3d DELETE cannot remove a stock movement');
 
 -- ...and the policies that allowed it are gone from all seven money tables.
 select is((select count(*) from pg_policies
             where schemaname = 'public' and tablename = 'sales'
-              and policyname = 'lensy_tenant_delete'), 0,
+              and policyname = 'lensy_tenant_delete'), 0::bigint,
   'G3e no delete policy on sales');
 select is((select count(*) from pg_policies
             where schemaname = 'public' and tablename = 'sale_items'
-              and policyname = 'lensy_tenant_delete'), 0,
+              and policyname = 'lensy_tenant_delete'), 0::bigint,
   'G3f no delete policy on sale_items');
 select is((select count(*) from pg_policies
             where schemaname = 'public' and tablename = 'sale_payments'
-              and policyname = 'lensy_tenant_delete'), 0,
+              and policyname = 'lensy_tenant_delete'), 0::bigint,
   'G3g no delete policy on sale_payments');
 select is((select count(*) from pg_policies
             where schemaname = 'public' and tablename = 'stock_movements'
-              and policyname = 'lensy_tenant_delete'), 0,
+              and policyname = 'lensy_tenant_delete'), 0::bigint,
   'G3h no delete policy on stock_movements');
 select is((select count(*) from pg_policies
             where schemaname = 'public' and tablename = 'purchases'
-              and policyname = 'lensy_tenant_delete'), 0,
+              and policyname = 'lensy_tenant_delete'), 0::bigint,
   'G3i no delete policy on purchases');
 select is((select count(*) from pg_policies
             where schemaname = 'public' and tablename = 'purchase_items'
-              and policyname = 'lensy_tenant_delete'), 0,
+              and policyname = 'lensy_tenant_delete'), 0::bigint,
   'G3j no delete policy on purchase_items');
 select is((select count(*) from pg_policies
             where schemaname = 'public' and tablename = 'purchase_payments'
-              and policyname = 'lensy_tenant_delete'), 0,
+              and policyname = 'lensy_tenant_delete'), 0::bigint,
   'G3k no delete policy on purchase_payments');
 
 -- ---------- G4: the money columns are ledger-owned -------------------------
@@ -239,10 +244,10 @@ select is(_cap_err('m4'), null,
 select _void('v1', (select sale_id from _cap where k = 's1'), 'wrong customer', true);
 select is(_cap_err('v1'), null,
   'G1a void_sale succeeds');
-select is((select count(*) from public.sales where id = (select sale_id from _cap where k = 's1')), 1,
+select is((select count(*) from public.sales where id = (select sale_id from _cap where k = 's1')), 1::bigint,
   'G1b the sale header is still there (void is an event, not a delete)');
 select is((select count(*) from public.sale_items
-            where sale_id = (select sale_id from _cap where k = 's1')), 1,
+            where sale_id = (select sale_id from _cap where k = 's1')), 1::bigint,
   'G1c the line items are still there');
 select ok((select voided_at is not null from public.sales
             where id = (select sale_id from _cap where k = 's1')),
@@ -263,7 +268,7 @@ select is((select amount_paid from public.sales where id = (select sale_id from 
 -- ---------- G6: the ledger can express money going back -------------------
 select is((select count(*) from public.sale_payments
             where sale_id = (select sale_id from _cap where k = 's1')
-              and kind = 'refund' and amount < 0), 1,
+              and kind = 'refund' and amount < 0), 1::bigint,
   'G6a the refund is a negative ledger row tagged kind=refund');
 select is((select sum(amount) from public.sale_payments
             where sale_id = (select sale_id from _cap where k = 's1')), 0::numeric,
@@ -305,7 +310,7 @@ select _recheckout('r2', (select sale_id from _cap where k = 's2'),
   '[{"method": "cash", "amount": 1000}]'::jsonb);
 select is(_cap_err('r2'), null, 'G5c an honest re-checkout succeeds');
 select is((select count(*) from public.sale_items
-            where sale_id = (select sale_id from _cap where k = 's2')), 1,
+            where sale_id = (select sale_id from _cap where k = 's2')), 1::bigint,
   'G5d the lines are replaced, not appended to');
 select is((select sum(amount) from public.sale_payments
             where sale_id = (select sale_id from _cap where k = 's2')), 1000::numeric,
@@ -324,7 +329,7 @@ select is((select discount from public.sale_items
   'G7b the line discount is stored on the item');
 
 -- ---------- revoking DELETE must not over-restrict ------------------------
-select is((select count(*) from public.sales where invoice_no is not null), 2,
+select is((select count(*) from public.sales where invoice_no is not null), 2::bigint,
   'G8a the cashier can still READ their sales');
 select _poke_money('m5', (select sale_id from _cap where k = 's2'), 'doctor_name');
 select is(_cap_err('m5'), null,
