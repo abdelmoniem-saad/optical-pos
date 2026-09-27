@@ -121,6 +121,34 @@ schema first — see "Schema baseline" below.
 The pgTAP gate for this migration lives in
 [`tests/012_integrity_test.sql`](./tests/012_integrity_test.sql) and runs in CI
 on every push (`bash web/scripts/test-db.sh` against a throwaway Postgres).
+`test-db.sh` runs **every** `tests/*_test.sql`, so each phase ships its own gate
+without touching the runner.
+
+## Step 7 — `013_void_refunds.sql` (reversible sales)
+
+Reversibility, and the removal of the destructive verb. Paste it **after** 012
+and **deploy the app at the same time** — the app now calls `update_sale_order`,
+`void_sale`, `delete_purchase` and `delete_purchase_payment`, and the direct
+`DELETE`s it used to send no longer work.
+
+- **Void** from History: stamps `voided_at` / `voided_by` / `void_reason`,
+  returns the stock (or not, your choice), and mirrors every tender as a
+  negative `kind = 'refund'` ledger row. Nothing is deleted.
+- **`update_sale_order()`** replaces the old five-round-trip re-checkout with one
+  server-priced transaction (a mid-way failure used to leave a half-written
+  order).
+- **The money columns on `sales` are ledger-owned** — a direct
+  `update sales set amount_paid = …` is refused.
+- `sale_payments.paid_at` becomes a `timestamptz` and gains `kind`; the
+  positivity check becomes `amount <> 0` so a refund is expressible.
+- `direct DELETE` is dropped from `sales`, `sale_items`, `sale_payments`,
+  `stock_movements`, `purchases`, `purchase_items`, `purchase_payments`. Reads
+  and ordinary writes are untouched.
+- `sale_items` gains `discount` + `discount_reason`; `stock_movements` gains a
+  normalised `kind`.
+
+Its gate is [`tests/013_void_refunds_test.sql`](./tests/013_void_refunds_test.sql)
+(54 assertions), also run by `npm run test:db` and CI.
 
 ## Schema baseline (recommended, ~2 minutes)
 

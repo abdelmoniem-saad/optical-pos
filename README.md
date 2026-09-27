@@ -115,6 +115,7 @@ Migrations run in numeric order in the Supabase SQL editor:
 | 010 | `010_metadata_sort.sql` | Optical metadata ordering |
 | 011 | `011_sale_payments.sql` | Sale payment ledger — split cash/wallet/instapay + later payments |
 | 012 | `012_integrity.sql` | Server-side checkout pricing + stock guard, atomic invoice counter, checkout idempotency, `stock_qty` read model |
+| 013 | `013_void_refunds.sql` | Voiding (an event, never a delete), refunds in the payment ledger, atomic re-checkout, direct `DELETE` revoked on the seven money tables, line-level discounts |
 
 > **Note on 000:** it is the original bootstrap the app shipped with. The live
 > project has drifted from it (e.g. Supabase Auth now owns passwords, not the

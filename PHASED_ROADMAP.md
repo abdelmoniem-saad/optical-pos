@@ -258,34 +258,71 @@ check. So **any signed-in cashier can wipe the store's sales, sale items, stock 
 payment ledger with a single `DELETE /rest/v1/sales` request.** No UI does this; the API
 allows it.
 
-- [ ] **Revoke direct `delete` on every financial table** (`sales`, `sale_items`,
+- [x] **Revoke direct `delete` on every financial table** (`sales`, `sale_items`,
   `sale_payments`, `stock_movements`, `purchases`, `purchase_items`,
   `purchase_payments`) and keep deletes only through `security definer` functions.
-- [ ] **Add `void_sale(sale_id, reason)`** — sets `voided_at` / `voided_by` /
+- [x] **Add `void_sale(sale_id, reason)`** — sets `voided_at` / `voided_by` /
   `void_reason`, writes compensating `stock_movements` (`type = 'return'`), and leaves every
   original row in place. Voiding is an event, never an edit.
-- [ ] **Add refunds and returns.** Drop `check (amount > 0)` on `sale_payments`
+- [x] **Add refunds and returns.** Drop `check (amount > 0)` on `sale_payments`
   (`011_sale_payments.sql:48`) in favour of `amount <> 0` plus a `tender`/`kind` value that
   includes `refund`, so the ledger can express money going back. Offer "restock or not"
   explicitly at the till.
-- [ ] **Stop header edits from touching money.** `useUpdateSale` / `useUpdateSaleFull`
+- [x] **Stop header edits from touching money.** `useUpdateSale` / `useUpdateSaleFull`
   (`web/src/data/sales.ts:662-700` and the full-order editor above it) send a
   `Partial<Sale>`, so they can rewrite `net_amount` and `amount_paid` directly and desync
   the header from the ledger that `sync_sale_amount_paid()` (`011:90-112`) works to keep
   honest. Either strip money columns from the patch or add a trigger that refuses header
   writes to them, and require payment changes to go through the ledger.
-- [ ] **Line-level discounts with a reason** (`sale_items.discount` + `discount_reason`),
+- [x] **Line-level discounts with a reason** (`sale_items.discount` + `discount_reason`),
   which needs nothing beyond a column, a rule in the RPC from Phase 1, and two fields in the
   cart step.
-- [ ] **`sale_payments.paid_at` as `timestamptz`, not `date`** — a day-only column cannot
+- [x] **`sale_payments.paid_at` as `timestamptz`, not `date`** — a day-only column cannot
   support shift/day close, and makes two payments on one indistinguishable.
-- [ ] **Give `stock_movements` a real vocabulary** (enum or FK to `movement_types`) instead
+- [x] **Give `stock_movements` a real vocabulary** (enum or FK to `movement_types`) instead
   of free-text, so a void, a purchase receipt, a transfer and a correction can be told apart.
 
-> **Gate:** an intentional mis-keyed sale can be voided from the UI in ≤3 taps; stock and
-> the customer ledger return to the pre-sale values; `delete` from `authenticated` is denied
-> on all seven financial tables (pgTAP assertion on `has_table_privilege`); nothing is lost
-> from the audit trail.
+
+> **Status — implemented, gate green.** `web/supabase/013_void_refunds.sql` (757 lines)
+> + a 54-assertion pgTAP gate (`tests/013_void_refunds_test.sql`), both run by
+> `npm run test:db` and the CI `db` job. Deliberate deviations from the sketch:
+> - **The gate asserts behaviour, not `has_table_privilege`.** RLS, not grants, is
+>   what denies a delete here, so the gate *performs* four deletes as
+>   `authenticated` and asserts the rows survived, plus asserts the seven
+>   `lensy_tenant_delete` policies are gone from `pg_policies`. A privilege
+>   check would have passed while the policies still allowed the wipe.
+> - **Revoking DELETE forced the re-checkout rewrite.** `useUpdateSaleFull`
+>   deleted and reinserted `sale_items` / `stock_movements` / `sale_payments`
+>   from the browser, so the gate could not be met without moving it into
+>   `update_sale_order()` first — which is also the fix for T6. The client path
+>   survives as the pre-013 fallback for unmigrated databases.
+> - **The Suppliers screen had two real deletes too** (a purchase and a payment
+>   row), so it got `delete_purchase()` / `delete_purchase_payment()` rather than
+>   a special exemption. Reads and ordinary writes are untouched everywhere.
+> - **`create_sale_order` was redefined** on a shared `price_cart()` core so
+>   re-checkout is priced by exactly the checkout rules. Phase 1's 26-assertion
+>   gate re-proves checkout after that refactor — it stayed green.
+> - **The money guard uses a transaction-local GUC** (`lensy.money_write`) that
+>   the checkout RPC, the re-checkout RPC and the ledger's own sync trigger raise
+>   around their writes. SECURITY DEFINER alone would not have been enough:
+>   `create_sale_order` is SECURITY INVOKER and must write the header itself.
+> - **`void` is a new permission action**, separate from `delete` (which nobody
+>   can exercise any more). A manager who may correct a mis-keyed invoice should
+>   not thereby gain the power to erase history.
+> - **Not done:** partial refunds on a *live* invoice (a full void refunds
+>   everything; single-tender refunds belong with Phase 6's customer ledger),
+>   and storage cleanup of `rx_image_path` / `frame_image_path` on void
+>   (Phase 3/5).
+> - **Gate status:** CI run #19 green — 013 applied cleanly, all 54 Phase 2
+>   assertions pass, and Phase 1's 26 still pass after the refactor. Getting
+>   there took four genuine test bugs (inverted "is refused" assertions, a
+>   re-checkout aimed at an already-voided sale, a wrong sale count, and two
+>   wrong pgTAP call forms — `like` does not exist, and `is(bigint, integer,
+>   text)` does not resolve), each caught by the CI annotations rather than
+>   guessed at.
+> - **013 is NOT yet applied to production** — see `web/supabase/SETUP.md`
+>   step 7, which also says to deploy the app in the same breath, because the
+>   direct `DELETE`s the old client sent are gone.
 
 ---
 
