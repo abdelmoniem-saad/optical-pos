@@ -1,3 +1,28 @@
+-- LensyPOS — Phase 3b gate: 015_link_staff_ids_test.sql (pgTAP)
+-- ============================================================
+-- Phase 3 cut the username fallback in auth_store_id(), which turned a silent
+-- mismatch into a visible one: a staff row whose id is not the Supabase Auth id
+-- of the same person now resolves to no store, and the account sees "This
+-- account is not linked to a store".
+--
+-- That is only acceptable if the mismatch is REPAIRABLE. This gate proves what
+-- the repair does and, more importantly, what it refuses to do:
+--   G1-G3  a mismatched staff row is re-pointed, and the six foreign keys
+--           that point at users.id follow it
+--   G4     an AMBIGUOUS name is left alone - guessing which of two people meant
+--           is how you hand somebody's sales history to the wrong person
+--   G5     a login with no staff row gets one
+--   G6     re-running repairs nothing
+--   G7     the problem view lists only what is still unlinked
+--
+-- Everything runs inside ONE transaction and ROLLS BACK.
+--
+-- Run: bash web/scripts/test-db.sh   (CI does this on every push)
+
+begin;
+create extension if not exists pgtap;
+select plan(14);
+
 -- ===== fixtures ============================================================
 -- The real account that triggered this: a staff row created by hand with its
 -- own uuid (SETUP.md step 2), and a Supabase Auth login of the same name with a
