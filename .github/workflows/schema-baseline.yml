@@ -1,7 +1,10 @@
 name: Schema baseline (manual)
 
 # PHASED_ROADMAP.md Phase 0: capture the LIVE `public` schema of the production
-# project so every later migration has a "before" picture to diff against.
+# project so every later migration has a reference snapshot to diff against.
+# Name the label after the state you are capturing (e.g. schema_after_012), not
+# blindly "before_<n>": if migration <n> is already applied, the capture IS the
+# after state, and a "before" name silently misleads the next reader.
 #
 # Why it runs here and not on a workstation:
 #   * `supabase db dump` / `db pull` run pg_dump inside a Docker container, and
@@ -35,7 +38,7 @@ on:
       label:
         description: 'Baseline file label (letters, digits, dot, dash, underscore)'
         required: true
-        default: schema_before_012
+        default: schema_after_012
 
 permissions:
   contents: write
@@ -88,7 +91,8 @@ jobs:
           {
             echo "-- Live 'public' schema of the production project (pg_dump --schema-only)."
             echo "-- Captured $(date -u +%Y-%m-%dT%H:%M:%SZ) from commit ${GITHUB_SHA} (run ${{ github.run_id }})."
-            echo "-- Purpose: PHASED_ROADMAP.md Phase 0 - the before picture later migrations diff against."
+            echo "-- Purpose: PHASED_ROADMAP.md Phase 0 - the reference snapshot later migrations diff against."
+            echo "-- Name the label after the state actually captured: if a migration is already applied, this IS the after state."
             echo "-- No rows and no owners; privileges are kept (they are part of the authority surface)."
             echo
           } > "$out"

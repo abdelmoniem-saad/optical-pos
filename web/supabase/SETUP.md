@@ -126,7 +126,16 @@ on every push (`bash web/scripts/test-db.sh` against a throwaway Postgres).
 
 The hardening roadmap (Phase 0) wants a `pg_dump` of the **live** `public`
 schema committed under [`baseline/`](./baseline), so every later migration has a
-"before" picture to diff against.
+reference snapshot to diff against.
+
+**Name the label after the state you are actually capturing.** The workflow's
+default is `schema_after_012`, because `012_integrity.sql` is already applied to
+the live project — the first capture (committed as
+`baseline/schema_after_012.sql`) is therefore the *after-012* schema, not a
+pre-012 "before" picture. A "before" name on an after-012 capture is the kind
+of quiet lie that makes the next diff wrong. A pre-012 snapshot can no longer be
+produced from the live project; that shape is reconstructible from
+`web/supabase/000..011` plus `012` itself.
 
 The dump runs in CI (`.github/workflows/schema-baseline.yml`) instead of on a
 workstation, for two reasons: `supabase db dump` runs `pg_dump` inside a Docker
@@ -158,8 +167,8 @@ the Supavisor **session pooler** instead.
 3. **Add it to GitHub.** Repo → **Settings → Secrets and variables → Actions →
    New repository secret** → name `SUPABASE_DB_URL` → paste the URI.
 4. **Run it.** GitHub → **Actions → "Schema baseline (manual)" → Run workflow**
-   (leave the label `schema_before_012`). It writes
-   `web/supabase/baseline/schema_before_012.sql`, uploads it as an artifact, and
+   (keep the default label `schema_after_012`). It writes
+   `web/supabase/baseline/schema_after_012.sql`, uploads it as an artifact, and
    commits it to `main`. Re-running with an unchanged schema is a no-op, so a
    new commit from this workflow is itself the drift signal.
 5. **If it fails** the error names the cause: `password authentication failed`

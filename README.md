@@ -118,11 +118,12 @@ Migrations run in numeric order in the Supabase SQL editor:
 
 > **Note on 000:** it is the original bootstrap the app shipped with. The live
 > project has drifted from it (e.g. Supabase Auth now owns passwords, not the
-> legacy `users.password_hash`). To capture the *actual* live schema, run the
-> **Schema baseline** workflow (`.github/workflows/schema-baseline.yml`) — see
-> [`web/supabase/SETUP.md`](./web/supabase/SETUP.md) → "Schema baseline"; it
-> commits a `pg_dump` under `web/supabase/baseline/` without needing Docker
-> locally.
+> legacy `users.password_hash`). The **actual** live schema is captured as
+> `web/supabase/baseline/schema_after_012.sql` (run from the **Schema baseline**
+> workflow, `.github/workflows/schema-baseline.yml`); see
+> [`web/supabase/SETUP.md`](./web/supabase/SETUP.md) → "Schema baseline" for how
+> to refresh it. The name says *after_012* because that capture was taken with
+> `012_integrity.sql` already applied — use it as the diff base for `013`+.
 
 ## Security model
 

@@ -1,7 +1,21 @@
 -- Live 'public' schema of the production project (pg_dump --schema-only).
 -- Captured 2026-09-27T00:34:44Z from commit 267775fe371cfd5fe198929c1de1335b764609f2 (run 36282916171).
--- Purpose: PHASED_ROADMAP.md Phase 0 - the before picture later migrations diff against.
+-- Purpose: PHASED_ROADMAP.md Phase 0 - the reference snapshot later migrations diff against.
 -- No rows and no owners; privileges are kept (they are part of the authority surface).
+--
+-- NOTE ON THE NAME: this capture was taken AFTER 012_integrity.sql had already
+-- been applied to the live project, so it is the after-012 state, not a pre-012
+-- before picture. It contains every 012 object: inventory.stock_qty (plus the
+-- stock_qty_sync trigger), available_stock(), next_invoice_no() / invoice_counter,
+-- add_inventory_item(), sales.idempotency_key, the 5-argument
+-- create_sale_order(... p_idempotency_key), stores.allow_negative_stock, and the
+-- seven validated money constraints (sales_net_matches, sales_discount_nonneg,
+-- sales_discount_le_total, sales_amount_paid_nonneg, sale_items_qty_positive,
+-- sale_items_unit_price_nonneg, sale_items_total_matches).
+--
+-- Use it as the diff reference for 013 and later. Phase 0 original intent (a pre-012
+-- before picture) can no longer be produced from the live project, because 012 is
+-- applied; the pre-012 shape is reconstructible from web/supabase/000..011 plus 012.
 
 --
 -- PostgreSQL database dump

@@ -118,15 +118,19 @@ order: **push every rule into Postgres, then let the app trust it.**
   scripts already defined in `web/package.json`: `npm run lint` (oxlint) → `npx tsc -b` →
   `npm run test` (vitest) → `npm run build`, plus a second `db` job that applies
   `000…012` to a throwaway Postgres and runs the pgTAP gate.
-- [ ] **Commit a schema baseline**: a `pg_dump` of the live `public` schema stored in
-  `web/supabase/baseline/`, so every later migration has a "before" picture to diff against.
-  *Status: the workflow is committed (`.github/workflows/schema-baseline.yml`) and only the
-  `SUPABASE_DB_URL` repo secret is missing — see `web/supabase/SETUP.md` → "Schema baseline"
-  for the two-minute setup. Why not the local CLI: `supabase db dump` runs `pg_dump` inside a
-  Docker container (Docker is not installed on the dev machine), and the direct host
-  `db.<ref>.supabase.co` is IPv6-only, which GitHub-hosted runners cannot reach — so the dump
-  runs on a runner through the IPv4 **session pooler** (`?pgbouncer`-free, port `5432`) using
-  the `postgres:18` client image.*
+- [x] **Commit a schema baseline**: a `pg_dump` of the live `public` schema stored in
+  `web/supabase/baseline/`, so every later migration has a reference snapshot to diff against.
+  *Status: **done** — captured by the `SUPABASE_DB_URL` secret +
+  `.github/workflows/schema-baseline.yml` (run #36282916171), committed as
+  `web/supabase/baseline/schema_after_012.sql` (3,336 lines: 32 tables, 12 top-level
+  functions, 98 policies, 22 indexes; no keys or passwords in the file).* Why CI and not the
+  local CLI: `supabase db dump` runs `pg_dump` inside a Docker container (Docker is not
+  installed on the dev machine), and the direct host `db.<ref>.supabase.co` is IPv6-only,
+  which GitHub-hosted runners cannot reach — so the dump runs on a runner through the IPv4
+  **session pooler** (port `5432`) using the `postgres:18` client image.
+  *Naming note: the file says **after_012**, not before, because `012` was already applied to
+  the live project when it was captured — a "before" name would have been a quiet lie for the
+  next diff. The dump doubles as the evidence that Phase 1 is live in production (see §4).*
 - [x] **Reconcile the types file.** Decision: keep the hand-maintained
   `web/src/lib/database.types.ts` as the source of truth for now, and give it the drift
   protection CI can provide token-free — `web/src/lib/database.types.test.ts` lists the
@@ -229,6 +233,19 @@ availability check in `features/pos/steps`.
 >   `negative net amount`, `insufficient stock: …`); 26/26 followed with the assertion fix.
 > - **Flip the switch:** `update public.stores set allow_negative_stock = false where id = '…';`
 >   (a Platform-page toggle needs the stores write policy loosened — Phase 3 territory).
+
+> **Status — APPLIED TO PRODUCTION ✅.** Confirmed empirically, not assumed: the live
+> `pg_dump` in [`web/supabase/baseline/schema_after_012.sql`](./web/supabase/baseline/schema_after_012.sql)
+> contains every 012 object — `available_stock()`, `next_invoice_no()`, `add_inventory_item()`,
+> `sync_stock_qty()`; `inventory.stock_qty` + the `stock_qty_sync` trigger;
+> `sales.idempotency_key`; the **5-argument** `create_sale_order(..., p_idempotency_key uuid)`;
+> `stores.allow_negative_stock`; and all **seven** money constraints **validated** (zero
+> `NOT VALID` remaining, so the guarded validate passed with no violating legacy rows). The
+> same dump re-confirms what Phases 2–3 still own: **44** `lensy_tenant_delete` policies,
+> `lensy_authenticated_all … USING (true)` on `permissions` / `role_permissions` /
+> `user_permissions`, and `sale_payments_amount_check CHECK (amount > 0)` blocking refunds.
+> Remaining: `allow_negative_stock` is still `true` on every store (overselling still
+> allowed, by design) and the legacy JS invoice-number fallback is still reachable.
 
 ---
 
@@ -559,13 +576,14 @@ map of what each file is responsible for, so a review can tell which phase owns 
 | `009_store_licensing.sql` | Licenses/plans, `license_read_ok()`, `license_write_ok()`, `is_platform_admin()` | Good design; quota enforcement still missing — Phase 3 |
 | `010_metadata_sort.sql` | Re-numbers lens/frame metadata by name (`:18`, `:26`) | Cosmetic |
 | `011_sale_payments.sql` | Payment ledger (`:48` positivity check), store-id trigger (`:88`), `sync_sale_amount_paid()` (`:90-112`), RLS (`:118-155`), 4-arg `create_sale_order` (`:164-248`) | The RPC Phase 1 rewrites from "record" to "validate" |
-| `012_integrity.sql` | Server re-pricing, stock guard (`stores.allow_negative_stock`, default allow), `available_stock()`, `stock_qty` read model, `invoice_counter` / `next_invoice_no()`, idempotency key, money constraints | Implemented — gate: `tests/012_integrity_test.sql` |
+| `012_integrity.sql` | Server re-pricing, stock guard (`stores.allow_negative_stock`, default allow), `available_stock()`, `stock_qty` read model, `invoice_counter` / `next_invoice_no()`, idempotency key, money constraints | Implemented — gate: `tests/012_integrity_test.sql`. **Applied to production** (proven by `baseline/schema_after_012.sql`) |
 | **`013_void_refunds.sql`** *(planned)* | `void_sale()`, refund tenders, movement vocabulary, `paid_at` → `timestamptz`, delete revocation | Phase 2 |
 | **`014_server_rbac.sql`** *(planned)* | `can()` / `require_perm()`, tenant RLS on the three RBAC tables, store resolution without username fallback | Phase 3 |
 | **`015_reporting_search.sql`** *(planned)* | Report RPCs, `store_day_range()`, `search_text()` + `pg_trgm`/GIN, index sweep | Phase 4 |
 | `supabase/config.toml` *(repo root)* | CLI project root; `verify_jwt = true` for `create-user` | Split from the SQL in `web/supabase/` — Phase 5 |
 | `supabase/functions/create-user/index.ts` | Creates an Auth user + mirrors it into `public.users` using the service-role key | JWT-only gate, caller-supplied `role_id`/`store_id` — Phase 3 |
 | `web/supabase/tests/_shim.sql`, `tests/012_integrity_test.sql` | Plain-Postgres shims (roles, `auth/`, `storage/`, pgTAP) + the Phase 1 gate (26 assertions) | Run by `npm run test:db` and CI job `db` — no live project touched |
+| `web/supabase/baseline/schema_after_012.sql` | Live `pg_dump --schema-only` of `public`, captured in CI | The **after-012** reference snapshot (012 was already applied when captured) — the diff base for `013`+. Supersedes the drifting `000_base_schema.sql`; Phase 5 turns the drift check into a job |
 
 **Migration rules that apply to every one of these:**
 

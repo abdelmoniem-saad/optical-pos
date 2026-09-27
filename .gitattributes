@@ -1,0 +1,5 @@
+# The schema baseline is a generated pg_dump committed verbatim by CI. Mark it
+# -text so git never applies eol normalization to it: a Windows checkout must not
+# rewrite the file, or every future diff against it is 300+ phantom line-ending
+# changes instead of the real schema delta.
+web/supabase/baseline/*.sql -text
