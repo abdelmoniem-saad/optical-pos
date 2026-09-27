@@ -19,9 +19,11 @@
 //   2. The service-role key is used ONLY to create the auth user and mirror the
 //      row. It never decides anything.
 //
-// The rules live in web/src/lib/createUserAuthz.ts - pure, no Deno or Supabase
-// imports, so tsc -b type-checks them and vitest covers them. This file only
-// gathers the facts and applies the verdict.
+// The rules live in ./authz.ts, beside this file - pure, no Deno or Supabase
+// imports, so the deploy bundles them with a same-directory import that always
+// resolves, and web/src/lib/createUserAuthz.test.ts still type-checks and covers
+// them (TypeScript follows imports into any file). This file only gathers the
+// facts and applies the verdict.
 //
 // Deploy:  supabase functions deploy create-user --project-ref qhbprvavoudetjbyxrsn
 // (SUPABASE_URL, SUPABASE_ANON_KEY and SUPABASE_SERVICE_ROLE_KEY are injected.)
@@ -34,7 +36,7 @@ import { createClient } from 'jsr:@supabase/supabase-js@2'
 import {
   authorizeCreateUser,
   type CreateUserCaller,
-} from '../../../web/src/lib/createUserAuthz.ts'
+} from './authz.ts'
 
 const cors = {
   'Access-Control-Allow-Origin': '*',

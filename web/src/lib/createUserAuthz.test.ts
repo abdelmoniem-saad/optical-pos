@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { authorizeCreateUser, type CreateUserCaller } from './createUserAuthz'
+// The module lives beside the Edge Function, so the deploy bundles it with a
+// same-directory import that always resolves. The TEST lives here because vitest
+// only collects src/** - and importing it from here is what puts it inside
+// 	sc -b, so these rules stay type-checked with the rest of the app.
+import {
+  authorizeCreateUser,
+  type CreateUserCaller,
+} from '../../../supabase/functions/create-user/authz'
 
 /** A store manager: may create staff and hand out positions, in their own store. */
 const manager: CreateUserCaller = {
