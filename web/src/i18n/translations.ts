@@ -195,6 +195,11 @@ export const ar: Record<string, string> = {
   'wrong customer, cancelled order…': 'عميل خاطئ، طلب ملغى…',
   'Put the items back into stock': 'إعادة الأصناف إلى المخزون',
   'The goods left the shop, so stock stays down.': 'البضاعة غادرت المحل، لذلك يبقى المخزون كما هو.',
+  // Migration 014 - an account with no store row
+  'This account is not linked to a store': 'هذا الحساب غير مرتبط بأي محل',
+  'Your sign-in worked, but no staff record points it at a shop, so there is nothing to show. Ask whoever administers this store to add your account.':
+    'تم تسجيل دخولك، لكن لا يوجد سجل موظف يشير إلى هذا المحل، لذلك لا يوجد ما يُعرض. اطلب من المسؤول عن هذا المحل إضافة حسابك.',
+  'Signed in as': 'تم تسجيل الدخول باسم',
   'Refund': 'استرداد',
   // Migration 013 - line-level discount
   'Line discount': 'خصم على الصنف',

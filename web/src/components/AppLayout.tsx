@@ -36,6 +36,40 @@ function AppShell() {
   }
   if (!user) return <Navigate to="/login" replace />
 
+  // Not linked to a store (migration 014). auth_store_id() no longer falls back
+  // to matching the caller's EMAIL LOCAL PART against users.username, because
+  // that let any auth identity with no staff row borrow whoever's username it
+  // happened to match - and with it their store, role and data. The cost of
+  // closing that is that an unprovisioned account now resolves to no store at
+  // all, so it gets a plain explanation and a sign-out button rather than an
+  // app shell full of empty screens.
+  if (!isPlatform && !license.isLoading && !license.isError && license.data === null) {
+    return (
+      <div dir={lang === 'ar' ? 'rtl' : 'ltr'} className="flex h-full flex-col items-center justify-center bg-surface p-6 text-center">
+        <div className="max-w-md rounded-2xl bg-white p-8 shadow-sm">
+          <div className="mb-2 text-3xl">🧭</div>
+          <h1 className="mb-2 text-xl font-bold text-danger">
+            {t('This account is not linked to a store')}
+          </h1>
+          <p className="text-sm text-muted">
+            {t(
+              'Your sign-in worked, but no staff record points it at a shop, so there is nothing to show. Ask whoever administers this store to add your account.',
+            )}
+          </p>
+          <p className="mt-2 text-xs text-faint">
+            {t('Signed in as')} {user.email ?? displayName(user)}
+          </p>
+          <button
+            onClick={() => signOut()}
+            className="mt-4 rounded-lg border border-line px-4 py-2 text-sm text-muted hover:bg-surface"
+          >
+            {t('Sign out')}
+          </button>
+        </div>
+      </div>
+    )
+  }
+
   // License gate: an expired (or missing) license blocks the whole app.
   const licenseState = license.data?.state
   const licenseGrace = !isPlatform && licenseState === 'grace'

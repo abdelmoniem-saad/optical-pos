@@ -489,6 +489,36 @@ end $$;
 -- 8) grants
 -- ============================================================
 
+-- Three small readers the create-user Edge Function needs, so it can ask the
+-- database AS THE CALLER instead of trusting the request body. Each is
+-- SECURITY DEFINER + STABLE and scoped to the caller, so calling them reveals
+-- nothing the caller could not already read.
+--
+--   auth_uid()          - who am I (null when there is no session)
+--   my_store_license()  - the plan's seat limit for MY store
+--   is_platform_admin() - already exists in 008/009, re-granted below
+
+create or replace function public.auth_uid() returns uuid
+language sql stable as $$
+  select auth.uid()
+$$;
+
+-- The seat cap for the caller's own store. A vendor account gets NULL, which
+-- the edge function reads as "no limit" - consistent with the vendors being
+-- outside any single store's plan.
+create or replace function public.my_store_license()
+returns table (max_staff integer, plan text, expires_at timestamptz)
+language sql stable security definer set search_path = public as $$
+  select l.max_staff, l.plan, l.expires_at
+    from public.store_licenses l
+   where l.store_id = public.auth_store_id()
+   order by l.created_at desc
+   limit 1
+$$;
+
+grant execute on function public.auth_uid() to authenticated;
+grant execute on function public.my_store_license() to authenticated;
+grant execute on function public.is_platform_admin() to authenticated;
 grant execute on function public.resolve_can(text, uuid) to authenticated;
 grant execute on function public.require_perm(text) to authenticated;
 grant execute on function public.role_store(uuid) to authenticated;

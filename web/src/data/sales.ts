@@ -8,6 +8,7 @@ import {
 } from '../lib/payments'
 import { isMissingPaymentLedger, replaceSalePayments } from './salesPayments'
 import { isMissingRpc, type RpcErrorLike } from './rpc'
+import { removeOrderImage } from '../lib/storage'
 import type {
   OrderExaminationInsert,
   Sale,
@@ -818,11 +819,17 @@ export function useVoidSale() {
       if (error) throw error
       return data as Sale
     },
-    onSuccess: () => {
+    onSuccess: (voided) => {
       qc.invalidateQueries({ queryKey: KEY })
       qc.invalidateQueries({ queryKey: ['inventory'] })
       qc.invalidateQueries({ queryKey: ['customer-orders'] })
       qc.invalidateQueries({ queryKey: ['sale-payments'] })
+      // A voided invoice's photos are dead weight in the bucket. The DB cannot
+      // reach the storage API, so this is the client's job - and it is best
+      // effort: a failed delete must never turn a successful void into an error.
+      for (const path of [voided?.rx_image_path, voided?.frame_image_path]) {
+        if (path) void removeOrderImage(path).catch(() => {})
+      }
     },
   })
 }
