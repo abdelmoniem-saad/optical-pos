@@ -141,14 +141,18 @@ the Supavisor **session pooler** instead.
    downtime. Prefer **letters and digits only** — a password containing `@`,
    `:`, `/`, `#`, `?` or `%` must be percent-encoded inside the URI, which is the
    most common way this step fails.
-2. **Get the Session pooler URI.** Click **Connect** in the project header (the
-   **Settings → Database** page no longer shows connection strings) → choose
-   **Session pooler** → put the password in place of `[YOUR-PASSWORD]` → copy.
-   It must look like
-   `postgresql://postgres.qhbprvavoudetjbyxrsn:<password>@aws-0-<region>.pooler.supabase.com:5432/postgres`:
-   the host contains `pooler.supabase.com` and the port is `5432`. If the host is
-   `db.qhbprvavoudetjbyxrsn.supabase.co`, that is the *direct* connection — fine
-   on a laptop, unusable from a GitHub runner, which has no IPv6.
+2. **Get the Session pooler URI.** Click **Connect** in the project header — the
+   **Settings → Database** page no longer shows connection strings — then choose
+   **Session pooler**, put the password in place of `[YOUR-PASSWORD]`, and copy
+   the whole string. It must look like
+   `postgresql://postgres.qhbprvavoudetjbyxrsn:<password>@<cluster>.pooler.supabase.com:5432/postgres`:
+   the username carries the project ref (`postgres.<ref>`, not plain `postgres`),
+   the host ends in `pooler.supabase.com` (copy it from the dialog — e.g.
+   `aws-1-us-east-2`; the leading `aws-N` is a pooler cluster index, not the
+   region, so it cannot be typed from memory), and the port is `5432`. If the
+   host is `db.qhbprvavoudetjbyxrsn.supabase.co`, that is the *direct*
+   connection — fine on a laptop, unusable from a GitHub runner, which has no
+   IPv6.
    > Session mode (port `5432`) is required — `pg_dump` cannot run through the
    > transaction pooler (port `6543`).
 3. **Add it to GitHub.** Repo → **Settings → Secrets and variables → Actions →
@@ -160,9 +164,10 @@ the Supavisor **session pooler** instead.
    new commit from this workflow is itself the drift signal.
 5. **If it fails** the error names the cause: `password authentication failed`
    → the secret holds an old or unencoded password; `tenant or user not found`
-   → the URI is not the session-pooler one (user `postgres.<project-ref>`, host
-   `aws-0-<region>.pooler.supabase.com`); `no CREATE TABLE statements` → the
-   dump connected somewhere unexpected.
+   → the URI is not the session-pooler one (username `postgres.<project-ref>`,
+   host ending `pooler.supabase.com` copied from the Connect dialog, port
+   `5432`); `no CREATE TABLE statements` → the dump connected somewhere
+   unexpected.
 
 Without a runner, the equivalent is
 `pg_dump "<session-pooler-uri>" --schema-only --schema=public --no-owner`

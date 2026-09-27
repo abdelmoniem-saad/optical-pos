@@ -16,7 +16,9 @@ name: Schema baseline (manual)
 #      Database page no longer shows connection strings), choose **Session
 #      pooler**, and copy the URI with the real password in place of
 #      [YOUR-PASSWORD]. It looks like:
-#        postgresql://postgres.<project-ref>:<password>@aws-0-<region>.pooler.supabase.com:5432/postgres
+#        postgresql://postgres.<project-ref>:<password>@<cluster>.pooler.supabase.com:5432/postgres
+#      Copy the host from the dialog: the leading aws-N is a pooler cluster
+#      index, not the region, so the host cannot be typed from memory.
 #      Session mode (port 5432) is required - pg_dump cannot run through the
 #      transaction pooler (port 6543).
 #   2. Repo Settings -> Secrets and variables -> Actions -> New repository
@@ -79,7 +81,7 @@ jobs:
               ;;
           esac
           if printf '%s' "$SUPABASE_DB_URL" | grep -q 'db\.[a-z0-9]*\.supabase\.co'; then
-            echo "::warning::that looks like the DIRECT connection host (db.<ref>.supabase.co). GitHub runners have no IPv6 outbound, so the dump can hang; the Session pooler URI (aws-0-<region>.pooler.supabase.com:5432) is the one that works here."
+            echo "::warning::that looks like the DIRECT connection host (db.<ref>.supabase.co). GitHub runners have no IPv6 outbound, so the dump can hang; the Session pooler URI (<cluster>.pooler.supabase.com:5432, copied from the Connect dialog) is the one that works here."
           fi
           out="web/supabase/baseline/$LABEL.sql"
           mkdir -p web/supabase/baseline
@@ -101,7 +103,7 @@ jobs:
             if grep -qi 'password authentication failed' /tmp/dump.err; then
               echo "::error::password rejected - the secret still holds an old password, or the password needs percent-encoding inside the URI (%, @, :, /, #, ?). Easiest fix: reset the password to letters+digits only, then re-copy the Session pooler URI and update the secret."
             elif grep -qi 'tenant or user not found' /tmp/dump.err; then
-              echo "::error::the pooler could not match the project - SUPABASE_DB_URL must be the Session pooler URI: user postgres.<project-ref>, host aws-0-<region>.pooler.supabase.com, port 5432."
+              echo "::error::the pooler could not match the project - SUPABASE_DB_URL must be the Session pooler URI: username postgres.<project-ref> (not plain postgres), host copied verbatim from the Connect dialog, port 5432."
             fi
             exit 1
           fi
