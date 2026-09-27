@@ -1,7 +1,7 @@
 -- LensyPOS — Phase 3 gate: 014_server_rbac_test.sql (pgTAP)
 -- ============================================================
 -- Proves PHASED_ROADMAP §6: authority leaves the browser.
---   G-S  store resolution cannot be hijacked by a duplicate username
+--   G-S  store resolution cannot be hijacked by another user's username
 --   G-R  the three RBAC tables stop being world-writable, and stop
 --        leaking one store's role matrix into another
 --   G-C  resolve_can() mirrors the app's rule, and require_perm() raises
@@ -20,7 +20,7 @@
 
 begin;
 create extension if not exists pgtap;
-select plan(32);
+select plan(31);
 
 -- ===== fixtures ============================================================
 -- Two stores, so every tenant assertion has something to fail against.
@@ -57,18 +57,23 @@ insert into auth.users (id, email, username) values
   ('aaaaaaaa-aaaa-4aaa-8aaa-000000000003', 'boss@lensypos.local',     'boss'),
   ('aaaaaaaa-aaaa-4aaa-8aaa-000000000004', 'norole@lensypos.local',   'norole'),
   ('aaaaaaaa-aaaa-4aaa-8aaa-000000000005', 'buser@lensypos.local',    'buser'),
-  ('aaaaaaaa-aaaa-4aaa-8aaa-000000000006', 'root@lensypos.local',     'root'),
-  -- The duplicate-username scenario (threat T8). dup exists in BOTH
-  -- stores, and three auth identities carry it as their email local part:
-  --   ...0009 HAS a public.users row in store A  -> must resolve to A
-  --   ...000a HAS a public.users row in store B  -> must resolve to B
-  --   ...000b has NO public.users row at all     -> must resolve to NOBODY
-  -- Today's or username = ... limit 1 (008:176-183) has no ordering, so the
-  -- first two can each land in the wrong tenant and the third lands in one
-  -- of them arbitrarily - which is the cross-store leak in the audit.
-  ('aaaaaaaa-aaaa-4aaa-8aaa-000000000009', 'dup@lensypos.local',  'dup'),
-  ('aaaaaaaa-aaaa-4aaa-8aaa-00000000000a', 'dup@other.local',     'dup'),
-  ('aaaaaaaa-aaaa-4aaa-8aaa-00000000000b', 'dup@third.local',    'dup3')
+  -- The store-resolution hole, in the form the schema actually allows.
+  --
+  -- The roadmap's original T8 scenario - two stores both containing a user
+  -- called admin - is IMPOSSIBLE here: public.users.username carries a global
+  -- UNIQUE constraint (users_username_key), so duplicates cannot exist. Good.
+  --
+  -- What IS real, and arguably worse: the fallback matches the caller's EMAIL
+  -- LOCAL PART against users.username. So an auth identity with no public.users
+  -- row of its own - unprovisioned, or created straight in the Supabase
+  -- dashboard - whose local part happens to equal SOMEONE ELSE's username
+  -- silently inherits that person's store, and with it their role and licence.
+  -- Two identities below do exactly that:
+  --   ...0009 IS a staff row in store A, but its email local part is buser,
+  --         which is a real user in store B  -> must resolve to A (id wins)
+  --   ...000a has NO staff row, local part buser -> must resolve to NOBODY
+  ('aaaaaaaa-aaaa-4aaa-8aaa-000000000009', 'buser@lensypos.local',  'imposter'),
+  ('aaaaaaaa-aaaa-4aaa-8aaa-00000000000a', 'buser@stranger.local', 'stranger')
 on conflict (id) do nothing;
 
 insert into public.users (id, username, password_hash, full_name, role_id, store_id, is_active)
@@ -86,8 +91,8 @@ values
   ('aaaaaaaa-aaaa-4aaa-8aaa-000000000005', 'buser',   '-', 'Cashier B',
      'dddddddd-dddd-4ddd-8ddd-000000000004', _store_b(), true),
   ('aaaaaaaa-aaaa-4aaa-8aaa-000000000006', 'root',    '-', 'Vendor',   null, _store_a(), true),
-  ('aaaaaaaa-aaaa-4aaa-8aaa-000000000009', 'dup',     '-', 'Dup A',    null, _store_a(), true),
-  ('aaaaaaaa-aaaa-4aaa-8aaa-00000000000a', 'dup',     '-', 'Dup B',    null, _store_b(), true)
+  ('aaaaaaaa-aaaa-4aaa-8aaa-000000000009', 'imposter', '-', 'Imposter', null, _store_a(), true),
+
 on conflict (id) do nothing;
 
 insert into public.platform_admins (auth_uid, name)
@@ -177,41 +182,40 @@ select is((select count(*) from pg_policies
               and policyname = 'lensy_authenticated_all'), 0::bigint,
   'S4 the world-writable policy on permissions is gone');
 -- =========================================================================
--- G-S: store resolution cannot be hijacked (threat T8)
+-- G-S: store resolution cannot be hijacked (threat T8, in its real form)
 -- =========================================================================
--- 008's auth_store_id() is `where u.id = auth.uid() or u.username =
--- <email local part> limit 1` with NO ordering. With a username that exists
--- in two stores, which row wins is undefined - so an account can resolve
--- into another tenant, and every policy downstream trusts that answer.
+-- 008's auth_store_id() is where u.id = auth.uid() or u.username =
+-- <email local part> limit 1 with NO ordering. Because users.username is
+-- globally unique the duplicate case cannot occur, but the OR still does: an
+-- identity with no staff row of its own is matched against OTHER people's
+-- usernames, and limit 1 then hands it their store - and with it their role,
+-- their data and their licence.
 
 set role authenticated;
 
--- S1a the ordinary case still works: id match wins.
+-- S1a the ordinary case still works: the id match wins.
 select _as('aaaaaaaa-aaaa-4aaa-8aaa-000000000001'::uuid);
 select is(public.auth_store_id(), _store_a(),
   'G-S1 a cashier resolves to their own store by auth id');
 
--- S1b the duplicate-username case, store A side.
+-- S1b THE HOLE: this identity IS a staff row in store A, but its email local
+-- part is buser - a real user in store B. Before 014 the unordered or could
+-- hand back store B instead.
 select _as('aaaaaaaa-aaaa-4aaa-8aaa-000000000009'::uuid);
 select is(public.auth_store_id(), _store_a(),
-  'G-S2 a duplicate username whose OWN row is in store A resolves to A');
+  'G-S2 a staff row wins over another user''s matching username (id beats the fallback)');
 
--- S1c the same, store B side.
+-- S1c the same hole with no staff row at all: before 014 this identity was
+-- dropped into store B by matching buser's username, and could read and write
+-- another tenant's entire shop.
 select _as('aaaaaaaa-aaaa-4aaa-8aaa-00000000000a'::uuid);
-select is(public.auth_store_id(), _store_b(),
-  'G-S3 the same duplicate username in store B resolves to B');
-
--- S1d the dangerous one: an auth identity with NO staff row at all must not
--- be dropped into a random tenant by the username fallback.
-select _as('aaaaaaaa-aaaa-4aaa-8aaa-00000000000b'::uuid);
 select is(public.auth_store_id(), null,
-  'G-S4 an ambiguous username with no staff row resolves to NO store, not a random one');
+  'G-S3 an unprovisioned identity matching someone else''s username resolves to NO store');
 
--- S1e and a username that matches nothing stays unresolved.
+-- S1d and a username that matches nothing stays unresolved.
 select _as('aaaaaaaa-aaaa-4aaa-8aaa-0000000000ff'::uuid);
 select is(public.auth_store_id(), null,
-  'G-S5 an unknown identity resolves to no store');
-
+  'G-S4 an unknown identity resolves to no store');
 -- =========================================================================
 -- G-R: the RBAC tables stop being world-writable, and stop leaking (T7)
 -- =========================================================================
