@@ -56,49 +56,49 @@ begin
      where split_part(coalesce(a.email, ''), '@', 1) = r.username
      limit 1;
 
-    -- users.id is the primary key and six columns reference it, and NONE of
-    -- those constraints is ON UPDATE CASCADE. So the references cannot be
-    -- moved to the new id first - it does not exist yet - and the key cannot
-    -- be moved first either, because the references would be orphaned. The
-    -- constraints come off, everything moves, and they go back on: all inside
-    -- this one transaction, so a failure rolls the drops back with it.
-    alter table public.sales            drop constraint if exists sales_user_id_fkey;
-    alter table public.notes            drop constraint if exists notes_created_by_fkey;
-    alter table public.notes            drop constraint if exists notes_user_id_fkey;
-    alter table public.note_seen        drop constraint if exists note_seen_user_id_fkey;
-    alter table public.licenses         drop constraint if exists licenses_created_by_fkey;
-    alter table public.user_permissions drop constraint if exists user_permissions_user_id_fkey;
+    -- users.id is the primary key and six columns reference it, and none of
+    -- those constraints is ON UPDATE CASCADE - so the id cannot simply be
+    -- re-pointed: move the references first and they point at an id that does
+    -- not exist yet; move the key first and they are orphaned. An earlier
+    -- version dropped the six constraints to do it, and PostgreSQL refused:
+    -- ALTER TABLE is not allowed inside a set-returning function while its
+    -- result set is still being read.
+    --
+    -- So the row is SWAPPED instead, which needs no DDL at all:
+    --   1. park the old row's username (it is globally unique, so the new row
+    --      cannot be inserted while the old one holds the name)
+    --   2. insert the replacement under the id the login actually has
+    --   3. move every reference to it
+    --   4. drop the old row - nothing points at it any more, so the CASCADE on
+    --      notes.user_id has nothing left to take
+    update public.users
+       set username = username || '-unlinked-' || left(id::text, 8)
+     where id = r.id;
 
-    update public.users      set id      = v_auth where id      = r.id;
-    update public.sales      set user_id  = v_auth where user_id  = r.id;
-    update public.notes      set created_by = v_auth where created_by = r.id;
-    update public.notes      set user_id  = v_auth where user_id  = r.id;
-    update public.note_seen  set user_id  = v_auth where user_id  = r.id;
-    update public.licenses   set created_by = v_auth where created_by = r.id;
-    update public.user_permissions set user_id = v_auth where user_id = r.id;
-    update public.audit_log  set actor    = v_auth where actor    = r.id;
+    insert into public.users
+      (id, username, password_hash, full_name, role_id, store_id, is_active)
+    select v_auth, r.username, o.password_hash, o.full_name, o.role_id,
+           o.store_id, o.is_active
+      from public.users o
+     where o.id = r.id;
 
-    -- back on, with the exact definitions they had (two of them cascade)
-    alter table public.sales add constraint sales_user_id_fkey
-      foreign key (user_id) references public.users(id);
-    alter table public.notes add constraint notes_created_by_fkey
-      foreign key (created_by) references public.users(id);
-    alter table public.notes add constraint notes_user_id_fkey
-      foreign key (user_id) references public.users(id) on delete cascade;
-    alter table public.note_seen add constraint note_seen_user_id_fkey
-      foreign key (user_id) references public.users(id);
-    alter table public.licenses add constraint licenses_created_by_fkey
-      foreign key (created_by) references public.users(id);
-    alter table public.user_permissions add constraint user_permissions_user_id_fkey
-      foreign key (user_id) references public.users(id) on delete cascade;
+    update public.sales            set user_id    = v_auth where user_id    = r.id;
+    update public.notes            set created_by = v_auth where created_by = r.id;
+    update public.notes            set user_id    = v_auth where user_id    = r.id;
+    update public.note_seen        set user_id    = v_auth where user_id    = r.id;
+    update public.licenses         set created_by = v_auth where created_by = r.id;
+    update public.user_permissions set user_id    = v_auth where user_id    = r.id;
+    update public.audit_log        set actor      = v_auth where actor      = r.id;
+
+    delete from public.users where id = r.id;
 
     action   := 're-pointed';
     username := r.username;
-    detail   := 'public.users.id now matches the Supabase Auth login of the same name';
+    detail   := 'the staff row now carries the id of the Supabase Auth login of the same name';
     return next;
   end loop;
 
-  -- ---- half 2: an existing login with no staff row -------------------
+    detail   := 'the staff row now carries the id of the Supabase Auth login of the same name';
   for r in
     select a.id, split_part(coalesce(a.email, ''), '@', 1) as username
       from auth.users a
