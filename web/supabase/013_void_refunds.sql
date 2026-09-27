@@ -26,7 +26,8 @@
 --     total_amount / discount / net_amount / amount_paid; a direct UPDATE is
 --     refused, so the header can no longer drift from sale_payments.
 --   • sale_payments gained `kind` (payment | refund) and `paid_at` became a
---     timestamptz, so two payments on the same day are distinguishable.
+--     timestamptz, so two payments on the same day are distinguishable and
+--     day-close can group by time rather than by date.
 --   • line-level discounts with a reason (sale_items.discount +
 --     discount_reason), priced by the same server core as everything else.
 --   • stock_movements gained a real vocabulary (`kind`) alongside the legacy
@@ -37,9 +38,10 @@
 -- HOW TO RUN: Supabase Dashboard -> SQL Editor -> paste -> Run (after 012).
 --
 -- The client switch that goes with this (useUpdateSaleFull -> update_sale_order,
--- useUpdateSale -> no money columns, the History void button) ships in the same
--- release: once the delete policies are dropped, a client still deleting those
--- rows itself will start failing.
+-- useUpdateSale -> no money columns, the History void button) is in the same
+-- release. Before pasting: the app still deletes those rows itself, and once
+-- the delete policies are dropped those writes start failing - so paste this
+-- and deploy together.
 -- ============================================================
 
 -- ============================================================
@@ -324,7 +326,7 @@ begin
   end if;
   v_net := round(v_net, 2);
 
-  -- gross minus the line discounts already given
+  -- effective catalog revenue, i.e. gross minus the line discounts already given
   v_line_net := v_items - coalesce((
     select sum(coalesce(r.discount, 0))
       from jsonb_populate_recordset(null::public.sale_items, p_items) r
@@ -345,9 +347,6 @@ end $$;
 -- ============================================================
 -- 7) create_sale_order, now sharing the core and honouring line discounts
 -- ============================================================
--- Dropped and recreated (not `create or replace`) so the old overloads cannot
--- linger beside the new one and make PostgREST calls ambiguous (PGRST203) -
--- the exact trap 011 and 012 both document.
 
 drop function if exists public.create_sale_order(jsonb, jsonb, jsonb);
 drop function if exists public.create_sale_order(jsonb, jsonb, jsonb, uuid);
@@ -398,9 +397,8 @@ begin
   end if;
 
   select * into t
-    from public.price_cart(p_items,
-                           coalesce(v_in.net_amount,
-                                    coalesce(v_in.total_amount, 0) - coalesce(v_in.discount, 0)),
+    from public.price_cart(p_items, coalesce(v_in.net_amount,
+                                             coalesce(v_in.total_amount, 0) - coalesce(v_in.discount, 0)),
                            v_allow);
 
   -- money in can never exceed money out
@@ -513,12 +511,12 @@ security definer
 set search_path = public
 as $$
 declare
-  v_in    public.sales := jsonb_populate_record(null::public.sales, p_sale);
-  v_sale  public.sales;
-  v_store uuid;
-  v_allow boolean;
-  v_paid  numeric;
-  t       record;
+  v_in       public.sales := jsonb_populate_record(null::public.sales, p_sale);
+  v_sale     public.sales;
+  v_store    uuid;
+  v_allow    boolean;
+  v_paid     numeric;
+  t          record;
 begin
   if auth.uid() is null then
     raise exception 'not signed in';
@@ -553,9 +551,8 @@ begin
   end if;
 
   select * into t
-    from public.price_cart(p_items,
-                           coalesce(v_in.net_amount,
-                                    coalesce(v_in.total_amount, 0) - coalesce(v_in.discount, 0)),
+    from public.price_cart(p_items, coalesce(v_in.net_amount,
+                                             coalesce(v_in.total_amount, 0) - coalesce(v_in.discount, 0)),
                            v_allow);
 
   v_paid := coalesce((
@@ -570,8 +567,9 @@ begin
     raise exception 'payment exceeds net amount';
   end if;
 
-  -- Replace, in one transaction. Movements are matched on the sale's own
-  -- (type 'sale' + ref_no), so a re-checkout nets out exactly the old lines.
+  -- Replace, in one transaction. The stock movements are matched on the
+  -- sale's own movements (type 'sale' + ref_no), so a re-checkout nets out
+  -- exactly the previous lines.
   delete from public.sale_items         where sale_id = p_sale_id;
   delete from public.order_examinations where sale_id = p_sale_id;
   delete from public.sale_payments      where sale_id = p_sale_id;
@@ -588,13 +586,13 @@ begin
          doctor_name  = coalesce(v_in.doctor_name, v_sale.doctor_name),
          delivery_date = v_in.delivery_date,
          lab_status   = case
-                          when jsonb_array_length(p_exams) > 0
-                            then coalesce(v_in.lab_status, 'Not Started')
+                          when jsonb_array_length(p_exams) > 0 then coalesce(v_in.lab_status, 'Not Started')
                           else null
                         end,
-         rx_image_path   = v_in.rx_image_path,
+         rx_image_path  = v_in.rx_image_path,
          frame_image_path = v_in.frame_image_path
-   where id = p_sale_id;
+   where id = p_sale_id
+  returning * into v_sale;
 
   insert into public.sale_items
     (sale_id, store_id, product_id, qty, unit_price, total_price, name,
@@ -686,15 +684,14 @@ begin
     raise exception 'sale is already voided';
   end if;
 
-  -- stock back on the shelf (the 012 trigger keeps inventory.stock_qty honest)
+  -- stock back on the shelf (the trigger keeps inventory.stock_qty honest)
   if coalesce(p_restock, true) then
     insert into public.stock_movements
       (product_id, store_id, qty, type, ref_no, note, created_at)
     select si.product_id, v_sale.store_id, si.qty, 'return',
            v_sale.invoice_no,
            'Void ' || coalesce(v_sale.invoice_no, '') ||
-             case when p_reason is null or trim(p_reason) = ''
-                  then '' else ': ' || p_reason end,
+           case when p_reason is null or trim(p_reason) = '' then '' else ': ' || p_reason end,
            now()
       from public.sale_items si
      where si.sale_id = p_sale_id
@@ -719,8 +716,8 @@ begin
      and sp.amount > 0;
 
   update public.sales
-     set voided_at   = now(),
-         voided_by   = auth.uid(),
+     set voided_at  = now(),
+         voided_by  = auth.uid(),
          void_reason = nullif(trim(coalesce(p_reason, '')), '')
    where id = p_sale_id
   returning * into v_sale;
@@ -731,7 +728,7 @@ end $$;
 -- ============================================================
 -- 10) purchase-side deletes move into SQL too
 -- ============================================================
--- The Suppliers screen deletes a purchase (with its items and payments) and a
+-- The Suppliers screen deletes a purchase (and its items/payments) and a
 -- single payment row. Those are financial tables too, so they get the same
 -- treatment: a checked SECURITY DEFINER function instead of a raw DELETE.
 
@@ -783,11 +780,11 @@ begin
     raise exception 'store licence does not allow writes';
   end if;
   if not exists (
-    select 1
-      from public.purchase_payments pp
-      join public.purchases p on p.id = pp.purchase_id
+    select 1 from public.purchase_payments pp
      where pp.id = p_payment
-       and (p.store_id = v_store or public.is_platform_admin())
+       and exists (select 1 from public.purchases p
+                    where p.id = pp.purchase_id
+                      and (p.store_id = v_store or public.is_platform_admin()))
   ) then
     raise exception 'payment not found in this store';
   end if;
