@@ -124,7 +124,7 @@ on every push (`bash web/scripts/test-db.sh` against a throwaway Postgres).
 `test-db.sh` runs **every** `tests/*_test.sql`, so each phase ships its own gate
 without touching the runner.
 
-## Step 7 — `013_void_refunds.sql` (reversible sales)
+## Step 8 — `013_void_refunds.sql` (reversible sales)
 
 Reversibility, and the removal of the destructive verb. Paste it **after** 012
 and **deploy the app at the same time** — the app now calls `update_sale_order`,
@@ -150,6 +150,75 @@ and **deploy the app at the same time** — the app now calls `update_sale_order
 Its gate is [`tests/013_void_refunds_test.sql`](./tests/013_void_refunds_test.sql)
 (54 assertions), also run by `npm run test:db` and CI.
 
+## Step 9 - `014_server_rbac.sql` (server-side authority)
+
+**Paste this and deploy the app in the same sitting.** 014 cuts the username
+fallback in `auth_store_id()`, so an account with no staff row now gets the
+"This account is not linked to a store" screen - which ships in the same
+commit. It also makes `create-user` fail CLOSED until this migration is applied.
+
+- **`resolve_can(code, user)`** is the SQL mirror of the app's `resolveCan()`:
+  an explicit per-person override always wins, otherwise the position grant
+  decides, and admin/owner positions, the `superadmin` username and vendor
+  accounts bypass. It deliberately does NOT copy the UI's `openAccess`
+  leniency - the Phase 3 gate asserts that divergence.
+- **`require_perm(code)`** raises with the code in the message, and now guards
+  `void_sale`, `delete_purchase` and `delete_purchase_payment`.
+- **The three RBAC tables** stop being world-writable. `permissions` stays
+  READABLE by any signed-in user (the Access Control matrix needs the code
+  list) but writes are platform admins only; `role_permissions` and
+  `user_permissions` are tenant-scoped through a join on `roles.store_id` /
+  `users.store_id` and writes need `staff.edit`.
+- **`auth_store_id()` loses its username fallback.** Matching a caller to a
+  tenant by their email's local part is impersonation: an auth identity with
+  no staff row whose local part happened to match a real username inherited
+  that person's store, role and licence. `users.username` is already globally
+  unique, so the roadmap's "two stores with a user called admin" scenario
+  cannot occur - but this one could, and it was worse.
+- **`audit_log`** records who changed the money and authority tables.
+- **`auth_uid()`** and **`my_store_license()`** are added for the
+  `create-user` Edge Function, which now authorises itself *as the caller*.
+
+After pasting, redeploy the function so it stops trusting the request body:
+
+```bash
+supabase functions deploy create-user --project-ref qhbprvavoudetjbyxrsn
+```
+
+Two things must be true afterwards:
+1. **Every existing account has a `public.users` row whose `id` equals its
+   Supabase Auth id.** `create-user` writes it that way; the only accounts at
+   risk are hand-made ones. Check with:
+   ```sql
+   select u.username, u.id from public.users u
+    where not exists (select 1 from auth.users a where a.id = u.id);
+   ```
+2. **Anyone signing in who fails that** now sees the "not linked" screen, so
+   link them from the Staff screen (or with `create-user`).
+
+Its gate is [`tests/014_server_rbac_test.sql`](./tests/014_server_rbac_test.sql)
+(33 assertions), also run by `npm run test:db` and CI.
+
+### Manual probe for `create-user` (no live project in CI)
+
+The SQL half is covered by pgTAP. The Edge Function needs a deployed project,
+so after deploying, confirm with a real token - from the browser console, as a
+**cashier**:
+
+```js
+// must FAIL: a cashier may not create staff
+await supabase.functions.invoke('create-user', {
+  body: { username: 'evil', password: 'secret123', role_id: '<an admin role id>' },
+})
+
+// must FAIL: cross-store
+// (as a manager, with store_id set to another store's uuid)
+
+// must SUCCEED: a manager creating a login in their own store
+```
+
+Expect `insufficient permission: staff.create` (403) and
+`no store for the signed-in user` where applicable.
 ## Schema baseline (recommended, ~2 minutes)
 
 The hardening roadmap (Phase 0) wants a `pg_dump` of the **live** `public`

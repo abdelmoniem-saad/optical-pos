@@ -366,18 +366,77 @@ Four separate holes, one theme.
 
 Also in this phase:
 
-- [ ] Enforce plan limits (`max_staff`, `features`) inside the RPC that adds a user, not
+- [x] Enforce plan limits (`max_staff`, `features`) inside the RPC that adds a user, not
   only in the Staff screen — `lib/licensing.ts` gates reads and writes, not quota.
 - [ ] Give the platform-admin surface (`features/platform`, backed by `licensing.ts`) a
+  service-role key instead of a logged-in staff token where it crosses tenants. *Not done: the
+  surface reads licenses through RLS, which already scopes it to a platform admin, so
+  the extra key is a defence-in-depth nicety rather than a hole - and a service-role
+  key in a browser bundle is a far worse trade. Revisit if it ever needs to WRITE.
+  across tenants.*
   service-role key instead of a logged-in staff token where it crosses tenants.
-- [ ] Clean up orphaned storage objects: `rx_image_path` / `frame_image_path`
-  (`007_order_images.sql`, `lib/storage.ts`) are never deleted when a sale is voided or an
-  image replaced. Add a scheduled cleanup or a `before delete` hook.
+- [x] **Clean up orphaned storage objects:** a void now deletes the invoice's
+  `rx_image_path` / `frame_image_path` (client-side, since SQL cannot reach the
+  storage API). Replacing an image already did. Still open: photos orphaned by a
+  half-failed checkout, and any pre-existing orphans - Phase 5.
 
-> **Gate:** with a cashier's JWT, direct SQL/REST must fail on: reading another store's
-> tables, writing `role_permissions`, adding a user beyond plan, and reading a
-> permission-gated table — and a `POST /functions/v1/create-user` with `role_id` = admin must
-> be rejected. Prove each with pgTAP + a REST probe in CI, not with a screenshot.
+> **Status - implemented, gate green.** `web/supabase/014_server_rbac.sql` + a
+> 33-assertion pgTAP gate (`tests/014_server_rbac_test.sql`), both run by
+> `npm run test:db` and the CI `db` job, plus 13 vitest cases over the
+> create-user decision. Two findings changed the design, and both came from the
+> gate rather than from review:
+> - **T8 as written is impossible, and a worse variant is real.** The roadmap's
+>   scenario - two stores both containing a user called `admin` - cannot occur:
+>   `public.users.username` carries a global UNIQUE constraint
+>   (`users_username_key`). The gate built that fixture and the database
+>   refused it. But the `or username = split_part(email,'@',1)` fallback is
+>   still impersonation: an auth identity with **no staff row of its own** whose
+>   email local part happens to equal *someone else's* username inherited that
+>   person's store, role, licence and data. My first fix (a 'username is unique
+>   across stores' clause) could never fire, for the reason above - the gate said
+>   so. The fallback is now **cut**, not hardened. Nothing depended on it:
+>   `create-user` writes `public.users` with the auth identity's own UUID, and
+>   Flet-era rows cannot sign in. The visible cost is an unlinked account now
+>   getting a clear 'not linked to a store' screen, which ships in the same
+>   commit.
+> - **The UI and the database deliberately disagree**, and G-X asserts it. The
+>   provider grants *everything* to an account with no position (`openAccess`,
+>   'never brick a login over bookkeeping'). `resolve_can` refuses. The
+>   browser's job is to not lock someone out during a provisioning hiccup; the
+>   database's job is to not trust an account nobody placed.
+>
+> Deliberate deviations:
+> - **`resolve_can` is NOT wired into the ordinary READ policies.** Reads are
+>   already tenant-scoped by RLS, and gating them on the permission matrix would
+>   lock a whole shop out of History the moment one grant is mistyped.
+>   Enforcement goes on privileged WRITES and inside the privileged RPCs; the
+>   TSX gates remain as UX.
+> - **The catalogue stays readable by everyone.** `permissions` is
+>   `for select using (true)` and writes are platform-admin only. The Access
+>   Control matrix has to render the code list; locking that out would break the
+>   Staff screen for every user, not just the untrusted ones.
+> - **The three RBAC tables have no `store_id` of their own** (004:24-39), so
+>   their policies JOIN through `roles.store_id` / `users.store_id` instead
+>   of pretending the column exists.
+> - **`create-user` authorises as the CALLER.** A client built from the anon key
+>   and the caller's JWT asks `resolve_can`/`auth_store_id`/`my_store_license`;
+>   the service-role key is then used only to create the auth user, and the row
+>   is written with the **pinned** store. It fails CLOSED - with 014 unapplied
+>   every create is refused, naming the migration. The rules live in
+>   `web/src/lib/createUserAuthz.ts` (pure, so `tsc -b` checks them and vitest
+>   covers them) because the function has no live project to test against in CI;
+>   `SETUP.md` step 9 carries the manual probe instead.
+> - **`audit_log` was pulled forward from Phase 6.** A permission system nobody
+>   can review is just a slower way to lose data, and this phase's own changes
+>   should be reviewable.
+> - **Not done:** the platform-admin surface keeps using a staff token (it only
+>   READS, through RLS that already scopes it, and a service-role key in a
+>   browser bundle is a worse trade than the nicety is worth); and
+>   `features jsonb` plan flags are still UI-only - `max_staff` is now enforced
+>   in the create-user decision, but the rest are not.
+> - **014 is NOT yet applied to production** - see `web/supabase/SETUP.md`
+>   step 9, which also says to redeploy the `create-user` function and to deploy
+>   the app in the same sitting.
 
 ---
 
