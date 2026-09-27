@@ -203,6 +203,7 @@ create policy lensy_tenant_read on public.role_permissions for select to authent
              and (select public.license_read_ok(public.role_store(role_id)))));
 
 -- Writes to the role matrix are a management action, not a cashier action.
+drop policy if exists lensy_tenant_write on public.role_permissions;
 create policy lensy_tenant_write on public.role_permissions for insert to authenticated
   with check (public.is_platform_admin()
               or (public.resolve_can('staff.edit')
@@ -266,6 +267,9 @@ drop policy if exists lensy_authenticated_all on public.permissions;
 drop policy if exists lensy_catalog_read on public.permissions;
 create policy lensy_catalog_read on public.permissions for select to authenticated
   using (true);
+drop policy if exists lensy_catalog_write on public.permissions;
+drop policy if exists lensy_catalog_update on public.permissions;
+drop policy if exists lensy_catalog_delete on public.permissions;
 create policy lensy_catalog_write on public.permissions for insert to authenticated
   with check (public.is_platform_admin());
 create policy lensy_catalog_update on public.permissions for update to authenticated
