@@ -138,21 +138,25 @@ do $$ begin
 end $$;
 
 -- ---------- structure: the columns 013 adds --------------------------------
-select has_column('public.sales', 'voided_at',
+-- NOTE the 4-argument pgTAP form (schema, table, column, description): the
+-- 3-argument form takes a BARE table name, so 'public.sales' would be looked
+-- up as a table literally called public.sales, and every probe would fail for
+-- a reason that has nothing to do with the schema.
+select has_column('public', 'sales', 'voided_at',
   'S1 sales.voided_at records WHEN a sale was voided');
-select has_column('public.sales', 'voided_by',
+select has_column('public', 'sales', 'voided_by',
   'S2 sales.voided_by records WHO voided it');
-select has_column('public.sales', 'void_reason',
+select has_column('public', 'sales', 'void_reason',
   'S3 sales.void_reason records WHY');
-select has_column('public.sale_payments', 'kind',
+select has_column('public', 'sale_payments', 'kind',
   'S4 sale_payments.kind separates a payment from a refund');
-select has_column('public.sale_items', 'discount',
+select has_column('public', 'sale_items', 'discount',
   'S5 sale_items.discount carries a line-level discount');
-select has_column('public.sale_items', 'discount_reason',
+select has_column('public', 'sale_items', 'discount_reason',
   'S6 sale_items.discount_reason carries its reason');
-select has_column('public.stock_movements', 'kind',
+select has_column('public', 'stock_movements', 'kind',
   'S7 stock_movements.kind replaces the free-text vocabulary');
-select col_type_is('public.sale_payments', 'paid_at', 'timestamp with time zone',
+select col_type_is('public', 'sale_payments', 'paid_at', 'timestamp with time zone',
   'S8 paid_at is a timestamptz, so two payments on one day differ');
 
 -- ---------- a real sale to reverse -----------------------------------------
