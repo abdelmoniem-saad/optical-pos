@@ -199,6 +199,42 @@ Two things must be true afterwards:
 Its gate is [`tests/014_server_rbac_test.sql`](./tests/014_server_rbac_test.sql)
 (33 assertions), also run by `npm run test:db` and CI.
 
+## Step 10 - `015_link_staff_ids.sql` (repair a staff row that is not linked)
+
+**Paste this immediately after step 9.** 014 cuts a fallback that was quietly
+papering over a real problem: a staff row whose `id` is not the Supabase Auth
+`id` of the same person. That is exactly the state left behind by **step 2**,
+which creates the admin row by hand with its own uuid - and it now resolves to
+no store, so the account sees "This account is not linked to a store".
+
+015 repairs that, in both directions:
+
+- a staff row whose `id` disagrees with the auth login of the same **name** is
+  swapped onto the id the login actually has (six columns reference
+  `users.id`, so they are moved with it, and the old row is dropped);
+- a login that exists but has no staff row gets one, at the real store, with
+  `password_hash = 'supabase-auth'` - the password cannot be recovered, so the
+  owner must use **Reset password** in the dashboard.
+
+**A name is only repaired when it is unambiguous.** If two auth logins could
+own it, nothing is guessed: guessing which of two people meant is how you hand
+somebody's sales history to the wrong person. Those rows are listed by the view
+it creates, for a human to decide:
+
+```sql
+select * from public.staff_id_problems;
+```
+
+**What you should see when you run it:** a `NOTICE` per account it repaired
+(`re-pointed: admin (...)` for the step-2 admin), and then either
+`link_staff_ids: nothing to repair` or a few more notices. An empty result is
+the healthy outcome.
+
+Re-running it repairs nothing, so it is safe to paste twice.
+
+Its gate is [`tests/015_link_staff_ids_test.sql`](./tests/015_link_staff_ids_test.sql)
+(13 assertions), also run by `npm run test:db` and CI.
+
 ### Manual probe for `create-user` (no live project in CI)
 
 The SQL half is covered by pgTAP. The Edge Function needs a deployed project,

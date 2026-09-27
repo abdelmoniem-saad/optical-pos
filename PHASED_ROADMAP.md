@@ -399,6 +399,27 @@ Also in this phase:
 >   Flet-era rows cannot sign in. The visible cost is an unlinked account now
 >   getting a clear 'not linked to a store' screen, which ships in the same
 >   commit.
+> - **A detected mismatch also has to be REPAIRABLE, not merely visible.**
+>   Cutting the fallback locked out a real account on the day it shipped, and
+>   the cause was step 2 of `SETUP.md`: the admin staff row is created by hand
+>   with its own uuid, while the person signs in through Supabase Auth with a
+>   different one — the state the fallback had been hiding all along.
+>   `015_link_staff_ids.sql` repairs that in both directions (a disagreeing row
+>   is moved onto the login's id, six referencing columns with it; a login with
+>   no staff row gets one at the real store, with no usable password, since one
+>   cannot be recovered) and **refuses anything ambiguous** — a name two logins
+>   could own is listed for a human instead of guessed at, because guessing is
+>   how you hand somebody's sales history to the wrong person. Three real
+>   defects surfaced while getting there, all caught by its 13-assertion gate:
+>   the repair has to *swap* the row rather than re-point the key (`users.id` is
+>   the primary key, none of the six constraints on it is `ON UPDATE CASCADE`,
+>   and `ALTER TABLE` is refused inside a set-returning function), and a bare
+>   `username` is ambiguous with the function's own `RETURNS TABLE` parameter.
+> - **`014` had a genuine idempotency bug**, which matters because the operator
+>   flow *is* "paste into the SQL Editor": four `create policy` statements had no
+>   preceding `drop policy if exists`, so a second paste died with `42710 ...
+>   already exists` — exactly the failure the re-runnability rule at the bottom
+>   of this document exists to prevent. Fixed in the same commit as 015.
 > - **The UI and the database deliberately disagree**, and G-X asserts it. The
 >   provider grants *everything* to an account with no position (`openAccess`,
 >   'never brick a login over bookkeeping'). `resolve_can` refuses. The
@@ -439,51 +460,6 @@ Also in this phase:
 >   the app in the same sitting.
 
 ---
-
-## 7. Phase 4 — Numbers that stay true at scale · 2 days 🟠
-
-Not performance polish: each item is a screen that quietly stops being correct as data grows.
-
-1. 🟠 **Reports aggregate in the browser over an unbounded fetch.** `useSalesSummary`
-   (`web/src/data/sales.ts:67-82`) selects *every* sale header in the store with no `range`
-   or `limit`, then `ReportsPage.tsx` sums it in JS (`:27`) and slices the top 5 (`:47`).
-   Fine at a few thousand invoices; a multi-megabyte download and a stalling tab at 200k.
-   Replace with store-scoped, index-backed SQL — `report_sales_window(from_t, to_t)` for
-   totals/counts, `report_top_products`, `report_payment_mix` — so the payload size stops
-   depending on history depth.
-2. 🔴 **Two different definitions of "today" in one app.** Reports uses the **UTC** date:
-   `const todayIso = new Date().toISOString().slice(0, 10)`
-   (`web/src/features/reports/ReportsPage.tsx:19`, with `monthStart` derived at `:20`, and
-   the same two lines repeated in a second component at `:116-117`). History uses the
-   **store-local** date: `localDate()` (`web/src/data/sales.ts:84-87`) feeding the filter at
-   `:118-119`. In UTC+2/+3 every sale before 03:00 local counts as *yesterday* on Reports and
-   *today* on History. Fix: one `store_day_range()` / `store_today()` in SQL, used by both.
-3. 🟠 **Lexical comparisons against `timestamptz`.** `order_date` is a `timestamptz`, but
-   Reports compares it with `startsWith` / `>=` on `'YYYY-MM-DD'` strings in JS, while the
-   naive strings History sends (`${localDate()}T00:00:00`) are interpreted in the session
-   time zone by Postgres. Filter on explicit `gte`/`lt` timestamptz boundaries instead.
-4. 🟠 **Zero-total "prescription sales" pollute revenue.**
-   `useAddStandalonePrescription` (`web/src/data/sales.ts:704-734`) writes a sale with invoice
-   `PRESC-<base36 epoch>` (`:717`) and all-zero totals. It counts as a sale in Reports and it
-   injects a second, non-numeric namespace into the invoice sequence — which is exactly what
-   makes the `count(*)` seed in `getNextInvoiceNo` wrong. Fix: `sales.kind`
-   (`'sale' | 'prescription'`), excluded from revenue and counted separately.
-5. 🟠 **Search destroys legitimate queries instead of escaping them.**
-   `search.ts:14`, `customers.ts:68` and `sanitizeTerm` (`sales.ts:89-92`) each strip
-   `, ( )` from the term. That closes PostgREST or-syntax injection — good — but
-   `Ahmed (Cairo)` silently becomes `Ahmed   Cairo` and returns nothing, with no error. And
-   every field is `ilike '%term%'`, which cannot use a btree index. Fix: move search into a
-   `security definer` RPC (`search_text(p_term text)`) over `to_tsvector` / `pg_trgm` with
-   GIN indexes, so no filter string is ever assembled in the browser; add GIN on
-   `customers.name/phone`, `inventory.name/sku`, `sales.invoice_no`.
-6. 🟡 **Index sweep.** Confirm or add: `sales (store_id, order_date desc)`,
-   `sale_items (sale_id)`, `sale_payments (sale_id, paid_at)`,
-   `stock_movements (product_id, created_at)`, `customers (store_id, name)`.
-
-> **Gate:** Reports over a year of history returns in <300 ms with a payload under ~20 KB;
-> Reports and History agree on "today" with the store set to `Africa/Cairo`; `EXPLAIN` shows
-> no sequential scan on the five tables above; the search box finds a customer whose name
-> contains brackets.
 
 ---
 
@@ -673,8 +649,9 @@ map of what each file is responsible for, so a review can tell which phase owns 
 | `010_metadata_sort.sql` | Re-numbers lens/frame metadata by name (`:18`, `:26`) | Cosmetic |
 | `011_sale_payments.sql` | Payment ledger (`:48` positivity check), store-id trigger (`:88`), `sync_sale_amount_paid()` (`:90-112`), RLS (`:118-155`), 4-arg `create_sale_order` (`:164-248`) | The RPC Phase 1 rewrites from "record" to "validate" |
 | `012_integrity.sql` | Server re-pricing, stock guard (`stores.allow_negative_stock`, default allow), `available_stock()`, `stock_qty` read model, `invoice_counter` / `next_invoice_no()`, idempotency key, money constraints | Implemented — gate: `tests/012_integrity_test.sql`. **Applied to production** (proven by `baseline/schema_after_012.sql`) |
-| **`013_void_refunds.sql`** *(planned)* | `void_sale()`, refund tenders, movement vocabulary, `paid_at` → `timestamptz`, delete revocation | Phase 2 |
-| **`014_server_rbac.sql`** *(planned)* | `can()` / `require_perm()`, tenant RLS on the three RBAC tables, store resolution without username fallback | Phase 3 |
+| `013_void_refunds.sql` | `void_sale()`, refund tenders, movement vocabulary, `paid_at` → `timestamptz`, delete revocation, `update_sale_order()` | Implemented — gate: `tests/013_void_refunds_test.sql` (54 assertions) |
+| **`014_server_rbac.sql`** | `resolve_can()` / `require_perm()`, tenant RLS on the three RBAC tables, store resolution without the username fallback, `audit_log` | Implemented - gate: `tests/014_server_rbac_test.sql` (33 assertions) | `can()` / `require_perm()`, tenant RLS on the three RBAC tables, store resolution without username fallback | Phase 3 |
+| `015_link_staff_ids.sql` | `link_staff_ids()` — moves a disagreeing staff row onto its login (both directions), refuses ambiguous names, `staff_id_problems` view | Implemented — gate: `tests/015_link_staff_ids_test.sql` (13 assertions) |
 | **`015_reporting_search.sql`** *(planned)* | Report RPCs, `store_day_range()`, `search_text()` + `pg_trgm`/GIN, index sweep | Phase 4 |
 | `supabase/config.toml` *(repo root)* | CLI project root; `verify_jwt = true` for `create-user` | Split from the SQL in `web/supabase/` — Phase 5 |
 | `supabase/functions/create-user/index.ts` | Creates an Auth user + mirrors it into `public.users` using the service-role key | JWT-only gate, caller-supplied `role_id`/`store_id` — Phase 3 |
