@@ -30,7 +30,7 @@
 
 begin;
 create extension if not exists pgtap;
-select plan(51);
+select plan(54);
 
 -- ===== seed (superuser; RLS bypassed for SETUP only) ========================
 -- 008 auto-creates 'Main Store' and 009 licenses it (perpetual pro), so the
@@ -228,16 +228,16 @@ select is((select count(*) from pg_policies
 
 -- ---------- G4: the money columns are ledger-owned -------------------------
 select _poke_money('m1', (select sale_id from _cap where k = 's1'), 'amount_paid');
-select is(_cap_err('m1'), null,
+select like(_cap_err('m1'), 'money columns are ledger-owned%',
   'G4a a direct write to sales.amount_paid is refused');
 select _poke_money('m2', (select sale_id from _cap where k = 's1'), 'net_amount');
-select is(_cap_err('m2'), null,
+select like(_cap_err('m2'), 'money columns are ledger-owned%',
   'G4b a direct write to sales.net_amount is refused');
 select _poke_money('m3', (select sale_id from _cap where k = 's1'), 'total_amount');
-select is(_cap_err('m3'), null,
+select like(_cap_err('m3'), 'money columns are ledger-owned%',
   'G4c a direct write to sales.total_amount is refused');
 select _poke_money('m4', (select sale_id from _cap where k = 's1'), 'discount');
-select is(_cap_err('m4'), null,
+select like(_cap_err('m4'), 'money columns are ledger-owned%',
   'G4d a direct write to sales.discount is refused');
 
 -- ---------- G1/G2: voiding reverses the sale without erasing it -----------
@@ -280,7 +280,7 @@ select is((select kind from public.stock_movements
 
 -- ---------- voiding twice, and voiding without restock ------------------
 select _void('v2', (select sale_id from _cap where k = 's1'), 'again', true);
-select is(_cap_err('v2'), null,
+select like(_cap_err('v2'), 'already voided%',
   'G1g voiding an already-voided sale is refused');
 
 select _checkout('s2',
@@ -294,29 +294,48 @@ select is(_stock('bbbbbbbb-bbbb-4bbb-8bbb-000000000001'), 4,
   'G2c without restock the unit stays off the shelf (5 - 1)');
 
 -- ---------- G5: re-checkout is server-priced and atomic ------------------
-select _recheckout('r1', (select sale_id from _cap where k = 's2'),
+-- s2 was deliberately voided above (G1i) and a voided sale must refuse edits,
+-- so re-checkout gets its own live invoice. Stock ledger up to here:
+--   5 seeded -> s1 takes 2 (3) -> s1 void WITH restock (5)
+--          -> s2 takes 1 (4) -> s2 void WITHOUT restock (4, unchanged)
+select _checkout('s3',
+  '{"total_amount": 500, "discount": 0, "net_amount": 500, "amount_paid": 500, "payment_method": "Cash"}'::jsonb,
+  '[{"product_id": "bbbbbbbb-bbbb-4bbb-8bbb-000000000001", "qty": 1, "unit_price": 500, "total_price": 500, "name": "Test Lens A"}]'::jsonb,
+  '[{"method": "cash", "amount": 500}]'::jsonb);
+select is(_cap_err('s3'), null, 'G5g the sale we re-checkout is created');
+select is(_stock('bbbbbbbb-bbbb-4bbb-8bbb-000000000001'), 3,
+  'G5h it drew 1 off the shelf (4 - 1)');
+
+-- A voided sale refuses edits - that is the point of voiding, not a bug.
+select _recheckout('r0', (select sale_id from _cap where k = 's2'),
+  '{"net_amount": 500, "amount_paid": 500}'::jsonb,
+  '[]'::jsonb);
+select like(_cap_err('r0'), 'voided%',
+  'G5i a voided sale can no longer be edited');
+
+select _recheckout('r1', (select sale_id from _cap where k = 's3'),
   '{"net_amount": 900, "amount_paid": 900, "payment_method": "Cash"}'::jsonb,
   '[{"product_id": "bbbbbbbb-bbbb-4bbb-8bbb-000000000001", "qty": 1, "unit_price": 1, "total_price": 1, "name": "Test Lens A"}]'::jsonb,
   '[{"method": "cash", "amount": 900}]'::jsonb);
-select is(_cap_err('r1'), null,
+select like(_cap_err('r1'), 'price changed%',
   'G5a re-checkout with a tampered line price is refused');
 select is((select unit_price from public.sale_items
-            where sale_id = (select sale_id from _cap where k = 's2')), 500::numeric,
+            where sale_id = (select sale_id from _cap where k = 's3')), 500::numeric,
   'G5b the stored line price is untouched by the refused re-checkout');
 
-select _recheckout('r2', (select sale_id from _cap where k = 's2'),
+select _recheckout('r2', (select sale_id from _cap where k = 's3'),
   '{"net_amount": 1000, "amount_paid": 1000, "payment_method": "Cash"}'::jsonb,
   '[{"product_id": "bbbbbbbb-bbbb-4bbb-8bbb-000000000001", "qty": 2, "unit_price": 500, "total_price": 1000, "name": "Test Lens A"}]'::jsonb,
   '[{"method": "cash", "amount": 1000}]'::jsonb);
 select is(_cap_err('r2'), null, 'G5c an honest re-checkout succeeds');
 select is((select count(*) from public.sale_items
-            where sale_id = (select sale_id from _cap where k = 's2')), 1::bigint,
+            where sale_id = (select sale_id from _cap where k = 's3')), 1::bigint,
   'G5d the lines are replaced, not appended to');
 select is((select sum(amount) from public.sale_payments
-            where sale_id = (select sale_id from _cap where k = 's2')), 1000::numeric,
+            where sale_id = (select sale_id from _cap where k = 's3')), 1000::numeric,
   'G5e the payment ledger is replaced too');
-select is(_stock('bbbbbbbb-bbbb-4bbb-8bbb-000000000001'), 3,
-  'G5f stock follows the replaced lines (5 - 2)');
+select is(_stock('bbbbbbbb-bbbb-4bbb-8bbb-000000000001'), 2,
+  'G5f stock follows the replaced lines: 1 became 2, so 3 - 1 = 2');
 
 -- ---------- line-level discount -----------------------------------------
 select _checkout('d1',
@@ -329,8 +348,8 @@ select is((select discount from public.sale_items
   'G7b the line discount is stored on the item');
 
 -- ---------- revoking DELETE must not over-restrict ------------------------
-select is((select count(*) from public.sales where invoice_no is not null), 2::bigint,
-  'G8a the cashier can still READ their sales');
+select is((select count(*) from public.sales where invoice_no is not null), 4::bigint,
+  'G8a the cashier can still READ their sales (s1, s2, s3, d1)');
 select _poke_money('m5', (select sale_id from _cap where k = 's2'), 'doctor_name');
 select is(_cap_err('m5'), null,
   'G8b an ordinary (non-money) header edit still works');
