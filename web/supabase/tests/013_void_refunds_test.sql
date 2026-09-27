@@ -228,16 +228,16 @@ select is((select count(*) from pg_policies
 
 -- ---------- G4: the money columns are ledger-owned -------------------------
 select _poke_money('m1', (select sale_id from _cap where k = 's1'), 'amount_paid');
-select like(_cap_err('m1'), 'money columns are ledger-owned%',
+select matches(_cap_err('m1'), '^money columns are ledger-owned',
   'G4a a direct write to sales.amount_paid is refused');
 select _poke_money('m2', (select sale_id from _cap where k = 's1'), 'net_amount');
-select like(_cap_err('m2'), 'money columns are ledger-owned%',
+select matches(_cap_err('m2'), '^money columns are ledger-owned',
   'G4b a direct write to sales.net_amount is refused');
 select _poke_money('m3', (select sale_id from _cap where k = 's1'), 'total_amount');
-select like(_cap_err('m3'), 'money columns are ledger-owned%',
+select matches(_cap_err('m3'), '^money columns are ledger-owned',
   'G4c a direct write to sales.total_amount is refused');
 select _poke_money('m4', (select sale_id from _cap where k = 's1'), 'discount');
-select like(_cap_err('m4'), 'money columns are ledger-owned%',
+select matches(_cap_err('m4'), '^money columns are ledger-owned',
   'G4d a direct write to sales.discount is refused');
 
 -- ---------- G1/G2: voiding reverses the sale without erasing it -----------
@@ -280,7 +280,7 @@ select is((select kind from public.stock_movements
 
 -- ---------- voiding twice, and voiding without restock ------------------
 select _void('v2', (select sale_id from _cap where k = 's1'), 'again', true);
-select like(_cap_err('v2'), 'already voided%',
+select matches(_cap_err('v2'), 'already voided',
   'G1g voiding an already-voided sale is refused');
 
 select _checkout('s2',
@@ -310,14 +310,14 @@ select is(_stock('bbbbbbbb-bbbb-4bbb-8bbb-000000000001'), 3,
 select _recheckout('r0', (select sale_id from _cap where k = 's2'),
   '{"net_amount": 500, "amount_paid": 500}'::jsonb,
   '[]'::jsonb);
-select like(_cap_err('r0'), 'voided%',
+select matches(_cap_err('r0'), 'voided',
   'G5i a voided sale can no longer be edited');
 
 select _recheckout('r1', (select sale_id from _cap where k = 's3'),
   '{"net_amount": 900, "amount_paid": 900, "payment_method": "Cash"}'::jsonb,
   '[{"product_id": "bbbbbbbb-bbbb-4bbb-8bbb-000000000001", "qty": 1, "unit_price": 1, "total_price": 1, "name": "Test Lens A"}]'::jsonb,
   '[{"method": "cash", "amount": 900}]'::jsonb);
-select like(_cap_err('r1'), 'price changed%',
+select matches(_cap_err('r1'), 'price changed',
   'G5a re-checkout with a tampered line price is refused');
 select is((select unit_price from public.sale_items
             where sale_id = (select sale_id from _cap where k = 's3')), 500::numeric,
