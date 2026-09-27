@@ -276,6 +276,11 @@ export type CartLine = {
   unit_price: number
   total_price: number
   name: string
+  /** Line-level discount (migration 013), with the reason it was given. The
+   *  database refuses a discount larger than the line, and recomputes the
+   *  header from it, so this is a request rather than a stored truth. */
+  discount?: number
+  discount_reason?: string | null
 }
 
 export type CreateSaleInput = {
@@ -497,11 +502,15 @@ export type UpdateSaleFullInput = CreateSaleInput & {
 }
 
 /**
- * Replace an existing sale's contents after an in-place re-checkout: updates
- * the header, then swaps out sale_items / order_examinations and the sale's
- * stock movements (delete + reinsert). Like the create fallback this is NOT
- * atomic - a mid-way failure could leave partial rows; acceptable parity with
- * the legacy Flet flow until everything moves into a Postgres RPC.
+ * Replace an existing sale's contents after an in-place re-checkout.
+ *
+ * Migration 013 moved this into `update_sale_order()`: ONE transaction that
+ * re-prices the lines against the catalog, refuses a stale cart, swaps the
+ * items / exams / stock movements / payment ledger, and recomputes the header.
+ * It used to be five separate client round-trips, so a failure in the middle
+ * left a half-written order (threat T6). The client-side path is kept only for
+ * databases that have not run 013 yet - and on those it is already the old,
+ * non-atomic behaviour, so nothing regresses.
  */
 export function useUpdateSaleFull() {
   const qc = useQueryClient()
@@ -534,9 +543,44 @@ export function useUpdateSaleFull() {
             ]
           : [])
       const pay = clampPaymentLines(fallbackLines, totals.amount_paid)
+      const exams = examinations ?? []
 
-      // 1) Header. lab_status only changes when the exam set appears/vanishes;
-      //    an in-progress lab status must never be reset by a re-checkout.
+      // net_amount is the ONE money input the server keeps - it recomputes
+      // total/discount from the catalog. amount_paid is derived from `pay`.
+      const salePayload = {
+        customer_id: null,
+        doctor_name: doctorName ?? '',
+        delivery_date: deliveryDate ? deliveryDate : null,
+        payment_method: paymentMethod ?? methodSummary(pay),
+        net_amount: totals.net_amount,
+        amount_paid: totals.amount_paid,
+        lab_status: exams.length ? 'Not Started' : null,
+        rx_image_path: rxImagePath ?? null,
+        frame_image_path: frameImagePath ?? null,
+      }
+      const linePayload = items.map((i) => ({
+        product_id: i.product_id,
+        qty: i.qty,
+        unit_price: i.unit_price,
+        total_price: i.total_price,
+        name: i.name,
+        discount: i.discount ?? 0,
+        discount_reason: i.discount_reason ?? null,
+      }))
+
+      const rpc = await supabase.rpc('update_sale_order', {
+        p_sale_id: saleId,
+        p_sale: salePayload,
+        p_items: linePayload,
+        p_exams: exams,
+        p_payments: pay,
+      })
+      if (!rpc.error && rpc.data) return rpc.data as Sale
+      if (rpc.error && !isMissingRpc('update_sale_order', rpc.error)) throw rpc.error
+
+      // ---- pre-013 fallback: the old, non-atomic client-side replace ----
+      // lab_status only changes when the exam set appears/vanishes; an
+      // in-progress lab status must never be reset by a re-checkout.
       const headerPatch: Partial<Sale> = {
         total_amount: totals.total_amount,
         discount: totals.discount,
@@ -548,7 +592,6 @@ export function useUpdateSaleFull() {
         rx_image_path: rxImagePath ?? null,
         frame_image_path: frameImagePath ?? null,
       }
-      const exams = examinations ?? []
       if (exams.length) headerPatch.lab_status = 'Not Started'
       else if (previousHadExams) headerPatch.lab_status = null
 
@@ -560,7 +603,6 @@ export function useUpdateSaleFull() {
         .single<Sale>()
       if (hdrErr) throw hdrErr
 
-      // 2) Line items: replace.
       const { error: delItemsErr } = await supabase
         .from('sale_items')
         .delete()
@@ -572,7 +614,6 @@ export function useUpdateSaleFull() {
         if (itemsErr) throw itemsErr
       }
 
-      // 3) Examinations: replace.
       const { error: delExErr } = await supabase
         .from('order_examinations')
         .delete()
@@ -593,8 +634,8 @@ export function useUpdateSaleFull() {
         if (exErr) throw exErr
       }
 
-      // 4) Stock movements: replace THIS sale's movements. They carry no
-      //    sale_id column - ref_no holds the invoice number and type='sale'.
+      // Stock movements carry no sale_id column - ref_no holds the invoice
+      // number and type='sale'.
       const { error: delMovErr } = await supabase
         .from('stock_movements')
         .delete()
@@ -614,10 +655,7 @@ export function useUpdateSaleFull() {
         if (movErr) throw movErr
       }
 
-      // 5) Payment lines: replace the ledger (re-checkout rewrites the tenders).
-      //    The sale_payments_sync trigger recomputes amount_paid from the rows,
-      //    so header and ledger can never disagree; on legacy databases without
-      //    the table this no-ops and the patched header behaves as before.
+      // The sale_payments_sync trigger recomputes amount_paid from the rows.
       await replaceSalePayments(
         saleId,
         pay.map((p) => ({ sale_id: saleId, amount: p.amount, method: p.method })),
@@ -633,7 +671,6 @@ export function useUpdateSaleFull() {
     },
   })
 }
-
 export function useUpdateLabStatus() {
   const qc = useQueryClient()
   return useMutation({
@@ -687,7 +724,20 @@ export const LAB_STATUS_COLORS: Record<string, string> = {
   Received: 'bg-brand-bg text-brand-dark',
 }
 
-/** Patch header fields of an existing sale (doctor, totals, status, dates…). */
+/** Columns on `sales` that migration 013 made LEDGER-OWNED: a direct UPDATE
+ *  is refused by a trigger, because these four are recomputed from
+ *  `sale_payments` / the catalog by the checkout RPCs. Stripped from every
+ *  generic header patch so an ordinary edit never trips the guard. */
+export const MONEY_COLUMNS = [
+  'total_amount',
+  'discount',
+  'net_amount',
+  'amount_paid',
+] as const satisfies readonly (keyof Sale)[]
+
+/** Patch header fields of an existing sale (doctor, dates, photos, lab status…).
+ *  Money columns are deliberately dropped: they belong to the ledger. Change
+ *  what was paid through the Add-payment flow, not from here. */
 export function useUpdateSale() {
   const qc = useQueryClient()
   return useMutation({
@@ -698,13 +748,18 @@ export function useUpdateSale() {
       id: string
       patch: Partial<Sale>
     }): Promise<void> => {
-      // Strip embedded relations so PostgREST doesn't try to write them.
+      // Strip embedded relations so PostgREST doesn't try to write them, and
+      // strip the ledger-owned money columns.
       const {
         sale_items: _si,
         order_examinations: _oe,
         users: _u,
         customers: _c,
         id: _id,
+        total_amount: _t,
+        discount: _d,
+        net_amount: _n,
+        amount_paid: _a,
         ...clean
       } = patch as Partial<Sale> & {
         sale_items?: unknown
@@ -717,6 +772,10 @@ export function useUpdateSale() {
       void _u
       void _c
       void _id
+      void _t
+      void _d
+      void _n
+      void _a
       const { error } = await supabase.from('sales').update(clean).eq('id', id)
       if (error) throw error
     },
@@ -724,6 +783,46 @@ export function useUpdateSale() {
       qc.invalidateQueries({ queryKey: KEY })
       qc.invalidateQueries({ queryKey: ['customer-orders'] })
       void vars
+    },
+  })
+}
+
+/**
+ * Void a sale (migration 013). This is an EVENT, not a delete: the header,
+ * the lines, the exams and the original payment rows all stay, and the sale
+ * gains voided_at / voided_by / void_reason. The database puts the stock back
+ * (when `restock`), mirrors every tender as a negative `kind = 'refund'` row so
+ * the per-method cash-up stays truthful, and recomputes amount_paid.
+ *
+ * Until 013 is applied the function is missing and the mutation fails loudly
+ * rather than silently doing nothing - a void that appears to work but erases
+ * nothing would be worse than an error.
+ */
+export function useVoidSale() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({
+      id,
+      reason,
+      restock,
+    }: {
+      id: string
+      reason: string
+      restock: boolean
+    }): Promise<Sale> => {
+      const { data, error } = await supabase.rpc('void_sale', {
+        p_sale_id: id,
+        p_reason: reason,
+        p_restock: restock,
+      })
+      if (error) throw error
+      return data as Sale
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: KEY })
+      qc.invalidateQueries({ queryKey: ['inventory'] })
+      qc.invalidateQueries({ queryKey: ['customer-orders'] })
+      qc.invalidateQueries({ queryKey: ['sale-payments'] })
     },
   })
 }

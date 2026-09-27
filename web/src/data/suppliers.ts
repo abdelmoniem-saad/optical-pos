@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
+import { isMissingRpc } from './rpc'
 
 export type Supplier = {
   id: string
@@ -103,9 +104,11 @@ export function useDeleteSupplier() {
       if (fErr) throw fErr
       const ids = (rows ?? []).map((r) => r.id)
 
-      if (ids.length) {
-        const { error: dErr } = await supabase.from('purchases').delete().in('id', ids)
-        if (dErr) throw dErr
+      // Migration 013 revoked the direct DELETE on purchases, so the cascade
+      // goes through delete_purchase(), which re-checks tenancy and the licence.
+      for (const pid of ids) {
+        const { error: dErr } = await supabase.rpc('delete_purchase', { p_purchase: pid })
+        if (dErr && !isMissingRpc('delete_purchase', dErr)) throw dErr
       }
 
       const { error } = await supabase.from('suppliers').delete().eq('id', id)
@@ -208,8 +211,9 @@ export function useDeletePurchasePayment() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: async (id: string): Promise<void> => {
-      const { error } = await supabase.from('purchase_payments').delete().eq('id', id)
-      if (error) throw error
+      // Migration 013 revoked the direct DELETE on purchase_payments too.
+      const { error } = await supabase.rpc('delete_purchase_payment', { p_payment: id })
+      if (error && !isMissingRpc('delete_purchase_payment', error)) throw error
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: PAYMENTS_KEY }),
   })

@@ -77,6 +77,10 @@ export interface StockMovement {
   product_id: string
   qty: number
   type: StockMovementType
+  // Normalised vocabulary (migration 013), derived from the legacy type by
+  // a trigger: initial | sale | void_restock | adjustment | purchase |
+  // transfer | other. Nullable on rows written before 013.
+  kind: string | null
   ref_no: string | null
   note: string | null
   created_at: string | null
@@ -115,6 +119,12 @@ export interface Sale {
   // same key returns this sale instead of writing a second one. Optional
   // because pre-012 schemas don't have the column.
   idempotency_key?: string | null
+  // Voiding (migration 013) is an EVENT, never a delete: a voided sale keeps
+  // every row and merely carries these three. `voided_at is not null` is the
+  // single test for "is this invoice live?".
+  voided_at?: string | null
+  voided_by?: string | null
+  void_reason?: string | null
 }
 export type SaleInsert = Omit<
   Sale,
@@ -127,7 +137,12 @@ export interface SaleItem {
   product_id: string
   qty: number
   unit_price: number | null
+  // Always qty * unit_price (a validated DB constraint). A line discount is
+  // its own column so the gross line stays honest and the discount is visible.
   total_price: number | null
+  // Line-level discount (migration 013), with the reason it was given.
+  discount?: number | null
+  discount_reason?: string | null
   name: string | null
 }
 export type SaleItemInsert = Omit<SaleItem, 'id'>
@@ -137,11 +152,19 @@ export type SaleItemInsert = Omit<SaleItem, 'id'>
 export interface SalePayment {
   id: string
   sale_id: string
+  // Negative since migration 013 - a refund. The column check is amount <> 0,
+  // not amount > 0, precisely so money can go back.
   amount: number
-  // 'cash' | 'wallet' | 'instapay' - free text so a future tender needs no migration.
+  // 'cash' | 'wallet' | 'instapay' | 'card' - free text so a future tender
+  // needs no migration.
   method: string
+  // 'payment' (money in) or 'refund' (money out). void_sale() writes one
+  // refund row per original tender so the cash-up per method stays truthful.
+  kind?: string
   note: string | null
-  paid_at: string // YYYY-MM-DD
+  // A timestamptz since migration 013 (was a DATE), so two payments on the
+  // same day are distinguishable and a shift/day close can group by time.
+  paid_at: string
   recorded_by: string | null
   store_id: string | null
   created_at: string | null
@@ -150,8 +173,9 @@ export type SalePaymentInsert = {
   sale_id: string
   amount: number
   method: string
+  kind?: string
   note?: string | null
-  // paid_at / recorded_by / store_id default in the DB (current_date /
+  // paid_at / recorded_by / store_id default in the DB (now() /
   // auth.uid() / tenant trigger) - the app only ever sends the core three.
   paid_at?: string
   recorded_by?: string | null

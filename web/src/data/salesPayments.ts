@@ -55,9 +55,18 @@ export function useAddSalePayments() {
   return useMutation({
     mutationFn: async (rows: SalePaymentInsert[]): Promise<SalePayment[]> => {
       if (!rows.length) return []
+      // Migration 013: kind separates money IN from money OUT, and paid_at is
+      // a timestamptz, so stamp both explicitly rather than relying on
+      // defaults that no longer mean the same thing.
+      const now = new Date().toISOString()
+      const stamped = rows.map((r) => ({
+        ...r,
+        kind: r.kind ?? 'payment',
+        paid_at: r.paid_at ?? now,
+      }))
       const { data, error } = await supabase
         .from('sale_payments')
-        .insert(rows)
+        .insert(stamped)
         .select()
         .returns<SalePayment[]>()
       if (isMissingPaymentLedger(error)) throw paymentLedgerMissingError()

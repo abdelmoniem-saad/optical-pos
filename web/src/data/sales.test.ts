@@ -58,7 +58,7 @@ vi.mock('../lib/supabase', () => ({
   },
 }))
 
-import { getNextInvoiceNo } from './sales'
+import { MONEY_COLUMNS, getNextInvoiceNo } from './sales'
 
 beforeEach(() => {
   state.invoiceRows = []
@@ -103,5 +103,27 @@ describe('getNextInvoiceNo', () => {
     await expect(getNextInvoiceNo()).resolves.toMatch(/^\d{6}$/)
     expect(warn).toHaveBeenCalled()
     warn.mockRestore()
+  })
+})
+
+describe('MONEY_COLUMNS (migration 013 guard contract)', () => {
+  it('names exactly the four columns the database refuses a direct write to', () => {
+    // guard_sale_money() in 013_void_refunds.sql raises unless the row is not
+    // changing one of these. If a fifth money column is ever added to `sales`
+    // it must be added here too, or useUpdateSale will send it and the edit
+    // will fail at runtime.
+    expect([...MONEY_COLUMNS].sort()).toEqual(
+      ['amount_paid', 'discount', 'net_amount', 'total_amount'],
+    )
+  })
+
+  it('is a subset of the Sale columns it claims to protect', () => {
+    const saleKeys: readonly string[] = [
+      'total_amount',
+      'discount',
+      'net_amount',
+      'amount_paid',
+    ]
+    for (const k of MONEY_COLUMNS) expect(saleKeys).toContain(k)
   })
 })
