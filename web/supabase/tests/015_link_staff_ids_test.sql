@@ -24,7 +24,7 @@
 
 begin;
 create extension if not exists pgtap;
-select plan(14);
+select plan(13);
 
 -- ===== fixtures ============================================================
 -- The real account that triggered this: a staff row created by hand with its
@@ -113,7 +113,6 @@ select is((select count(*) from public.users
 select is((select count(*) from public.link_staff_ids()
              where action = 'login-linked' and username = 'orphan')::bigint, 1::bigint,
   'G5 a login with no staff row gets one');
-select is((select store_id from public.users
 select is((select count(*) from public.stores s
             where s.id = (select store_id from public.users
                            where id = 'eeeeeeee-eeee-4eee-8eee-000000000004'))::bigint, 1::bigint,
