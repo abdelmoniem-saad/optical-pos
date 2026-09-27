@@ -30,8 +30,8 @@ select plan(14);
 -- The real account that triggered this: a staff row created by hand with its
 -- own uuid (SETUP.md step 2), and a Supabase Auth login of the same name with a
 -- different one. Here, exactly as in production: DIFFERENT ids.
-insert into public.stores (id, name, slug) values
-  ('ffffffff-ffff-4fff-8fff-000000000001', 'gate store', 'gate-store')
+insert into public.stores (id, name) values
+  ('ffffffff-ffff-4fff-8fff-000000000001', 'gate store')
 on conflict (id) do nothing;
 
 create function _gate_store() returns uuid
