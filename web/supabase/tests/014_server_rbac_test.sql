@@ -91,7 +91,7 @@ values
   ('aaaaaaaa-aaaa-4aaa-8aaa-000000000005', 'buser',   '-', 'Cashier B',
      'dddddddd-dddd-4ddd-8ddd-000000000004', _store_b(), true),
   ('aaaaaaaa-aaaa-4aaa-8aaa-000000000006', 'root',    '-', 'Vendor',   null, _store_a(), true),
-  ('aaaaaaaa-aaaa-4aaa-8aaa-000000000009', 'imposter', '-', 'Imposter', null, _store_a(), true),
+  ('aaaaaaaa-aaaa-4aaa-8aaa-000000000009', 'imposter', '-', 'Imposter', null, _store_a(), true)
 
 on conflict (id) do nothing;
 
