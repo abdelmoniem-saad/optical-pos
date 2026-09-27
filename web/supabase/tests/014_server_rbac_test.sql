@@ -57,6 +57,7 @@ insert into auth.users (id, email, username) values
   ('aaaaaaaa-aaaa-4aaa-8aaa-000000000003', 'boss@lensypos.local',     'boss'),
   ('aaaaaaaa-aaaa-4aaa-8aaa-000000000004', 'norole@lensypos.local',   'norole'),
   ('aaaaaaaa-aaaa-4aaa-8aaa-000000000005', 'buser@lensypos.local',    'buser'),
+  ('aaaaaaaa-aaaa-4aaa-8aaa-000000000006', 'root@lensypos.local',     'root'),
   -- The store-resolution hole, in the form the schema actually allows.
   --
   -- The roadmap's original T8 scenario - two stores both containing a user
