@@ -11,13 +11,21 @@ name: Schema baseline (manual)
 #     answers on IPv4, so the dump happens on a runner and reaches the database
 #     through the **session pooler**.
 #
-# One-time setup: repo Settings -> Secrets and variables -> Actions -> New
-# repository secret named SUPABASE_DB_URL, valued with the Session pooler
-# connection string (Dashboard -> Project Settings -> Database -> Connection
-# string -> Session pooler), password included:
-#   postgresql://postgres.<project-ref>:<password>@aws-0-<region>.pooler.supabase.com:5432/postgres
-# Session mode (port 5432) is required - pg_dump cannot run through the
-# transaction pooler (port 6543).
+# One-time setup:
+#   1. Dashboard -> click **Connect** in the project header (the Settings ->
+#      Database page no longer shows connection strings), choose **Session
+#      pooler**, and copy the URI with the real password in place of
+#      [YOUR-PASSWORD]. It looks like:
+#        postgresql://postgres.<project-ref>:<password>@aws-0-<region>.pooler.supabase.com:5432/postgres
+#      Session mode (port 5432) is required - pg_dump cannot run through the
+#      transaction pooler (port 6543).
+#   2. Repo Settings -> Secrets and variables -> Actions -> New repository
+#      secret named SUPABASE_DB_URL, valued with that URI.
+# If the database password is unknown, reset it (Dashboard -> Settings ->
+# Database -> Reset password). Supabase updates its managed services (PostgREST,
+# PgBouncer) automatically, so the running app keeps working; use letters and
+# digits only, since symbols like @ : / # ? % must be percent-encoded inside a
+# URI and are the most common cause of a failed dump.
 
 on:
   workflow_dispatch:
@@ -62,7 +70,17 @@ jobs:
           SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
           LABEL: ${{ inputs.label }}
         run: |
-          set -euo pipefail
+          set -uo pipefail
+          case "$SUPABASE_DB_URL" in
+            postgres://*|postgresql://*) ;;
+            *)
+              echo "::error::SUPABASE_DB_URL must start with postgresql:// - copy the Session pooler URI from the dashboard's Connect dialog."
+              exit 1
+              ;;
+          esac
+          if printf '%s' "$SUPABASE_DB_URL" | grep -q 'db\.[a-z0-9]*\.supabase\.co'; then
+            echo "::warning::that looks like the DIRECT connection host (db.<ref>.supabase.co). GitHub runners have no IPv6 outbound, so the dump can hang; the Session pooler URI (aws-0-<region>.pooler.supabase.com:5432) is the one that works here."
+          fi
           out="web/supabase/baseline/$LABEL.sql"
           mkdir -p web/supabase/baseline
           {
@@ -74,8 +92,20 @@ jobs:
           } > "$out"
           # postgres:18 client: a newer pg_dump can dump older servers, while the
           # runner's preinstalled client (16) cannot dump a 17/18 server.
-          docker run --rm --entrypoint pg_dump postgres:18 \
-            "$SUPABASE_DB_URL" --schema-only --schema=public --no-owner >> "$out"
+          if ! docker run --rm --entrypoint pg_dump postgres:18 \
+                 "$SUPABASE_DB_URL" --schema-only --schema=public --no-owner \
+                 > /tmp/dump.sql 2> /tmp/dump.err; then
+            echo "::group::pg_dump stderr"
+            cat /tmp/dump.err
+            echo "::endgroup::"
+            if grep -qi 'password authentication failed' /tmp/dump.err; then
+              echo "::error::password rejected - the secret still holds an old password, or the password needs percent-encoding inside the URI (%, @, :, /, #, ?). Easiest fix: reset the password to letters+digits only, then re-copy the Session pooler URI and update the secret."
+            elif grep -qi 'tenant or user not found' /tmp/dump.err; then
+              echo "::error::the pooler could not match the project - SUPABASE_DB_URL must be the Session pooler URI: user postgres.<project-ref>, host aws-0-<region>.pooler.supabase.com, port 5432."
+            fi
+            exit 1
+          fi
+          cat /tmp/dump.sql >> "$out"
           tables=$(grep -c '^CREATE TABLE' "$out" 2>/dev/null || true)
           tables=${tables:-0}
           echo "captured $tables CREATE TABLE statements"

@@ -134,21 +134,35 @@ container, and the direct host `db.<project-ref>.supabase.co` is IPv6-only while
 GitHub-hosted runners have no IPv6 — so the runner reaches the database through
 the Supavisor **session pooler** instead.
 
-1. **Add the secret.** Dashboard → **Project Settings → Database → Connection
-   string → Session pooler** (port `5432`, user `postgres.<project-ref>`) → copy
-   the URI, password included. Then GitHub → repo **Settings → Secrets and
-   variables → Actions → New repository secret** → name `SUPABASE_DB_URL` →
-   paste the URI.
+1. **Get the database password.** If you don't have it, reset it:
+   **Settings → Database → Reset password**. This is safe for the app: it talks
+   to PostgREST over HTTPS with the API key, not with the database password, and
+   Supabase's docs say managed services are updated automatically, with no
+   downtime. Prefer **letters and digits only** — a password containing `@`,
+   `:`, `/`, `#`, `?` or `%` must be percent-encoded inside the URI, which is the
+   most common way this step fails.
+2. **Get the Session pooler URI.** Click **Connect** in the project header (the
+   **Settings → Database** page no longer shows connection strings) → choose
+   **Session pooler** → put the password in place of `[YOUR-PASSWORD]` → copy.
+   It must look like
+   `postgresql://postgres.qhbprvavoudetjbyxrsn:<password>@aws-0-<region>.pooler.supabase.com:5432/postgres`:
+   the host contains `pooler.supabase.com` and the port is `5432`. If the host is
+   `db.qhbprvavoudetjbyxrsn.supabase.co`, that is the *direct* connection — fine
+   on a laptop, unusable from a GitHub runner, which has no IPv6.
    > Session mode (port `5432`) is required — `pg_dump` cannot run through the
    > transaction pooler (port `6543`).
-2. **Run it.** GitHub → **Actions → "Schema baseline (manual)" → Run workflow**
+3. **Add it to GitHub.** Repo → **Settings → Secrets and variables → Actions →
+   New repository secret** → name `SUPABASE_DB_URL` → paste the URI.
+4. **Run it.** GitHub → **Actions → "Schema baseline (manual)" → Run workflow**
    (leave the label `schema_before_012`). It writes
    `web/supabase/baseline/schema_before_012.sql`, uploads it as an artifact, and
    commits it to `main`. Re-running with an unchanged schema is a no-op, so a
    new commit from this workflow is itself the drift signal.
-3. **If it fails** with `no CREATE TABLE statements`, `SUPABASE_DB_URL` is not
-   the session-pooler URI — check the port (`5432`) and the `postgres.<ref>`
-   username.
+5. **If it fails** the error names the cause: `password authentication failed`
+   → the secret holds an old or unencoded password; `tenant or user not found`
+   → the URI is not the session-pooler one (user `postgres.<project-ref>`, host
+   `aws-0-<region>.pooler.supabase.com`); `no CREATE TABLE statements` → the
+   dump connected somewhere unexpected.
 
 Without a runner, the equivalent is
 `pg_dump "<session-pooler-uri>" --schema-only --schema=public --no-owner`
