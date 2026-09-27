@@ -145,6 +145,18 @@ create table if not exists public.stock_movement_kinds (
   label text not null
 );
 
+-- RLS ON, DEFAULT-DENY. This is a seven-row global vocabulary with no tenant
+-- data, but leaving it wide open would be exactly the "create a table and
+-- forget the policy" pattern the audit flags. Nothing in the app reads it -
+-- `kind` is a text column on stock_movements normalised by the trigger below -
+-- so no policy is needed to make the feature work, and a later
+-- `create policy ... for select to authenticated using (true)` is a one-liner
+-- if the UI ever wants to show friendly labels.
+--
+-- Supabase's linter asks for this explicitly when pasting 013, so the file
+-- answers the question itself rather than making the operator guess.
+alter table public.stock_movement_kinds enable row level security;
+
 insert into public.stock_movement_kinds (code, label) values
   ('initial',     'Opening stock'),
   ('sale',        'Sold at the till'),
