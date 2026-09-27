@@ -40,7 +40,7 @@ language sql stable as $fn$ select 'ffffffff-ffff-4fff-8fff-000000000001'::uuid 
 insert into auth.users (id, email, username) values
   ('eeeeeeee-eeee-4eee-8eee-000000000001', 'mismatch@lensypos.local', 'mismatch'),
   ('eeeeeeee-eeee-4eee-8eee-000000000002', 'clash@lensypos.local',     'clash'),
-  ('eeeeeeee-eeee-4eee-8eee-000000000003', 'clash2@lensypos.local',    'clash2'),
+  ('eeeeeeee-eeee-4eee-8eee-000000000003', 'clash@other.local',       'clash-two'),
   ('eeeeeeee-eeee-4eee-8eee-000000000004', 'orphan@lensypos.local',    'orphan')
 on conflict (id) do nothing;
 
@@ -110,9 +110,9 @@ select is((select count(*) from public.users
   'G4 an ambiguous name is NOT re-pointed - two logins could mean either');
 
 -- ===== G5: a login with no staff row gets one =========================
-select is((select count(*) from public.link_staff_ids()
-             where action = 'login-linked' and username = 'orphan')::bigint, 1::bigint,
-  'G5 a login with no staff row gets one');
+select is((select count(*) from public.users
+            where id = 'eeeeeeee-eeee-4eee-8eee-000000000004')::bigint, 1::bigint,
+  'G5 a login with no staff row got one (done by the first call, in G1)');
 select is((select count(*) from public.stores s
             where s.id = (select store_id from public.users
                            where id = 'eeeeeeee-eeee-4eee-8eee-000000000004'))::bigint, 1::bigint,
