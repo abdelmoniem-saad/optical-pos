@@ -170,9 +170,9 @@ end $$;
 -- 4-argument pgTAP form: the 3-argument one takes a BARE table name, so
 -- 'public.roles' would be looked up as a table literally called that.
 
-select has_function('public', 'resolve_can', 'text, uuid',
+select has_function('public', 'resolve_can', array['text','uuid'],
   'S1 resolve_can(code, user) exists - the SQL mirror of resolveCan()');
-select has_function('public', 'require_perm', 'text',
+select has_function('public', 'require_perm', array['text'],
   'S2 require_perm(code) exists - the guard privileged RPCs call');
 select has_table('public', 'audit_log',
   'S3 audit_log exists, so this phase''s own changes are reviewable');
