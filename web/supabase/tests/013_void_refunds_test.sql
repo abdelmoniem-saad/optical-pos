@@ -241,6 +241,16 @@ select matches(_cap_err('m4'), '^money columns are ledger-owned',
   'G4d a direct write to sales.discount is refused');
 
 -- ---------- G1/G2: voiding reverses the sale without erasing it -----------
+-- 014 turned voiding into a PERMISSION: require_perm(history.void) now runs
+-- at the top of the function. This gate is about the void MECHANICS, not about
+-- who may void, so the cashier is given the code explicitly - which keeps the
+-- requirement visible: forget the grant and every void assertion below fails
+-- with 'insufficient permission: history.void' rather than something subtler.
+insert into public.user_permissions (user_id, permission_id, allow)
+select 'aaaaaaaa-aaaa-4aaa-8aaa-000000000001', p.id, true
+  from public.permissions p where p.code = 'history.void'
+on conflict (user_id, permission_id) do nothing;
+
 select _void('v1', (select sale_id from _cap where k = 's1'), 'wrong customer', true);
 select is(_cap_err('v1'), null,
   'G1a void_sale succeeds');
