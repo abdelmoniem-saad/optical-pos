@@ -53,7 +53,14 @@ declare
   v_missing  text;
 begin
   -- The highest number in the list, e.g. {000,…,019} -> 19.
-  select max(substring(m from 1, 3)::integer)
+  --
+  -- `substring(m from 1 for 3)` uses the FOR keyword on purpose. The
+  -- SQL-standard comma form, `substring(m from 1, 3)`, is a SYNTAX ERROR in
+  -- PostgreSQL - it accepts `substring(x from 1)` and `substring(x from 1 for 3)`,
+  -- never a comma. That mistake cost CI runs #89-#91: the caret in the error sat
+  -- on the comma, and the message points at a character rather than at a
+  -- function, so it reads like a truncated file rather than a wrong syntax.
+  select max(substring(m from 1 for 3)::integer)
     into v_expected
     from unnest(p_migrations) as m
    where m ~ '^[0-9]{3}_';
@@ -65,12 +72,13 @@ begin
   select max(version) into v_actual from public.lensy_schema_versions;
 
   -- Anything the ledger should have but does not. Named individually, because
-  -- "something is missing" is not a message anyone can act on.
+  -- "something is missing" is not a message anyone can act on. Same FOR-keyword
+  -- form as above.
   select string_agg(m, ', ' order by m)
     into v_missing
     from unnest(p_migrations) as m
    where m ~ '^(01[7-9]|0[2-9][0-9])_'
-     and substring(m from 1, 3)::integer not in
+     and substring(m from 1 for 3)::integer not in
          (select version from public.lensy_schema_versions);
 
   if v_missing is not null then
