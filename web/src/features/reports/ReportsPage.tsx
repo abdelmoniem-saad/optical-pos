@@ -2,12 +2,22 @@ import { useQuery } from '@tanstack/react-query'
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { computeReport, type Period } from './computeReport'
-import { useSalesSummary, fetchReportTotals, fetchTopCustomers, fetchVoidSummary } from '../../data/sales'
+import { useSalesSummary, fetchReportTotals, fetchTopCustomers, fetchVoidSummary, fetchStoreDay } from '../../data/sales'
 import { useCustomers } from '../../data/customers'
 import { useInventory } from '../../data/inventory'
 import { useI18n } from '../../i18n/LanguageContext'
 import { usePaymentsRange } from '../../data/salesPayments'
 import { methodLabelKey, sumByMethod } from '../../lib/payments'
+
+/**
+ * A time window for the report functions, with the meaning of its end bound.
+ *
+ * `exclusiveEnd` is not decoration: `store_day_range` returns the NEXT local
+ * midnight, so comparing with `<=` would include the first instant of
+ * tomorrow, while a bare 'YYYY-MM-DD' is a whole day and only `<=` includes it.
+ * Two windows that look identical in TypeScript otherwise.
+ */
+type Window = { from: string | null; to: string | null; exclusiveEnd: boolean }
 
 function Kpi({
   label,
@@ -60,23 +70,88 @@ export function ReportsPage() {
   // describe different days (and so the value is stable across renders).
   const now = useMemo(() => new Date(todayIso + 'T00:00:00'), [todayIso])
   const monthStart = todayIso.slice(0, 8) + '01'
-  const from = period === 'today' ? todayIso : period === 'month' ? monthStart : null
-  const to = period === 'today' ? todayIso : null
+  const nextMonthStart = useMemo(() => {
+    const [y, m] = monthStart.split('-').map(Number)
+    // Date.UTC's month is 0-based, so passing `m` (which is 1-based) IS the
+    // next month - and this sidesteps month lengths and leap years entirely.
+    return new Date(Date.UTC(y, m, 1)).toISOString().slice(0, 10)
+  }, [monthStart])
+
+  // The store's LOCAL day, as half-open UTC instants, resolved by the database
+  // (016, `store_day_range`). This used to be a bare 'YYYY-MM-DD' handed to a
+  // timestamptz parameter, which Postgres casts in the SESSION zone - UTC on
+  // Supabase - so "today" silently began at 00:00 UTC, i.e. 03:00 in Cairo, and
+  // everything sold between midnight and 3am fell outside its own day.
+  //
+  // `days.data` is null while this loads and on a database without 016; the
+  // windows below then fall back to the bare date, which is what the screen
+  // did before, so an un-migrated install still shows its numbers.
+  const days = useQuery({
+    queryKey: ['store-days', todayIso, monthStart, nextMonthStart],
+    queryFn: async () => {
+      const [today, month, monthEnd] = await Promise.all([
+        fetchStoreDay(todayIso),
+        fetchStoreDay(monthStart),
+        fetchStoreDay(nextMonthStart),
+      ])
+      return { today, month, monthEnd }
+    },
+  })
+  const dd = days.data
+
+  const todayWindow: Window = dd?.today
+    ? { from: dd.today.from, to: dd.today.to, exclusiveEnd: true }
+    : { from: todayIso, to: todayIso, exclusiveEnd: false }
+
+  // The month runs from the start of the 1st to the start of the 1st of NEXT
+  // month - the latter taken from that day's own `from_at`, so no month-length
+  // arithmetic and no leap-year special case.
+  const monthWindow: Window = dd?.month && dd?.monthEnd
+    ? { from: dd.month.from, to: dd.monthEnd.from, exclusiveEnd: true }
+    : { from: monthStart, to: null, exclusiveEnd: false }
+
+  const unbounded: Window = { from: null, to: null, exclusiveEnd: false }
+  const w: Window = period === 'today' ? todayWindow : period === 'month' ? monthWindow : unbounded
 
   // Preferred path (migration 016): the database does the arithmetic, so the
   // void exclusion is enforced by the schema rather than by this file. Falls
   // back to the client computation while 016 is unapplied, which is the
   // computeReport path above - and which now also excludes voids.
+  //
+  // Today and This Month are asked for SEPARATELY, with the store's own day
+  // bounds, because they are not the selected window: on "All Time" the screen
+  // still has to name one day and one month, and computing those from
+  // `order_date.slice(0, 10)` meant the browser's UTC calendar - so a 1am sale
+  // was credited to the day before. One definition of today, asked once.
   const server = useQuery({
-    queryKey: ['report-totals', from, to],
+    queryKey: [
+      'report-totals',
+      w.from,
+      w.to,
+      todayWindow.from,
+      todayWindow.to,
+      monthWindow.from,
+      monthWindow.to,
+    ],
+    // Wait for the exact bounds rather than fetching twice: the first pass
+    // would use the bare dates and print numbers that then change.
+    enabled: !days.isPending,
     queryFn: async () => {
-      const [totals, tops, voids] = await Promise.all([
-        fetchReportTotals(from, to),
-        fetchTopCustomers(from, to, 5),
-        fetchVoidSummary(from, to),
+      const [totals, tops, voids, today, month] = await Promise.all([
+        fetchReportTotals(w.from, w.to),
+        fetchTopCustomers(w.from, w.to, 5),
+        fetchVoidSummary(w.from, w.to),
+        fetchReportTotals(todayWindow.from, todayWindow.to),
+        fetchReportTotals(monthWindow.from, monthWindow.to),
       ])
       if (!totals) return null
-      return { totals, tops: tops ?? [], voids: voids ?? { voidedCount: 0, voidedNet: 0 } }
+      return {
+        totals,
+        tops: tops ?? [],
+        voids: voids ?? { voidedCount: 0, voidedNet: 0 },
+        today,
+        month,
+      }
     },
   })
 
@@ -98,19 +173,24 @@ export function ReportsPage() {
         topCustomers: s.tops,
         voidedCount: s.voids.voidedCount,
         voidedNet: s.voids.voidedNet,
-        todayRevenue: client.todayRevenue,
-        todayOrders: client.todayOrders,
-        monthRevenue: client.monthRevenue,
-        monthOrders: client.monthOrders,
+        todayRevenue: s.today?.revenue ?? client.todayRevenue,
+        todayOrders: s.today?.orderCount ?? client.todayOrders,
+        monthRevenue: s.month?.revenue ?? client.monthRevenue,
+        monthOrders: s.month?.orderCount ?? client.monthOrders,
       }
     : client
 
   const m = (n: number) => n.toFixed(0)
+  // Zero is a legitimate answer, so it cannot also mean "not loaded yet" - and
+  // a confident 0 that becomes 11,560 a moment later reads as a bug. The KPIs
+  // have no loading state of their own, so the value is withheld instead.
+  const pending = (sales.isLoading && !sales.data) || (server.isPending && !server.data)
+  const shown = (text: string) => (pending ? '…' : text)
 
-  // Cash-up: money RECEIVED in the period, by paid_at, from the ledger. The
-  // same `from`/`to` bounds the report uses, so the two panels cannot disagree
-  // about which day they are describing.
-  const pays = usePaymentsRange(from, to)
+  // Cash-up: money RECEIVED in the window, by paid_at, from the ledger. The
+  // SAME bounds the report uses, including the same exclusive end, so the two
+  // panels cannot disagree about which day they are describing.
+  const pays = usePaymentsRange(w.from, w.to, w.exclusiveEnd)
   const byMethod = useMemo(() => sumByMethod(pays.data ?? []), [pays.data])
 
   return (
@@ -129,14 +209,14 @@ export function ReportsPage() {
       </div>
 
       <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <Kpi label={t('Total Revenue')} value={m(r.totalRevenue)} color="#388e3c" to="/history" />
-        <Kpi label={t('Total Paid')} value={m(r.totalPaid)} color="#00796b" />
-        <Kpi label={t('Balance Due')} value={m(r.balanceDue)} color="#d32f2f" />
-        <Kpi label={t('Total Orders')} value={String(r.orderCount)} color="#1976d2" to="/history" />
-        <Kpi label={t("Today's Revenue")} value={m(r.todayRevenue)} color="#f57c00" sub={`${r.todayOrders} ${t('orders')}`} to="/history?range=today" />
-        <Kpi label={t('This Month')} value={m(r.monthRevenue)} color="#7b1fa2" sub={`${r.monthOrders} ${t('orders')}`} to="/history?range=month" />
-        <Kpi label={t('Pending Lab')} value={String(r.pendingLab)} color="#f57c00" to="/lab" />
-        <Kpi label={t('Ready for Pickup')} value={String(r.readyLab)} color="#388e3c" to="/lab" />
+        <Kpi label={t('Total Revenue')} value={shown(m(r.totalRevenue))} color="#388e3c" to="/history" />
+        <Kpi label={t('Total Paid')} value={shown(m(r.totalPaid))} color="#00796b" />
+        <Kpi label={t('Balance Due')} value={shown(m(r.balanceDue))} color="#d32f2f" />
+        <Kpi label={t('Total Orders')} value={shown(String(r.orderCount))} color="#1976d2" to="/history" />
+        <Kpi label={t("Today's Revenue")} value={shown(m(r.todayRevenue))} color="#f57c00" sub={`${r.todayOrders} ${t('orders')}`} to="/history?range=today" />
+        <Kpi label={t('This Month')} value={shown(m(r.monthRevenue))} color="#7b1fa2" sub={`${r.monthOrders} ${t('orders')}`} to="/history?range=month" />
+        <Kpi label={t('Pending Lab')} value={shown(String(r.pendingLab))} color="#f57c00" to="/lab" />
+        <Kpi label={t('Ready for Pickup')} value={shown(String(r.readyLab))} color="#388e3c" to="/lab" />
       </div>
 
       {/* A void is excluded from every number above - correctly, since its

@@ -83,20 +83,34 @@ export function useAddSalePayments() {
 }
 
 /**
- * Ledger rows within [from, to] (YYYY-MM-DD, inclusive) for Reports.
- * from/to = null → unbounded on that side. Powers the per-method
- * cash-up view (money actually RECEIVED, by paid_at).
+ * Ledger rows in a window, for the Reports cash-up view (money actually
+ * RECEIVED, by `paid_at`). from/to = null → unbounded on that side.
+ *
+ * `exclusiveEnd` says how to read `to`, and the two modes are genuinely
+ * different, which is exactly how this panel was wrong:
+ *
+ *   * a store-day bound from `store_day_range` is the NEXT local midnight, so
+ *     the comparison must be `<` - using `<=` would pull in the first instant
+ *     of tomorrow;
+ *   * a bare 'YYYY-MM-DD' (the pre-016 fallback) means that whole day, and
+ *     `lte` is the only way to include it - `lt` silently drops the entire day,
+ *     which is what "lte('2026-09-28') is midnight at the START of the day, so
+ *     every payment after midnight was dropped" describes.
+ *
+ * Passing a bare date in the exclusive mode is the one combination that is
+ * meaningless; the callers never do it, and this flag makes that visible at the
+ * call site instead of hiding it in the query.
  */
-export function usePaymentsRange(from: string | null, to: string | null) {
+export function usePaymentsRange(from: string | null, to: string | null, exclusiveEnd = false) {
   return useQuery({
-    queryKey: [...KEY, 'range', from ?? '', to ?? ''],
+    queryKey: [...KEY, 'range', from ?? '', to ?? '', exclusiveEnd ? 'x' : 'i'],
     queryFn: async (): Promise<SalePayment[]> => {
       let q = supabase
         .from('sale_payments')
         .select('id, method, amount, paid_at')
         .order('paid_at', { ascending: true })
       if (from) q = q.gte('paid_at', from)
-      if (to) q = q.lte('paid_at', to)
+      if (to) q = exclusiveEnd ? q.lt('paid_at', to) : q.lte('paid_at', to)
       const { data, error } = await q.returns<SalePayment[]>()
       if (isMissingPaymentLedger(error)) throw paymentLedgerMissingError()
       if (error) throw error

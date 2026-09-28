@@ -114,11 +114,12 @@ const n = (v: unknown): number => Number(v ?? 0) || 0
  * explicitly.
  */
 async function callReport<T>(
+  name: string,
   fn: () => PromiseLike<{ data: T | null; error: unknown }>,
 ): Promise<T | null> {
   const res = (await fn()) as { data: T | null; error: unknown }
   if (res.error) {
-    if (isMissingRpc('report_', res.error as RpcErrorLike)) return null
+    if (isMissingRpc(name, res.error as RpcErrorLike)) return null
     throw res.error
   }
   return res.data ?? null
@@ -130,11 +131,37 @@ export function isReportingInDatabase(): boolean {
   return reportingInDatabase
 }
 
+/**
+ * Read a single-row `returns table (...)` RPC.
+ *
+ * PostgREST wraps a set-returning function in an ARRAY even when it returns
+ * exactly one row: `returns table (revenue numeric, ...)` always arrives as
+ * `[{revenue: ...}]`, never as `{revenue: ...}`. Reading the fields off the
+ * array itself gives `undefined`, and `Number(undefined ?? 0)` is `0` - so a
+ * perfectly healthy database produced a neat, confident row of zeros on
+ * Reports while Top Customers, the one call that used `.map()`, showed real
+ * names. Nothing threw; the screen simply lied.
+ *
+ * The opposite convention is just as easy to trip over: a function returning a
+ * COMPOSITE type (`returns public.sales`) is a single object, which is why
+ * create_sale_order and void_sale read correctly. TypeScript cannot tell the
+ * two apart - `Record<string, unknown>` fits both - so the distinction is made
+ * here, once, and pinned by reportRpc.test.ts.
+ */
+async function callReportRow<T>(
+  name: string,
+  fn: () => PromiseLike<{ data: T[] | null; error: unknown }>,
+): Promise<T | null> {
+  const rows = await callReport<T[]>(name, fn)
+  return Array.isArray(rows) ? (rows[0] ?? null) : null
+}
+
 export async function fetchReportTotals(
   from: string | null,
   to: string | null,
 ): Promise<ReportTotals | null> {
-  const row = await callReport<Record<string, unknown>>(() =>
+  // A single-row table: read it as one row (callReportRow), not as an object.
+  const row = await callReportRow<Record<string, unknown>>('report_sales_window', () =>
     supabase.rpc('report_sales_window', { p_from: from, p_to: to }),
   )
   if (!row) {
@@ -156,7 +183,7 @@ export async function fetchTopCustomers(
   to: string | null,
   limit = 5,
 ): Promise<TopCustomer[] | null> {
-  const rows = await callReport<Record<string, unknown>[]>(() =>
+  const rows = await callReport<Record<string, unknown>[]>('report_top_customers', () =>
     supabase.rpc('report_top_customers', { p_from: from, p_to: to, p_limit: limit }),
   )
   if (!rows) {
@@ -167,7 +194,8 @@ export async function fetchTopCustomers(
 }
 
 export async function fetchVoidSummary(from: string | null, to: string | null): Promise<VoidSummary | null> {
-  const row = await callReport<Record<string, unknown>>(() =>
+  // Also a single-row table - same array-vs-object trap as the totals above.
+  const row = await callReportRow<Record<string, unknown>>('report_voided_count', () =>
     supabase.rpc('report_voided_count', { p_from: from, p_to: to }),
   )
   if (!row) {
@@ -175,6 +203,34 @@ export async function fetchVoidSummary(from: string | null, to: string | null): 
     return null
   }
   return { voidedCount: n(row.voided_count), voidedNet: n(row.voided_net) }
+}
+
+/**
+ * The half-open UTC instants of a store-LOCAL day (`store_day_range`, 016).
+ *
+ * Every report function takes `timestamptz` bounds, and the client used to pass
+ * bare 'YYYY-MM-DD' strings. Postgres casts those in the SESSION's zone (UTC on
+ * Supabase), so "today" began at 00:00 UTC = 03:00 in Cairo and every sale made
+ * between midnight and 3am was missing from Today, from This Month's opening
+ * hours, and from the cash-up. Asking the database for the instants removes the
+ * guess entirely.
+ *
+ * NOTE: `to` is EXCLUSIVE - it is the NEXT local midnight, not the end of this
+ * day - so callers must compare with `<`, never `<=`. Confusing the two is the
+ * bug that made the old cash-up drop every payment after midnight.
+ *
+ * Returns null when 016 is not installed; callers keep their old behaviour
+ * rather than losing the screen.
+ */
+export async function fetchStoreDay(day: string): Promise<{ from: string; to: string } | null> {
+  const row = await callReportRow<Record<string, unknown>>('store_day_range', () =>
+    supabase.rpc('store_day_range', { p_day: day }),
+  )
+  if (!row) return null
+  const from = row.from_at
+  const to = row.to_at
+  if (typeof from !== 'string' || typeof to !== 'string') return null
+  return { from, to }
 }
 
 
