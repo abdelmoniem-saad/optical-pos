@@ -80,8 +80,7 @@ values
   ('ffffffff-ffff-4fff-8fff-000000000021', 1000, 'cash',   'payment', '2026-09-20 10:00:00+00', _rstore()),
   ('ffffffff-ffff-4fff-8fff-000000000022',  500, 'cash',   'payment', '2026-09-21 10:00:00+00', _rstore()),
   ('ffffffff-ffff-4fff-8fff-000000000022',  500, 'wallet', 'payment', '2026-09-21 10:00:00+00', _rstore()),
-  ('ffffffff-ffff-4fff-8fff-000000000022', -400, 'cash',   'refund',  '2026-09-22 10:00:00+00', _rstore()),
-  ('ffffffff-ffff-4fff-8fff-000000000025',   70, 'cash',   'payment', '2026-09-21 23:30:00+00', _rstore());
+  ('ffffffff-ffff-4fff-8fff-000000000022', -400, 'cash',   'refund',  '2026-09-22 10:00:00+00', _rstore());
 
 -- The timezone fixture. 23:30 UTC on 2026-09-21 is 01:30 on 2026-09-22 in
 -- Cairo (UTC+2). The old Reports code asked for the UTC date, so it filed
@@ -93,6 +92,13 @@ values ('ffffffff-ffff-4fff-8fff-000000000026', 'R0004',
         'ffffffff-ffff-4fff-8fff-000000000011',
         300, 0, 300, 0, '2026-09-21 23:30:00+00', _rstore())
 on conflict (id) do nothing;
+
+-- R0004's payment, added AFTER the sale exists (the FK is immediate). At
+-- 23:30 UTC it is 01:30 on the 22nd in Cairo, so this is the row that proves
+-- the cash-up panel follows the store's day rather than UTC's.
+insert into public.sale_payments (sale_id, amount, method, kind, paid_at, store_id)
+values ('ffffffff-ffff-4fff-8fff-000000000026', 70, 'cash', 'payment',
+        '2026-09-21 23:30:00+00', _rstore());
 
 -- Sign in as a member of the report store, so auth_store_id() resolves to it.
 insert into auth.users (id, email, username) values
