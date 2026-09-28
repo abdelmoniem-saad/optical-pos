@@ -28,7 +28,7 @@
 
 begin;
 create extension if not exists pgtap;
-select plan(22);
+select plan(23);
 
 -- ===== fixtures ============================================================
 -- Two stores: the seeded one, and this one. If any report ever leaks across
@@ -85,12 +85,15 @@ values
 -- The timezone fixture. 23:30 UTC on 2026-09-21 is 01:30 on 2026-09-22 in
 -- Cairo (UTC+2). The old Reports code asked for the UTC date, so it filed
 -- this sale under yesterday, while History - using the browser's local date -
--- filed it under today. Two screens, one sale, two different days.
+-- it; asking for the Cairo day catches it. The old Reports code did the former.
 insert into public.sales (id, invoice_no, customer_id, total_amount, discount,
-                          net_amount, amount_paid, order_date, store_id)
+                          net_amount, amount_paid, order_date, store_id, lab_status)
+-- lab_status is set to NULL on purpose: the column DEFAULTS to 'Not Started',
+-- which would have made this timezone fixture show up as a pending lab job
+-- and quietly changed G-R4b.
 values ('ffffffff-ffff-4fff-8fff-000000000026', 'R0004',
         'ffffffff-ffff-4fff-8fff-000000000011',
-        300, 0, 300, 0, '2026-09-21 23:30:00+00', _rstore())
+        300, 0, 300, 0, '2026-09-21 23:30:00+00', _rstore(), null)
 on conflict (id) do nothing;
 
 -- R0004's payment, added AFTER the sale exists (the FK is immediate). At
@@ -197,13 +200,13 @@ select matches((select indexdef from pg_indexes
   'voided_at IS NULL',
   'G-R10b ...and its predicate is the void exclusion, so the filter is free');
 -- ===== G-T1/G-T2: one definition of "today" ==========================
--- The store is Africa/Cairo (UTC+2). R0004 is at 23:30 UTC on the 21st, which
--- is 01:30 on the 22nd in Cairo. Asking for the UTC day misses it; asking for
--- the Cairo day catches it. The old Reports code did the former.
+-- The store is Africa/Cairo, which is EEST = UTC+3 all year (Egypt moved to a
+-- permanent UTC+3 in 2023 - a detail worth stating, because assuming +2 here
+-- is wrong and the test fails for the right reason). R0004 at 23:30 UTC on the
 select is((select from_at::text from public.store_day_range('2026-09-22'::date)),
-  '2026-09-21 22:00:00+00', 'G-T1 the Cairo day starts at 22:00 UTC the day before');
+  '2026-09-21 21:00:00+00', 'G-T1 the Cairo day starts at 21:00 UTC the day before');
 select is((select to_at::text from public.store_day_range('2026-09-22'::date)),
-  '2026-09-22 22:00:00+00', 'G-T1b ...and ends 24 hours later, exclusive');
+  '2026-09-22 21:00:00+00', 'G-T1b ...and ends 24 hours later, exclusive');
 select is((select revenue::bigint
              from public.report_sales_window(
                (select from_at from public.store_day_range('2026-09-21'::date)),
@@ -216,13 +219,25 @@ select is((select revenue::bigint
                (select to_at   from public.store_day_range('2026-09-22'::date)))),
   300::bigint,
   'G-T2b ...it IS counted on the 22nd, the day the shopkeeper means');
+-- Inside the Cairo 22nd there are two cash rows: R0004's 70 (23:30 UTC on the
+-- 21st = 02:30 on the 22nd) AND the -400 refund dated 22nd 10:00 UTC. So the
+-- day's cash is -330, not 70. The first version of this assertion expected 70
+-- and was wrong in a way worth keeping: a refund belongs to the day the money
+-- actually went back, which is the whole point of netting them in cash-up.
 select is((select total::bigint
              from public.report_payment_mix(
                (select from_at from public.store_day_range('2026-09-22'::date)),
                (select to_at   from public.store_day_range('2026-09-22'::date)))
             where method = 'cash'),
-  70::bigint,
-  'G-T3 the 23:30 UTC cash payment lands on the 22nd in the cash-up too');
+  -330::bigint,
+  'G-T3 the 23:30 UTC cash payment lands on the 22nd, net of that day''s refund');
+select is((select total::bigint
+             from public.report_payment_mix(
+               (select from_at from public.store_day_range('2026-09-21'::date)),
+               (select to_at   from public.store_day_range('2026-09-21'::date)))
+            where method = 'cash'),
+  1500::bigint,
+  'G-T3b the 21st keeps its own cash; the 23:30 UTC row is not counted there');
 
 reset role;
 
