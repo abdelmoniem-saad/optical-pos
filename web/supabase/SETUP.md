@@ -397,6 +397,55 @@ that has moved on.
 checkout, and reload. The sale should still be listed as pending, and appear
 normally once you go back online.
 
+## Step 15 - `019_lab_dwell.sql` (how long a job has been in the lab)
+
+The Lab screen could colour every job by status, and could not tell you which
+one was stuck — because a status has no timestamp. This adds the measurement.
+
+```sql
+select public.lab_queue();            -- every open job, longest-waiting first
+select public.lab_queue('In Lab');    -- just one status
+```
+
+The Lab screen now shows a **Waiting** badge next to each job: amber after a day,
+red after a week. Those are starting points, not rules — change them in
+`WaitBadge` once you know your shop's rhythm.
+
+A database without 019 simply shows no badge, so nothing breaks if you skip it.
+
+**How the timestamps are filled in.** A trigger does it, and it fires only when
+the status genuinely *changes* — editing a photo or fixing a typo on an order does
+not restart the clock, so "waiting 12 days" means 12 days.
+
+Two of the timestamps are written **once** and never rewritten:
+
+- `lab_started_at` — when the job first left *Not Started*
+- `lab_ready_at` — when it first became *Ready*
+
+That matters because a re-opened job (a lens remake, a wrong measurement) must
+not erase "how long did the lenses take?" — the one number worth keeping.
+
+**Your existing jobs are back-dated.** A job already in the lab gets its order
+date as the starting point, because the real time is unknowable now. Those jobs
+will show as very old, which is the safe direction: an old job is one you look
+at, and a job wrongly dated to today is one you forget.
+
+**Check it worked:** move a job to *Ready* on the Lab screen and back to *In
+Lab*, then:
+
+```sql
+select lab_status, lab_status_changed_at, lab_started_at, lab_ready_at
+  from public.sales where invoice_no = 'YOUR-INVOICE';
+```
+
+`lab_ready_at` should be unchanged from before the re-open, while
+`lab_status_changed_at` shows the new time. If both moved, tell me.
+
+Its gate is [`tests/019_lab_dwell_test.sql`](./tests/019_lab_dwell_test.sql)
+(14 assertions), also run by `npm run test:db` and CI. The backfill of existing
+jobs is not covered by the gate — a gate builds a fresh database, so there is no
+history to back-date. The query above is how to check that part.
+
 ## Schema baseline (recommended, ~2 minutes)
 
 The hardening roadmap (Phase 0) wants a `pg_dump` of the **live** `public`

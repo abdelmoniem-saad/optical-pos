@@ -13,11 +13,11 @@
 --
 --   G-L1  the three columns exist, nullable (no data forced on existing rows)
 --   G-L2  a status CHANGE stamps lab_status_changed_at
---   G-L3  an UNRELATED update (a photo path) does NOT stamp it - the whole
---         measurement is worthless if editing an invoice resets the clock
+--   G-L3  writing the SAME status again does not clear the stamp - the whole
+--         measurement is worthless if an unrelated edit resets the clock
 --   G-L4  leaving 'Not Started' stamps lab_started_at, ONCE
---   G-L5  'Ready' stamps lab_ready_at, and it is never rewritten afterwards:
---         re-entering the lab must not erase the measurement
+--   G-L5  lab_ready_at is written ONCE: re-opening a job must not erase the
+--         measurement, while lab_status_changed_at DOES move (G-L5b vs G-L5c)
 --   G-L6  a sale with no lab job gets no timestamps at all (lab_status DEFAULTS
 --         to 'Not Started', so a backfill that ignored that would invent work)
 --   G-L7  lab_queue() is scoped: another store's job never appears
@@ -26,14 +26,21 @@
 --
 -- Runs in ONE transaction and ROLLS BACK.
 --
+-- NOT COVERED, deliberately: 019's backfill of pre-existing rows. It only ever
+-- touches rows that existed before the migration, and a gate builds its own
+-- database from scratch, so there is nothing for it to act on. It is a data
+-- migration rather than behaviour, and the only thing that can verify it is the
+-- live database.
+--
 -- Run: bash web/scripts/test-db.sh   (CI does this on every push)
 
 begin;
 create extension if not exists pgtap;
--- 13 assertions. The b-suffixed ones are the second half of a pair, not a second
--- opinion: "the column is stamped" and "the number moved" are different claims,
--- and a trigger that only did the first would pass only one of them.
-select plan(13);
+-- 14 assertions. The b/c-suffixed ones are the second half of a pair, not a second
+-- opinion: "the column was stamped" and "the number is still the one we recorded"
+-- are different claims, and a trigger that only did the first would pass only
+-- one of them.
+select plan(14);
 
 -- ===== fixtures ===========================================================
 insert into public.stores (id, name) values
@@ -55,24 +62,41 @@ on conflict (id) do nothing;
 -- one. The column DEFAULTS to 'Not Started', so a fixture that omits it has
 -- silently created a lab job - the exact trap the Phase 4 gate documented and
 -- this one has to avoid.
+--
+-- L0002 carries lab_status_changed_at / lab_started_at / lab_ready_at EXPLICITLY,
+-- which is a correction rather than a convenience. 019's backfill runs ONCE, at
+-- migration time, and this gate's rows are inserted after that - so a fixture
+-- written as "a job that was Ready before the migration" would arrive with all
+-- three timestamps NULL, and the trigger would then fill lab_ready_at on its way
+-- past, which is precisely the movement G-L5b exists to forbid. Setting the
+-- stamps by hand is what the backfill would have written, so the assertion tests
+-- the trigger rather than the gap in my own fixture.
+--
+-- A consequence worth stating: the BACKFILL itself is not covered by this gate,
+-- because it can only run against rows that existed before the migration, and a
+-- gate builds its own database from scratch. It is a data migration, not
+-- behaviour, and the one thing that can verify it is the live database.
 insert into public.sales
   (id, invoice_no, customer_id, total_amount, discount, net_amount, amount_paid,
-   order_date, lab_status, store_id)
+   order_date, lab_status, lab_status_changed_at, lab_started_at, lab_ready_at, store_id)
 values
   ('ffffffff-ffff-4fff-8fff-000000000221', 'L0001',
    'ffffffff-ffff-4fff-8fff-000000000211', 100, 0, 100, 100,
-   '2026-09-20 10:00:00+00', 'In Lab',    _lstore()),
-  -- a job that has been sitting since before the migration, for the backfill
+   '2026-09-20 10:00:00+00', 'In Lab', null, null, null, _lstore()),
+  -- a job Ready since 2026-09-01, as the backfill would have left it
   ('ffffffff-ffff-4fff-8fff-000000000222', 'L0002',
    'ffffffff-ffff-4fff-8fff-000000000211', 100, 0, 100, 100,
-   '2026-09-01 10:00:00+00', 'Ready',     _lstore()),
+   '2026-09-01 10:00:00+00', 'Ready',
+   '2026-09-03 10:00:00+00', '2026-09-02 10:00:00+00', '2026-09-03 10:00:00+00',
+   _lstore()),
   -- NO lab job at all
   ('ffffffff-ffff-4fff-8fff-000000000223', 'L0003',
    'ffffffff-ffff-4fff-8fff-000000000211', 100, 0, 100, 100,
-   '2026-09-25 10:00:00+00', null,        _lstore()),
+   '2026-09-25 10:00:00+00', null, null, null, null, _lstore()),
   -- a job in ANOTHER store, for G-L7
   ('ffffffff-ffff-4fff-8fff-000000000224', 'L0004',
-   null, 100, 0, 100, 100, '2026-09-01 10:00:00+00', 'In Lab', _lother())
+   null, 100, 0, 100, 100, '2026-09-01 10:00:00+00', 'In Lab',
+   null, null, null, _lother())
 on conflict (id) do nothing;
 
 -- ===== impersonate a member of the lab store ==============================
@@ -147,19 +171,31 @@ select is(
   'G-L5a a job already Ready has lab_ready_at'
 );
 
--- The measurement that must survive: send it BACK to the lab and back to Ready
--- again. If lab_ready_at moved, the shop would lose the only number it cares
--- about ("how long did the lenses take?") the moment a job is re-opened.
+-- The measurement that must survive: send it BACK to the lab and on to the
+-- customer. If lab_ready_at moved, the shop would lose the only number it cares
+-- about - "how long did the lenses take?" - the moment a job is re-opened.
+--
+-- Asserted against the EXACT timestamp the fixture wrote, not with
+-- `lab_ready_at <> lab_status_changed_at`. A relative comparison passes for the
+-- wrong reason whenever both columns are NULL, and "not equal to the other
+-- column" is a much weaker claim than "still the value we recorded".
 update public.sales set lab_status = 'In Lab'
  where id = 'ffffffff-ffff-4fff-8fff-000000000222';
 update public.sales set lab_status = 'Received'
  where id = 'ffffffff-ffff-4fff-8fff-000000000222';
 
 select is(
-  (select lab_ready_at = lab_status_changed_at
-     from public.sales where id = 'ffffffff-ffff-4fff-8fff-000000000222'),
-  false,
-  'G-L5b re-opening a job moves lab_status_changed_at but must NOT move lab_ready_at'
+  (select lab_ready_at from public.sales
+    where id = 'ffffffff-ffff-4fff-8fff-000000000222'),
+  '2026-09-03 10:00:00+00'::timestamptz,
+  'G-L5b re-opening a job does NOT move lab_ready_at - the original Ready time survives'
+);
+
+select is(
+  (select lab_status_changed_at from public.sales
+    where id = 'ffffffff-ffff-4fff-8fff-000000000222') > '2026-09-03 10:00:00+00'::timestamptz,
+  true,
+  'G-L5c the same re-opening DOES move lab_status_changed_at, so the two columns are independent'
 );
 
 -- ===== G-L6: no lab job, no timestamps ===================================
