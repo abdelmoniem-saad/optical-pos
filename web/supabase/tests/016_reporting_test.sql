@@ -28,7 +28,7 @@
 
 begin;
 create extension if not exists pgtap;
-select plan(29);
+select plan(30);
 
 -- ===== fixtures ============================================================
 -- Two stores: the seeded one, and this one. If any report ever leaks across
@@ -269,8 +269,16 @@ select is((select count(*) from public.search_text('Ahmed (Cairo)', 10)
             where id = 'ffffffff-ffff-4fff-8fff-000000000044')::bigint,
   0::bigint, 'G-S2 another store''s identical name never appears');
 
-select is((select count(*) from public.search_text('ahmed', 10))::bigint,
-  1::bigint, 'G-S3 the search is case-insensitive');
+-- Case-insensitivity, asserted as a property rather than a magic number: the
+-- count for a lower-case term must equal the count for an upper-case one. (An
+-- earlier version expected 1 and got 2, because the store fixture already has a
+-- customer called 'Ahmed' - the count was never the point, the equality is.)
+select is((select count(*) from public.search_text('ahmed', 10)),
+  (select count(*) from public.search_text('AHMED', 10))::bigint,
+  'G-S3 the search is case-insensitive');
+select is((select count(*) from public.search_text('ahmed', 10)
+            where kind = 'customer')::bigint,
+  2::bigint, 'G-S3b ...and finds both Ahmed fixtures, not just one');
 
 -- A term under two characters returns nothing rather than the whole table.
 select is((select count(*) from public.search_text('a', 10))::bigint,
