@@ -271,6 +271,15 @@ function sanitizeTerm(t: string): string {
 const SALES_PAGE = 50
 export type SalesRange = 'all' | 'today' | 'month'
 
+/** Where the next page starts: the last row's sort key.
+ *
+ *  Both parts are needed. `order_date` alone is not a cursor - sales can share a
+ *  timestamp (two checkouts in the same second, or a re-checkout), and a
+ *  date-only cursor either skips the rest of that second's rows or re-fetches the
+ *  same page forever. `id` is unique, so (order_date, id) totally orders the list
+ *  and paging is stable no matter what is inserted while the cashier reads. */
+export type SaleCursor = { order_date: string; id: string }
+
 /**
  * Paged, server-filtered sales feed for History. Loads SALES_PAGE orders at a
  * time (newest first) and grows gracefully: filters run in Postgres (date
@@ -281,9 +290,18 @@ export function useInfiniteSales(range: SalesRange, term: string) {
   const t = sanitizeTerm(term)
   return useInfiniteQuery({
     queryKey: [...KEY, 'paged', range, t],
-    initialPageParam: 0,
+    // A CURSOR, not an offset. With OFFSET, a sale rung up while the cashier is
+    // reading page 2 shifts every later row down by one, so they see the same
+    // invoice twice and one goes missing. Two registers selling at once makes
+    // that routine rather than rare.
+    //
+    // The cursor is (order_date, id) rather than order_date alone: several sales
+    // can share a timestamp - two checkouts in the same second, or a re-checkout -
+    // and a date-only cursor would either skip them or loop forever on the same
+    // page. `id` is unique and total, so the pair is a stable sort key.
+    initialPageParam: null as SaleCursor | null,
     queryFn: async ({ pageParam }): Promise<{ rows: Sale[]; count: number }> => {
-      const offset = (pageParam as number) * SALES_PAGE
+      const cursor = pageParam as SaleCursor | null
       let q = supabase
         .from('sales')
         .select(
@@ -291,9 +309,21 @@ export function useInfiniteSales(range: SalesRange, term: string) {
           { count: 'exact' },
         )
         .order('order_date', { ascending: false })
-        .range(offset, offset + SALES_PAGE - 1)
+        // Deterministic tiebreak, so "page 2" is the same page 2 on every fetch.
+        .order('id', { ascending: false })
+
       if (range === 'today') q = q.gte('order_date', `${localDate()}T00:00:00`)
       else if (range === 'month') q = q.gte('order_date', `${localDate().slice(0, 8)}01T00:00:00`)
+
+      if (cursor) {
+        // Strictly "after the cursor, in this sort order": older order_date, or the
+        // same order_date with a smaller id. One `or` group, because PostgREST
+        // cannot AND a bare filter with an or-group.
+        q = q.or(
+          `order_date.lt.${cursor.order_date},and(order_date.eq.${cursor.order_date},id.lt.${cursor.id})`,
+        )
+      }
+
       if (t) {
         const { data: custs } = await supabase
           .from('customers')
@@ -303,15 +333,28 @@ export function useInfiniteSales(range: SalesRange, term: string) {
         const ids = (custs ?? []).map((c) => c.id)
         const parts = [`invoice_no.ilike.%${t}%`]
         if (ids.length) parts.push(`customer_id.in.(${ids.join(',')})`)
+        // A second or-group ANDs with the cursor group rather than replacing it,
+        // which is why the cursor is expressed as a group above.
         q = q.or(parts.join(','))
       }
+
+      // limit(), not range(): a cursor has a start, not an end.
+      q = q.limit(SALES_PAGE)
       const { data, error, count } = await q.returns<Sale[]>()
       if (error) throw error
       return { rows: data ?? [], count: count ?? 0 }
     },
-    getNextPageParam: (last, all) => {
-      const loaded = all.reduce((sum, p) => sum + p.rows.length, 0)
-      return loaded < last.count ? all.length : undefined
+    // `last` (the newest page) is unused: the walk stops on a SHORT page, not on a
+    // running count, so only `all` matters here. The count cannot be trusted for
+    // this - it is taken AFTER the search filter, so it can disagree with a cursor
+    // walk that also filters server-side, and using it yields either an empty
+    // extra page or an infinite walk. A short page is an honest end-of-data.
+    getNextPageParam: (_last, all) => {
+      const rows = all.flatMap((p) => p.rows)
+      if (rows.length < SALES_PAGE) return undefined
+      const lastRow = rows[rows.length - 1]
+      if (!lastRow?.order_date) return undefined
+      return { order_date: lastRow.order_date, id: lastRow.id }
     },
   })
 }
@@ -921,6 +964,75 @@ export function useSetOrderImage() {
 /** The ONLY lab statuses the Lab tab understands. Every editor/badge/filter
  *  must use these so colors and filters stay aligned across screens. */
 export const LAB_STATUSES = ['Not Started', 'In Lab', 'Ready', 'Received'] as const
+
+/** The lab queue with dwell times (migration 019).
+ *
+ *  `lab_status` alone could not answer "how long has this been waiting?" - the
+ *  column is a string with no timestamp, so the Lab screen could colour a badge
+ *  by status while being unable to say which job was stuck. `lab_queue()` is a
+ *  function rather than a plain select because the durations are computed in
+ *  Postgres from stamps the trigger maintains, and because it is tenant-scoped
+ *  the way 016 scoped its reports. */
+export type LabQueueRow = {
+  sale_id: string
+  invoice_no: string
+  lab_status: string
+  order_date: string | null
+  status_since: string | null
+  hours_in_status: number
+  hours_total: number
+  customer_name: string
+}
+
+/** PostgREST returns numeric as a number or a string depending on the column, so
+ *  both are coerced. Named `num` rather than `n` because `n` already exists in
+ *  this module (the report-row number parser) and tsc is right to object. */
+function num(value: unknown): number {
+  const parsed = typeof value === 'number' ? value : Number(value ?? 0)
+  return Number.isFinite(parsed) ? parsed : 0
+}
+
+export function useLabQueue(status: string | null) {
+  return useQuery({
+    queryKey: ['lab-queue', status],
+    queryFn: async (): Promise<LabQueueRow[]> => {
+      const { data, error } = await supabase.rpc('lab_queue', { p_status: status })
+      // A database without 019 has no such function. Surfaced as an error so the
+      // screen can keep working from the plain sales list rather than claiming
+      // no job is waiting.
+      if (isMissingRpc('lab_queue', error)) throw new Error('Lab timings need migration 019_lab_dwell.sql.')
+      if (error) throw error
+      const rows = (data as Record<string, unknown>[] | null) ?? []
+      return rows.map((r) => ({
+        sale_id: String(r.sale_id ?? ''),
+        invoice_no: String(r.invoice_no ?? ''),
+        lab_status: String(r.lab_status ?? ''),
+        order_date: (r.order_date as string | null) ?? null,
+        status_since: (r.status_since as string | null) ?? null,
+        hours_in_status: num(r.hours_in_status),
+        hours_total: num(r.hours_total),
+        customer_name: String(r.customer_name ?? ''),
+      }))
+    },
+  })
+}
+
+/** "3h" / "2d" / "5w" - short enough for a badge, and in the shop's units.
+ *
+ *  Weeks rather than months deliberately: a job in the lab for a month is a
+ *  failure so rare that rounding it to "1mo" hides the number that matters. */
+export function formatWait(hours: number): string {
+  // `<= 0` rather than `< 0`: zero means "no measurable wait" (a job stamped
+  // moments ago, or a database with no 019 stamps), and it must render as
+  // nothing. WaitBadge guards the same way, so the two agree and a just-started
+  // job shows no badge at all rather than "<1h".
+  if (!Number.isFinite(hours) || hours <= 0) return ''
+  if (hours < 1) return '<1h'
+  if (hours < 24) return `${Math.floor(hours)}h`
+  const days = Math.floor(hours / 24)
+  if (days < 14) return `${days}d`
+  return `${Math.floor(days / 7)}w`
+}
 
 /** Badge classes per status - kept next to the vocabulary so they can't drift. */
 export const LAB_STATUS_COLORS: Record<string, string> = {

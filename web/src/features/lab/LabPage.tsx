@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import {
+  formatWait,
   useInfiniteLabSales,
+  useLabQueue,
   useUpdateLabStatus,
   LAB_STATUSES,
   LAB_STATUS_COLORS,
@@ -12,6 +14,30 @@ import { OrderReceiptDialog } from '../../components/OrderReceiptDialog'
 import type { Sale } from '../../lib/database.types'
 
 const statusColor = LAB_STATUS_COLORS
+
+/** How long a job has been sitting in its current status (migration 019).
+ *
+ *  Amber past a day, red past a week. The thresholds are a guess at an optical
+ *  shop's rhythm rather than a rule - the point is that the number is now
+ *  VISIBLE, so the shop can set its own. What was not acceptable was a screen
+ *  where every overdue job looked exactly like a fresh one. */
+function WaitBadge({ hours }: { hours: number }) {
+  const { t } = useI18n()
+  if (!Number.isFinite(hours) || hours <= 0) return null
+  const tone =
+    hours >= 24 * 7
+      ? 'bg-danger text-white'
+      : hours >= 24
+        ? 'bg-warning-bg text-warning'
+        : 'bg-surface text-muted'
+  return (
+    <span
+      className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold tabular-nums ${tone}`}
+    >
+      {t('Waiting')} {formatWait(hours)}
+    </span>
+  )
+}
 
 function ExamLines({ saleId }: { saleId: string }) {
   const exams = useOrderExaminations(saleId)
@@ -51,6 +77,18 @@ export function LabPage() {
     [query.data],
   )
   const total = query.data?.pages[query.data.pages.length - 1]?.count ?? 0
+
+  // Dwell times (migration 019), joined onto the paged list by sale id. The list
+  // still comes from useInfiniteLabSales rather than being replaced: that one
+  // pages, and 019's function is a fixed 200-row snapshot. The badge is an
+  // enrichment, so a database without 019 renders without it rather than failing
+  // the whole screen.
+  const queue = useLabQueue(null)
+  const waitBySale = useMemo(() => {
+    const m = new Map<string, number>()
+    for (const q of queue.data ?? []) m.set(q.sale_id, q.hours_in_status)
+    return m
+  }, [queue.data])
 
   // Auto-load the next page when the sentinel scrolls into view.
   const sentinelRef = useRef<HTMLDivElement | null>(null)
@@ -114,6 +152,11 @@ export function LabPage() {
                   <div className="text-xs text-faint">{(s.order_date ?? '').slice(0, 10)}</div>
                 </div>
                 <div className="flex items-center gap-2">
+                  {/* How long it has been stuck in THIS status (migration 019).
+                      Hidden without the badge when the query is unavailable, which
+                      is the pre-019 state - not a zero, which would read as
+                      "just started". */}
+                  <WaitBadge hours={waitBySale.get(s.id) ?? 0} />
                   <span className={`rounded-full px-2 py-0.5 text-xs ${statusColor[s.lab_status ?? ''] ?? 'bg-surface'}`}>
                     {t(s.lab_status ?? '')}
                   </span>

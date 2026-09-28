@@ -331,6 +331,11 @@ export const ar: Record<string, string> = {
   'Balances need migration 018_purchase_stock.sql.':
     'الأرصدة تتطلب الترحيل 018_purchase_stock.sql.',
 
+  // Lab dwell times (migration 019)
+  Waiting: 'مدة الانتظار',
+  'Lab timings need migration 019_lab_dwell.sql.':
+    'مدد المختبر تتطلب الترحيل 019_lab_dwell.sql.',
+
   // Schema drift (migration 017). Says what to DO, not just what is wrong -
   // the person reading this is staff, not whoever deployed the update.
   'This app needs a database update. Ask your administrator to run the latest migration file.':
