@@ -760,10 +760,41 @@ a view of the world that has since moved on; replaying them minutes later would 
 state that no longer exists. Those keep failing loudly. Extending the queue is a per-mutation
 judgement, never a blanket default.
 
-> **Not verified here:** the 018 gate (19 assertions) is proven by CI only — no Docker or
-> Postgres on the dev machine, and the EDB installer is 403 behind this network. The
-> offline→reconnect cycle needs a live project and a network toggle, so `SETUP.md` step 14
-> carries the manual probe.
+> **Status — implemented. CI run #82 green, both jobs, every gate.** The offline queue, receiving
+> and the customer ledger are all in, and all 19 of the 018 gate's assertions pass alongside
+> 012–017.
+>
+> **Six CI runs to get 018 green, and the failures are the interesting part** — none of them was a
+> bug in the migration, and five of six were readable in the existing gates:
+>
+> - **#75** — the fixtures omitted `purchase_items.store_id`, which 008 made `NOT NULL`. I had read
+>   the DDL in `000_base_schema.sql` instead of checking whether a later migration added it. Same
+>   class of error as Phase 5's `pronargs`: assuming a column from the file that is easiest to read.
+> - **#76** — `license_write_ok()` refused the first receive, correctly. The gate had no licence.
+>   The rival store is licensed too on purpose: unlicensed, G-P6 would have passed for the wrong
+>   reason (refused for licence, not for tenancy).
+> - **#77** — the worst one, and the most valuable. Every balance came back `NULL` and the
+>   cross-store refusal never fired, because **the gate never impersonated anyone**.
+>   `auth_store_id()` returns NULL with no JWT, `store_id = NULL` matches nothing, so the functions
+>   found no customers — and G-P6 was about to pass for entirely the wrong reason, since the
+>   purchase was never found rather than refused. **A gate can be green and mean nothing.** The
+>   `set role` / `set_config` block is now the same fixture 013, 014 and 016 use.
+> - **#78/#79** — `sale_payments.recorded_by` references **`auth.users`**, not `public.users`. I
+>   seeded only the staff row, so there was no Auth identity for the FK. Naming `recorded_by` was
+>   correct but insufficient; the fix was creating *both* rows, as every other gate does.
+> - **#80** — the only failure that was a genuine arithmetic error, and **the database was right**:
+>   the weighted average of 10@4 then 10@6 is 4.67, not the 5 I asserted. Fixing an expectation is
+>   normally forbidden by this document's own rules, and it is legitimate here only because the
+>   value is recomputable by hand from the fixture — which is the test of whether "the database says
+>   so" is evidence.
+> - **#81** — every gate green, and the **only** remaining failure was the schema fingerprint,
+>   because 018 genuinely added `purchase_items.received_at` and three functions. The drift check
+>   from Phase 5 catching a real change, four runs after catching three of my own mistakes.
+>
+> **The real lesson is about this environment, not the SQL.** There is no local Postgres (the EDB
+> installer is 403 behind this network, and `embedded-postgres` ships no pgTAP, so the gates cannot
+> run here at all), which turned each of those into a push. A local database would have caught all
+> six on the first attempt. Worth solving before Phase 7 rather than paying this cost again.
 
 ---
 
