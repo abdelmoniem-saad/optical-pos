@@ -28,7 +28,7 @@
 
 begin;
 create extension if not exists pgtap;
-select plan(23);
+select plan(29);
 
 -- ===== fixtures ============================================================
 -- Two stores: the seeded one, and this one. If any report ever leaks across
@@ -245,7 +245,45 @@ select is((select total::bigint
 -- and the total agree, which is the property that actually matters: a day
 -- boundary that quietly duplicated or dropped money would break it.
 
-reset role;
+-- ===== G-S1..G-S4: search that can find people ======================
+-- The old client stripped `,()` from the term and assembled a PostgREST `or()`
+-- string. "Ahmed (Cairo)" therefore became "Ahmed   Cairo" and matched
+-- nothing - silently. G-S1 is the regression test for exactly that.
+insert into public.customers (id, name, phone, store_id) values
+  ('ffffffff-ffff-4fff-8fff-000000000041', 'Ahmed (Cairo)', '01500000041', _rstore()),
+  ('ffffffff-ffff-4fff-8fff-000000000042', 'O''Brien, Seán',  '01500000042', _rstore()),
+  ('ffffffff-ffff-4fff-8fff-000000000043', 'Moncef 100%',     '01500000043', _rstore()),
+  -- another store, to prove isolation
+  ('ffffffff-ffff-4fff-8fff-000000000044', 'Ahmed (Cairo) OTHER STORE', '01500000044',
+    (select id from public.stores where id <> _rstore() limit 1))
+on conflict (id) do nothing;
+
+select is((select count(*) from public.search_text('Ahmed (Cairo)', 10)
+            where kind = 'customer' and id = 'ffffffff-ffff-4fff-8fff-000000000041')::bigint,
+  1::bigint, 'G-S1 a name containing parentheses is found, not silently dropped');
+
+select is((select count(*) from public.search_text('Brien', 10)
+            where kind = 'customer' and id = 'ffffffff-ffff-4fff-8fff-000000000042')::bigint,
+  1::bigint, 'G-S1b a name containing an apostrophe and a comma is found');
+
+select is((select count(*) from public.search_text('Ahmed (Cairo)', 10)
+            where id = 'ffffffff-ffff-4fff-8fff-000000000044')::bigint,
+  0::bigint, 'G-S2 another store''s identical name never appears');
+
+select is((select count(*) from public.search_text('ahmed', 10))::bigint,
+  1::bigint, 'G-S3 the search is case-insensitive');
+
+-- A term under two characters returns nothing rather than the whole table.
+select is((select count(*) from public.search_text('a', 10))::bigint,
+  0::bigint, 'G-S4 a one-character term returns nothing instead of everything');
+
+-- The trigram indexes exist, so the substring match is not a sequential scan.
+select is((select count(*) from pg_indexes
+            where schemaname = 'public' and indexname like 'idx_trgm_%')::bigint,
+  5::bigint, 'G-S5 a trigram index per searchable column exists');
 
 rollback;
 
+reset role;
+
+rollback;

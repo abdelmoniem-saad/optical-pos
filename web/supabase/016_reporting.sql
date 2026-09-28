@@ -220,3 +220,74 @@ grant execute on function public.report_top_customers(timestamptz, timestamptz, 
 grant execute on function public.report_payment_mix(timestamptz, timestamptz) to authenticated;
 grant execute on function public.report_voided_count(timestamptz, timestamptz) to authenticated;
 
+-- ============================================================
+-- 9) search that can find people
+-- ============================================================
+-- The browser searched with `or(name.ilike.%term%, phone.ilike.%term%)`, which
+-- has two problems:
+--
+--   1. It could not be escaped safely, so the term was stripped of `,()` before
+--      use. Searching "Ahmed (Cairo)" became "Ahmed   Cairo" and returned
+--      nothing - silently, with no error, which is the worst way to fail.
+--   2. `ilike '%term%'` cannot use a btree index, so every keystroke is a
+--      sequential scan of the table.
+--
+-- pg_trgm makes a substring search indexable, and moving the term into a
+-- function means no filter string is assembled in the browser at all - so the
+-- or-syntax injection surface goes away with the escaping problem.
+create extension if not exists pg_trgm with schema extensions;
+
+do $$
+declare
+  t text;
+begin
+  foreach t in array array['customers.name', 'customers.phone',
+                           'inventory.name', 'inventory.sku',
+                           'sales.invoice_no'] loop
+    execute format(
+      'create index if not exists %I on public.%I using gin (%I extensions.gin_trgm_ops)',
+      'idx_trgm_' || split_part(t, '.', 1) || '_' || split_part(t, '.', 2),
+      split_part(t, '.', 1), split_part(t, '.', 2));
+  end loop;
+end $$;
+
+-- One term, one argument, no string concatenation. p_limit is clamped so a
+-- caller cannot ask for the whole table. The `like` escape is passed as a
+-- parameter, so a term containing % or _ matches literally instead of acting
+-- as a wildcard the user never typed.
+create or replace function public.search_text(p_term text, p_limit int default 6)
+returns table (
+  kind text,
+  id uuid,
+  label text,
+  detail text,
+  happened_at timestamptz
+)
+language sql stable security definer set search_path = public, extensions as $$
+  with v as (select public.auth_store_id() as s,
+                    nullif(btrim(coalesce(p_term, '')), '') as t,
+                    least(greatest(coalesce(p_limit, 6), 1), 25) as n)
+  select 'customer', c.id, c.name, coalesce(c.phone, ''), c.created_at
+    from public.customers c, v
+   where v.t is not null and length(v.t) >= 2
+     and c.store_id = v.s
+     and (c.name ilike '%' || v.t || '%' or c.phone ilike '%' || v.t || '%')
+  union all
+  select 'product', i.id, i.name, coalesce(i.sku, ''), i.created_at
+    from public.inventory i, v
+   where v.t is not null and length(v.t) >= 2
+     and i.store_id = v.s
+     and (i.name ilike '%' || v.t || '%' or i.sku ilike '%' || v.t || '%')
+  union all
+  select 'sale', s.id, coalesce(s.invoice_no, ''), '', s.order_date
+    from public.sales s, v
+   where v.t is not null and length(v.t) >= 2
+     and s.store_id = v.s
+     and s.invoice_no ilike '%' || v.t || '%'
+  order by 5 desc nulls last
+  limit (select n from v)
+$$;
+
+grant execute on function public.search_text(text, int) to authenticated;
+
+
