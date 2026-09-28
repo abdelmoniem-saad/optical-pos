@@ -544,10 +544,38 @@ as data grows — and, as it turned out, one of them was already wrong.
 > - **Both client changes fall back** behind `isMissingRpc`, so an un-migrated
 >   database keeps working — and the fallback keeps its old behaviour on
 >   purpose, since a fallback that quietly reintroduces a bug is worse than none.
-> - **Not done:** Reports still computes the "today" and "month" sub-totals on
->   the client (they are the same two numbers, and moving them buys nothing
->   while `computeReport` is still the fallback), and History's paging is still
->   offset-based, so concurrent inserts can shift rows between pages.
+> - **Not done:** History's paging is still offset-based, so concurrent inserts
+>   can shift rows between pages.
+> - **The last client-side sub-totals are gone.** Reports used to compute its
+>   "today" and "month" figures in the browser from the same rows it had already
+>   fetched, which meant two definitions of the same number: one from the
+>   database, one from `order_date.slice(0, 10)` in the browser's own zone — so
+>   a 1am sale was credited to the day before. Both are now asked for
+>   separately, with the store's own day bounds. That was the last item on the
+>   "not done" list above, and it closed a defect rather than just a
+>   limitation: the report functions take `timestamptz` bounds, and the app was
+>   passing bare `'YYYY-MM-DD'` strings, which Postgres casts in the **session**
+>   zone (UTC on Supabase). "Today" therefore began at 00:00 UTC = 03:00 in
+>   Cairo, and everything sold in the first three hours fell outside its own day.
+>   The bounds come from `store_day_range()` as half-open UTC instants now,
+>   which removes the guess rather than adjusting for it.
+> - **The end bound is EXCLUSIVE, and that is load-bearing.** A store-day bound
+>   from `store_day_range` is the *next* local midnight, not the end of this
+>   day, so the cash-up compares with `<`. Passing a bare date still means that
+>   whole day and needs `<=` — the same two arguments meaning different things
+>   is what made the panel come back empty. `usePaymentsRange` now takes the
+>   convention as an argument, so the mistake is visible at the call site, and
+>   the KPIs and the cash-up are handed the same bounds, so the two panels can
+>   no longer disagree about which day they are describing.
+> - **A defect the migration introduced, not one it exposed.** PostgREST wraps a
+>   set-returning function in an array even when it returns exactly one row, so
+>   reading fields off the result gave `undefined` — and
+>   `Number(undefined ?? 0)` is `0`. Reports rendered a tidy, confident row of
+>   zeros while Top Customers, the one call that used `.map()`, showed real
+>   names. Nothing threw; the screen simply lied. `callReportRow` handles the
+>   single-row shape once, and `reportRpc.test.ts` (11 tests) pins the
+>   distinction in both directions, because TypeScript cannot tell
+>   `returns table` from a composite return.
 
 > **Gate:** the 016 gate covers the void exclusion, the store's own day
 > boundaries, tenant isolation, refund netting, and the bracketed-name search.
