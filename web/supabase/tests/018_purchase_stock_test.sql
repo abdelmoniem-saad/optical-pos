@@ -288,9 +288,18 @@ update public.sales
 
 -- Nadia paid 600 against N0001. The 011 sync trigger owns amount_paid, so the
 -- ledger is the input and the header follows.
-insert into public.sale_payments (sale_id, amount, method, paid_at, store_id)
+--
+-- recorded_by is named EXPLICITLY. Its column default is auth.uid(), and these
+-- rows are inserted after `reset role` for the RLS reasons given above - which
+-- is fine, because the JWT claim survives the reset, but it is exactly the kind
+-- of implicit coupling that turns into a foreign-key failure the moment someone
+-- moves an insert across that boundary. The user exists (created above), so
+-- naming it says who took the money and cannot drift.
+insert into public.sale_payments
+  (sale_id, amount, method, paid_at, store_id, recorded_by)
 values ('ffffffff-ffff-4fff-8fff-000000000151', 600, 'Cash',
-        '2026-09-20 10:05:00+00', _rstore());
+        '2026-09-20 10:05:00+00', _rstore(),
+        'ffffffff-ffff-4fff-8fff-000000000191');
 
 select is(
   (select balance_due from public.customer_balance('ffffffff-ffff-4fff-8fff-000000000111'))::numeric,
@@ -306,9 +315,11 @@ select is(
 
 -- G-C3. A refund is a negative ledger row (013 dropped `amount > 0`), so it
 -- must RAISE what is owed again rather than being clamped at zero.
-insert into public.sale_payments (sale_id, amount, method, paid_at, store_id)
+insert into public.sale_payments
+  (sale_id, amount, method, paid_at, store_id, recorded_by)
 values ('ffffffff-ffff-4fff-8fff-000000000151', -200, 'Cash',
-        '2026-09-22 10:00:00+00', _rstore());
+        '2026-09-22 10:00:00+00', _rstore(),
+        'ffffffff-ffff-4fff-8fff-000000000191');
 
 select is(
   (select balance_due from public.customer_balance('ffffffff-ffff-4fff-8fff-000000000111'))::numeric,
