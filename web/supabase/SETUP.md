@@ -308,7 +308,7 @@ first recorded, so a second paste changes nothing.
 still `17`, and the same `applied_at`.
 
 Its gate is [`tests/017_schema_version_test.sql`](./tests/017_schema_version_test.sql)
-(13 assertions), also run by `npm run test:db` and CI.
+(14 assertions), also run by `npm run test:db` and CI.
 
 ### Manual probe for `create-user` (no live project in CI)
 

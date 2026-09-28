@@ -74,13 +74,26 @@ jobs:
             # to GitHub: emit one per failed assertion, pgTAP diagnostics
             # folded onto the same line, plus any ERROR anywhere in the line
             # (psql indents some of them) and a tail of the log.
+            #
+            # "not ok" must be anchored to the START of the line with a word
+            # boundary, or a description that happens to contain the phrase
+            # ("...counts what the UI excludes, not ok") is reported as a
+            # failure. psql also indents some TAP output, so leading whitespace
+            # is allowed but only before the first non-space character.
             awk '
-              /^not ok/ { if (buf) print buf; buf=$0; n=6; next }
+              /^[[:space:]]*not ok/ { if (buf) print buf; buf=$0; n=6; next }
               /^#/ && n > 0 { buf = buf " | " $0; n-- }
               /^CAPERR/ { if (buf) print buf; buf=""; print; next }
               /ERROR|FATAL|^FAIL:/ { if (buf) print buf; buf=""; print; next }
               END { if (buf) print buf }
             ' db-gate.log | head -40 | while IFS= read -r line; do
+              echo "::error::${line:0:1800}"
+            done
+            # A psql ERROR aborts the whole gate file, and when that happens the
+            # TAP stream never appears at all. The awk above only keys off
+            # "not ok", so on a syntax error it would emit nothing and the real
+            # cause would be buried under the generic tail below.
+            grep -nE 'ERROR|FATAL' db-gate.log | head -10 | while IFS= read -r line; do
               echo "::error::${line:0:1800}"
             done
             echo "::error file=web/db-gate.log::last 30 lines of the db gate:"

@@ -640,7 +640,24 @@ can differ, and nothing will ever notice.
 >    rewriting history. Adoption stays available as a separate, reversible step.
 >
 > **Not verified locally:** no Docker or Postgres on this machine, so the pgTAP gate and the
-> fingerprint step are proven by CI only, on this push.
+> fingerprint step are proven by CI only. The EDB installer is 403 behind this network, so a
+> local Postgres was not an option either.
+>
+> **CI run #67 caught a bug this phase shipped, and it is worth recording.** The 017 gate
+> called `has_function('public','schema_version','[]',...)`; pgTAP wants a real `text[]`, so psql
+> aborted at line 39 with `malformed array literal` and the whole file failed. A second, latent
+> version of the same trap sat in G-S10: `p_note` carries a DEFAULT, so the declared signature is
+> `(integer, text)` but the identity is `(integer)` — and `has_function_privilege` raises 42883 on
+> a mismatch instead of returning false, which would abort the file again. Both are now resolved by
+> looking the OID up in `pg_proc`, so there is no signature left to get wrong. **A gate that cannot
+> run locally is a gate that is only as good as its first CI run — write the edge cases, but expect
+> the first push to find something.**
+>
+> That run also exposed a flaw in the CI reporting itself: the awk that folds pgTAP diagnostics
+> into annotations matched `^not ok`, so any TAP line merely *containing* the words was reported as
+> a failure. The real one-line error was buried under six phantom annotations. It is now anchored
+> to `^[[:space:]]*not ok`, and a separate `grep -nE 'ERROR|FATAL'` reports psql errors directly,
+> because a psql error produces no TAP output at all and the old awk would have emitted nothing.
 
 > **Gate:** `npm run test:db` runs in CI ✅ · `SchemaBanner` warns only on an affirmative `behind`
 > ✅ · no money path can invent a value ✅ · schema drift fails CI once a baseline is recorded ✅
@@ -806,7 +823,7 @@ map of what each file is responsible for, so a review can tell which phase owns 
 | `015_link_staff_ids.sql` | `link_staff_ids()` — moves a disagreeing staff row onto its login (both directions), refuses ambiguous names, `staff_id_problems` view | Implemented — gate: `tests/015_link_staff_ids_test.sql` (13 assertions) |
 | `016_reporting.sql` | Report RPCs (`report_sales_window` / `report_top_customers` / `report_payment_mix` / `report_voided_count`), `stores.time_zone` + `store_day_range()`, `search_text()` + `pg_trgm`/GIN | Implemented — gate: `tests/016_reporting_test.sql` (30 assertions) |
 | `supabase/config.toml` *(repo root)* | CLI project root; `verify_jwt = true` for `create-user` | Split from the SQL in `web/supabase/` — adopting the CLI migrations is deferred to a separate PR |
-| `017_schema_version.sql` | `schema_version()` + the `lensy_schema_versions` ledger (RLS on, no direct read) | Implemented — gate: `tests/017_schema_version_test.sql` (13 assertions) |
+| `017_schema_version.sql` | `schema_version()` + the `lensy_schema_versions` ledger (RLS on, no direct read) | Implemented — gate: `tests/017_schema_version_test.sql` (14 assertions) |
 | `web/scripts/schema-fingerprint.sh` | `pg_dump --schema-only` hash of the public schema, compared in CI | Phase 5 drift check — replaces `supabase gen types`, which cannot run without a live project or the Supabase container stack |
 | `supabase/functions/create-user/index.ts` | Creates an Auth user + mirrors it into `public.users` using the service-role key | JWT-only gate, caller-supplied `role_id`/`store_id` — Phase 3 |
 | `web/supabase/tests/_shim.sql`, `tests/012_integrity_test.sql` | Plain-Postgres shims (roles, `auth/`, `storage/`, pgTAP) + the Phase 1 gate (26 assertions) | Run by `npm run test:db` and CI job `db` — no live project touched |
