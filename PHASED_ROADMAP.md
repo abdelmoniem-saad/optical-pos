@@ -874,6 +874,30 @@ judgement, never a blanket default.
 > Git Bash *is* available at `C:\Program Files\Git\bin\bash.exe`, which is enough to run the
 > shell-level checks locally. Worth remembering before concluding that nothing here can execute
 > shell code Ã¢â‚¬â€ I assumed otherwise for several phases before looking properly.
+>
+> **CI run #94: green. 9 gates, 213 assertions, both jobs, fingerprint baseline matched.** Two more
+> failures stood between #89 and green, and both were in the *expectation*, not the SQL:
+>
+> - **#92 — `throws_ok` compares messages by exact equality, not as a pattern.** G-V4 expected the
+>   fragment `version\(s\) for: 021`. The guard was working: it raised `P0001` naming `021_e.sql`,
+>   exactly as designed. pgTAP read the expectation as literal text, backslashes included, and
+>   failed the assertion against a correct database. pgTAP exposes `throws_like` and
+>   `throws_matching` as *separate* functions, which is the giveaway that `throws_ok` is `=` — and
+>   unanchored regex is independently ruled out, because the old fragment would have matched as a
+>   substring had it been one. The expectation now carries the whole message, two spaces after the
+>   first placeholder included, checked byte-for-byte against the string CI reported as `caught`.
+> - **#93 — the pgTAP gates went green and the *fingerprint* failed**, which is the drift check
+>   doing its job: 020 creates `assert_versions_recorded(text[])`, so the schema genuinely moved and
+>   `schema.fingerprint` had to move with it. The value came from CI, which hashes twice and
+>   refuses to compare unless the two agree — a digest of this schema, not a number copied on
+>   trust. Updating a baseline after a real schema change is the intended flow; the check says to
+>   review the diff first, and the diff was one new function.
+>
+> The shape of this phase is worth naming: **every failure from #89 to #93 was a wrong test
+> expectation, and each was reported by the gate that caught it.** The gates were not the obstacle
+> — they were the only reason progress was visible, given that none of this can run on this
+> machine. The remaining cost is the push-per-failure loop, and its fix is still a local Postgres
+> with pgTAP.
 
 ---
 
