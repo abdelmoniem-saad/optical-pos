@@ -119,6 +119,18 @@ on conflict (id) do nothing;
 update public.users set role_id = 'ffffffff-ffff-4fff-8fff-000000000031'
  where id = 'eeeeeeee-eeee-4eee-8fff-000000000009';
 
+-- Search fixtures. These sit ABOVE the role switch on purpose: RLS would
+-- otherwise refuse to insert a customer belonging to another store, and the
+-- whole point of G-S2 is that such a row exists and is not searchable.
+insert into public.customers (id, name, phone, store_id) values
+  ('ffffffff-ffff-4fff-8fff-000000000041', 'Ahmed (Cairo)', '01500000041', _rstore()),
+  ('ffffffff-ffff-4fff-8fff-000000000042', 'O''Brien, Sean',  '01500000042', _rstore()),
+  ('ffffffff-ffff-4fff-8fff-000000000043', 'Moncef 100%',     '01500000043', _rstore()),
+  -- another store, to prove isolation
+  ('ffffffff-ffff-4fff-8fff-000000000044', 'Ahmed (Cairo) OTHER STORE', '01500000044',
+    (select id from public.stores where id <> _rstore() limit 1))
+on conflict (id) do nothing;
+
 -- Impersonate a member of the report store. BOTH claim keys are set, because
 -- auth_store_id() reads the singular one and other helpers read the JSON one -
 -- the same impersonation block 013 and 014 use.
@@ -244,19 +256,6 @@ select is((select total::bigint
 -- refund) = 1170, which is what G-R8 asserts for all time. So the daily split
 -- and the total agree, which is the property that actually matters: a day
 -- boundary that quietly duplicated or dropped money would break it.
-
--- ===== G-S1..G-S4: search that can find people ======================
--- The old client stripped `,()` from the term and assembled a PostgREST `or()`
--- string. "Ahmed (Cairo)" therefore became "Ahmed   Cairo" and matched
--- nothing - silently. G-S1 is the regression test for exactly that.
-insert into public.customers (id, name, phone, store_id) values
-  ('ffffffff-ffff-4fff-8fff-000000000041', 'Ahmed (Cairo)', '01500000041', _rstore()),
-  ('ffffffff-ffff-4fff-8fff-000000000042', 'O''Brien, Seán',  '01500000042', _rstore()),
-  ('ffffffff-ffff-4fff-8fff-000000000043', 'Moncef 100%',     '01500000043', _rstore()),
-  -- another store, to prove isolation
-  ('ffffffff-ffff-4fff-8fff-000000000044', 'Ahmed (Cairo) OTHER STORE', '01500000044',
-    (select id from public.stores where id <> _rstore() limit 1))
-on conflict (id) do nothing;
 
 select is((select count(*) from public.search_text('Ahmed (Cairo)', 10)
             where kind = 'customer' and id = 'ffffffff-ffff-4fff-8fff-000000000041')::bigint,
