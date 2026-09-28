@@ -691,6 +691,12 @@ can differ, and nothing will ever notice.
 > The stale baseline was deleted rather than replaced, so the step is back in bootstrap mode and
 > the next run reports a hash that is stable by construction. It must not be committed until a
 > green run has shown `(stable across 2 runs)`.
+>
+> **Done — the check is enforcing.** Run #72 reported a stable hash across two invocations, and
+> `web/supabase/schema.fingerprint` now holds it (`e6f06e6d…`). From the next push on, a migration
+> that changes the schema shape fails the build until someone updates the file deliberately. Note
+> that this value differs from the run #70 hash: that one hashed the random `\restrict` token, and
+> this is the first hash of the schema alone.
 
 ---
 
