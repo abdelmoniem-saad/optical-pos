@@ -32,12 +32,12 @@
 -- granting execute on it by mistake) buys an attacker nothing. After bootstrap
 -- the only way to add a vendor is deliberately, as a superuser, by hand.
 --
--- It also creates the public.users staff row, because the browser cannot. The
--- INSERT policy on public.users requires a store or platform admin, so a
--- first-time login's own attempt is always refused — which is why a brand-new
--- account can end up with no staff record at all and be told it is "not linked
--- to a store". Here the definer can write it, so the account is whole from the
--- first sign-in.
+-- It writes NOTHING else — deliberately, and because the schema leaves it no
+-- choice. 008 makes public.users.store_id NOT NULL, so a vendor, who belongs to
+-- no shop, cannot be given a staff row at all; and none is needed, because
+-- is_platform_admin() reads only platform_admins and AppLayout skips the "not
+-- linked to a store" screen for a platform admin. The one thing this refuses to
+-- do is invent a store for the company that runs every shop.
 --
 -- HOW TO RUN: Supabase Dashboard -> SQL Editor -> paste -> Run.
 --   Then, with the editor's "Run as" set to postgres, call it ONCE:
@@ -85,26 +85,21 @@ begin
 
   v_uname := coalesce(v_uname, 'platform');
 
-  -- ===== the grant ====================================================
+  -- ===== the grant, and nothing else =================================
+  -- No public.users row is written here, and that is a deliberate consequence
+  -- of the schema rather than an omission: 008 sets users.store_id NOT NULL, so
+  -- a vendor - who belongs to no shop - cannot be given a staff row AT ALL.
+  -- (The same NOT NULL trap cost CI run #75 in the 018 gate, over
+  -- purchase_items.store_id. Check the DDL, not the file that is easiest to
+  -- read.)
+  --
+  -- None is needed, either. A platform admin is decided by platform_admins
+  -- alone: auth_store_id() is not consulted, the stores list is RLS-gated on
+  -- is_platform_admin(), and AppLayout skips the "not linked to a store" screen
+  -- for them. Inventing a store for a vendor would be worse than leaving them
+  -- without one - it would put a company that runs every shop into one of them.
   insert into public.platform_admins (auth_uid, name)
   values (v_uid, v_uname);
-
-  -- ===== the staff row the browser cannot write =======================
-  -- Same key, same conventions as ensureStaffRecord() in auth.tsx. Left
-  -- store-less on purpose: a vendor belongs to no shop, and that is what lets
-  -- is_platform_admin() (and not a store) decide what they can see.
-  insert into public.users (id, username, password_hash, full_name, is_active)
-  values (v_uid, v_uname, 'supabase-auth', v_uname, true)
-    on conflict do nothing;
-
-  if not found then
-    -- A staff row of this name already exists under a DIFFERENT id — almost
-    -- always the orphan left by a deleted login. Said out loud rather than
-    -- swallowed, because silently keeping the mismatch is what produces the
-    -- "not linked to a store" screen in the first place.
-    raise notice
-      'bootstrap_platform_admin: platform grant is in place, but a staff row named % already exists under another id and was left alone - run 015_link_staff_ids() to reconcile it', v_uname;
-  end if;
 
   return query select v_uid, v_uname;
 end $$;

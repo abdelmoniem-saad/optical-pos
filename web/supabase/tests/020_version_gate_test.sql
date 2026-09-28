@@ -6,7 +6,7 @@
 -- To verify a migration on a real project, paste the MIGRATION file
 -- (web/supabase/0NN_*.sql) and check the query SETUP.md gives you.
 -- ============================================================
--- LensyPOS — Phase 6 gate: 020_version_gate_test.sql (pgTAP)
+-- LensyPOS Ã¢â‚¬â€ Phase 6 gate: 020_version_gate_test.sql (pgTAP)
 -- ============================================================
 -- 020 exists because 018 and 019 forgot to record their own version, and the
 -- existing 017 gate could not notice: it asserted that schema_version() returns
@@ -56,14 +56,20 @@ select has_function('public', 'assert_versions_recorded',
 -- FAILS is how a guard that never fires gets mistaken for one that works - and
 -- that is exactly the confusion that let 018/019 through in the first place.
 --
--- The missing version is 021, and deliberately NOT 018 or 019. My first draft of
--- this gate used 018/019, and it FAILED - correctly. 020 backfills the ledger for
--- both, so by the time this gate runs they are recorded, the guard has nothing to
--- complain about, and the assertion was asserting the bug it was written to
--- prevent. A guard test that names the very rows the migration repairs is not
--- testing the guard. 021 has never been applied, so it is missing for real.
+-- The missing version is 099, and deliberately NOT any real migration number.
+-- This gate has now been wrong here TWICE, both times the same way. The first
+-- draft used 018/019, which 020 backfills, so by the time the gate runs they are
+-- recorded and the assertion ended up asserting the very bug it was written to
+-- prevent. The second draft used 021 "because it has never been applied" - and
+-- then 021 WAS applied, in this same phase, and CI run #99 caught it: the guard
+-- correctly declined to raise about a migration that had recorded itself.
+--
+-- The lesson is not "pick a higher number". A sentinel has to be something no
+-- migration can ever become, so 099 sits far outside the range a POS will reach
+-- and nothing in this repository will claim it. A guard test that names a
+-- version the project might plausibly ship is a test with an expiry date.
 select throws_ok(
-  $$select public.assert_versions_recorded(array['017_a.sql', '018_b.sql', '019_c.sql', '020_d.sql', '021_e.sql'])$$,
+  $$select public.assert_versions_recorded(array['017_a.sql', '018_b.sql', '019_c.sql', '020_d.sql', '021_d.sql', '099_z.sql'])$$,
   'P0001',
   null,
   'G-V3 the guard raises when a migration in the list has not recorded its version'
@@ -84,13 +90,13 @@ select throws_ok(
 --
 -- 020 builds the message as
 --   'migration ledger is missing version(s) for: %  (highest migration applied is %)'
--- with v_missing = the absent filenames (only 021_e.sql by now: 017-020 are in
--- the ledger) and v_expected = 21. The two spaces after the first % are in that
+-- with v_missing = the absent filenames (only 099_z.sql: 017 through 021 are in
+-- the ledger) and v_expected = 99. The two spaces after the first % are in that
 -- format string, so they are in this expectation too.
 select throws_ok(
-  $$select public.assert_versions_recorded(array['017_a.sql', '018_b.sql', '019_c.sql', '020_d.sql', '021_e.sql'])$$,
+  $$select public.assert_versions_recorded(array['017_a.sql', '018_b.sql', '019_c.sql', '020_d.sql', '021_d.sql', '099_z.sql'])$$,
   'P0001',
-  'migration ledger is missing version(s) for: 021_e.sql  (highest migration applied is 21)',
+  'migration ledger is missing version(s) for: 099_z.sql  (highest migration applied is 99)',
   'G-V4 the message names the missing file, so it says which file is at fault'
 );
 
