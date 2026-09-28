@@ -692,11 +692,21 @@ can differ, and nothing will ever notice.
 > the next run reports a hash that is stable by construction. It must not be committed until a
 > green run has shown `(stable across 2 runs)`.
 >
-> **Done — the check is enforcing.** Run #72 reported a stable hash across two invocations, and
-> `web/supabase/schema.fingerprint` now holds it (`e6f06e6d…`). From the next push on, a migration
+> **Done — the check is enforcing.** Run #73 reported a stable hash across two invocations, and
+> `web/supabase/schema.fingerprint` now holds it (`4e18d7c7…`). From the next push on, a migration
 > that changes the schema shape fails the build until someone updates the file deliberately. Note
 > that this value differs from the run #70 hash: that one hashed the random `\restrict` token, and
 > this is the first hash of the schema alone.
+>
+> Getting the baseline in took one wrong turn worth recording. Run #71 failed, and the obvious
+> response — "the value CI printed, therefore the value to commit" — was correct in principle and
+> wrong in practice: the step's summary text was never visible to the person downloading, so the
+> hash had to come from the artifact, and the two must agree. They did not, because the run that
+> produced it predated the determinism fix. **A drift baseline should be copied from the step
+> summary in the run that reported it, not from whichever artifact link is to hand** — a stale
+> artifact is indistinguishable from a fresh one by its contents, since both are a bare 64-character
+> hex string. The step summary now prints `stable across 2 runs` next to the value for exactly this
+> reason, and the summary is the thing to trust.
 
 ---
 
