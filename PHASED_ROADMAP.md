@@ -1,12 +1,12 @@
-# LensyPOS Ã¢â‚¬â€ Phased Hardening Roadmap
+# LensyPOS ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â Phased Hardening Roadmap
 
 **Purpose:** turn a feature-complete POS into one that can be trusted with real money,
 real stock and more than one store, without adding a single new screen first.
 
 **Thesis:** today the **browser is the authority**. Postgres only enforces *which store
 you belong to* and *whether your license is alive*. Every rule that protects money,
-stock, invoice sequence and roles lives in TypeScript, which means a buggy client Ã¢â‚¬â€ or a
-cashier with DevTools open Ã¢â‚¬â€ can break any of them. This roadmap is one theme executed in
+stock, invoice sequence and roles lives in TypeScript, which means a buggy client ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â or a
+cashier with DevTools open ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â can break any of them. This roadmap is one theme executed in
 order: **push every rule into Postgres, then let the app trust it.**
 
 ---
@@ -14,13 +14,13 @@ order: **push every rule into Postgres, then let the app trust it.**
 ## 0. How to use this document
 
 - Phases are **strictly ordered**. Phase 1 is a hard prerequisite for Phases 2, 4 and 6.
-- Each phase is independently shippable Ã¢â‚¬â€ no "big bang" release.
+- Each phase is independently shippable ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â no "big bang" release.
 - A phase is *done* only when its **Gate** passes, not when the code is written.
 - Tick the checkbox per phase; add follow-up notes under it rather than editing history.
-- Evidence links are `file:line` as of the audit. If a line moves, fix the reference Ã¢â‚¬â€ the
+- Evidence links are `file:line` as of the audit. If a line moves, fix the reference ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â the
   defect list is the point, the line numbers are a convenience.
 
-**Legend:** Ã°Å¸â€Â´ loss/corruption risk Ã‚Â· Ã°Å¸Å¸Â  wrong numbers at scale Ã‚Â· Ã°Å¸Å¸Â¡ defect Ã‚Â· Ã°Å¸â€Âµ new capability
+**Legend:** ÃƒÆ’Ã‚Â°Ãƒâ€¦Ã‚Â¸ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒâ€šÃ‚Â´ loss/corruption risk ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â· ÃƒÆ’Ã‚Â°Ãƒâ€¦Ã‚Â¸Ãƒâ€¦Ã‚Â¸Ãƒâ€šÃ‚Â  wrong numbers at scale ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â· ÃƒÆ’Ã‚Â°Ãƒâ€¦Ã‚Â¸Ãƒâ€¦Ã‚Â¸Ãƒâ€šÃ‚Â¡ defect ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â· ÃƒÆ’Ã‚Â°Ãƒâ€¦Ã‚Â¸ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒâ€šÃ‚Âµ new capability
 
 ---
 
@@ -28,19 +28,19 @@ order: **push every rule into Postgres, then let the app trust it.**
 
 | Layer | What exists | Notes |
 |---|---|---|
-| Schema | `web/supabase/000Ã¢â‚¬Â¦011_*.sql` Ã¢â‚¬â€ 12 migrations, flat files | applied by pasting into the Supabase SQL Editor (`SETUP.md`) |
+| Schema | `web/supabase/000ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¦011_*.sql` ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â 12 migrations, flat files | applied by pasting into the Supabase SQL Editor (`SETUP.md`) |
 | Tenancy & licensing | `008`, `009` + `lib/licensing.ts` | `store_id` on every table, `auth_store_id()`, read/write license gates via RLS |
-| Checkout | `data/sales.ts`, RPC `002`Ã¢â€ â€™`011`, `features/pos/*` | atomic RPC **with a non-atomic client fallback** |
-| Payments | `011`, `data/salesPayments.ts`, `lib/payments.ts` | ledger + sync trigger + split tenders Ã¢â‚¬â€ solid foundation |
+| Checkout | `data/sales.ts`, RPC `002`ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢`011`, `features/pos/*` | atomic RPC **with a non-atomic client fallback** |
+| Payments | `011`, `data/salesPayments.ts`, `lib/payments.ts` | ledger + sync trigger + split tenders ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â solid foundation |
 | Screens | POS wizard, History, Lab, Inventory, Purchasing, Reports, Customers, Staff/RBAC, Notes, Platform, Mobile upload, Settings | all functional |
 | Tests | 9 Vitest files, **pure functions only** | `pricing`, `payments`, `receipt`, `posDraft`, `enterNav`, `types`, `permissions`, `sales`, `translations` |
-| CI | **none** Ã¢â‚¬â€ there is no `.github` directory | nothing runs `tsc`, `oxlint`, or `vitest` automatically |
+| CI | **none** ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â there is no `.github` directory | nothing runs `tsc`, `oxlint`, or `vitest` automatically |
 
 ### What is genuinely good (keep it)
 
 - Tenant isolation via `store_id` + RLS is real Postgres enforcement, not a filter.
 - The payment ledger (`011`) with a sync trigger that recomputes `sales.amount_paid` is the
-  right design Ã¢â‚¬â€ header and ledger can never disagree.
+  right design ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â header and ledger can never disagree.
 - History paging is done correctly: `useInfiniteSales` (`web/src/data/sales.ts:103-119`)
   filters in Postgres and pulls 50 rows at a time.
 - Invoice-conflict retry (`sales.ts:48-60, 298-455`) and the `isMissingFunction` graceful
@@ -49,36 +49,36 @@ order: **push every rule into Postgres, then let the app trust it.**
 
 ### The five defects that cause most of the rest
 
-1. Ã°Å¸â€Â´ **The checkout RPC trusts the client's money.**
+1. ÃƒÆ’Ã‚Â°Ãƒâ€¦Ã‚Â¸ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒâ€šÃ‚Â´ **The checkout RPC trusts the client's money.**
    `create_sale_order` writes `unit_price`, `total_price`, `discount`, `net_amount`,
    `amount_paid` exactly as the browser sent them
    (`web/supabase/011_sale_payments.sql:197-207`). Nothing re-reads `inventory.sale_price`.
    A tampered or buggy client can sell a 5,000 EGP lens for 1 EGP, and no report will flag it.
 
-2. Ã°Å¸â€Â´ **Stock does not exist in the database.**
+2. ÃƒÆ’Ã‚Â°Ãƒâ€¦Ã‚Â¸ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒâ€šÃ‚Â´ **Stock does not exist in the database.**
    `useInventory` fetches **every `stock_movements` row in the store** and sums it in JS
    (`web/src/data/inventory.ts:15-37`, the aggregation is `:24-34`). Consequences:
    the server *cannot* enforce availability at checkout, every inventory load gets slower
    forever, and `available_stock()` does not exist to be called.
 
-3. Ã°Å¸â€Â´ **Invoice numbers are generated in JavaScript.**
+3. ÃƒÆ’Ã‚Â°Ãƒâ€¦Ã‚Â¸ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒâ€šÃ‚Â´ **Invoice numbers are generated in JavaScript.**
    `getNextInvoiceNo` (`web/src/data/sales.ts:180-250`) computes max+1 client-side, and on
-   error falls back to `Date.now() % 1000000` (`:246-249`) Ã¢â‚¬â€ which can emit a duplicate or a
+   error falls back to `Date.now() % 1000000` (`:246-249`) ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â which can emit a duplicate or a
    meaningless invoice number rather than failing. It also uses `count(*)` as a seed
    (`:223-227`), which is wrong the moment any sale is deleted or a non-numeric invoice exists.
 
-4. Ã°Å¸â€Â´ **Sales can never be reversed.**
+4. ÃƒÆ’Ã‚Â°Ãƒâ€¦Ã‚Â¸ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒâ€šÃ‚Â´ **Sales can never be reversed.**
    There is no void, no refund, no return-with-restock anywhere in the codebase (no
-   `useDeleteSale`, no reversal movement, no negative payment line Ã¢â‚¬â€ and `sale_payments`
+   `useDeleteSale`, no reversal movement, no negative payment line ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â and `sale_payments`
    actively forbids them with `check (amount > 0)`, `011_sale_payments.sql:48`). A mis-keyed
    sale can only be re-checked-out; the money and stock of a wrong sale are permanent.
 
-5. Ã°Å¸Å¸Â  **RBAC is a browser courtesy, and two tables are wide open.**
+5. ÃƒÆ’Ã‚Â°Ãƒâ€¦Ã‚Â¸Ãƒâ€¦Ã‚Â¸Ãƒâ€šÃ‚Â  **RBAC is a browser courtesy, and two tables are wide open.**
    Every permission gate is `perms.can(...)` in TSX (e.g. `routes/AppRouter.tsx:38`,
    `features/inventory/InventoryPage.tsx:218`); `resolveCan` lives in
    `web/src/data/permissions.tsx:64`. Meanwhile `008_multi_tenancy.sql:371-376` declares
-   `permissions` a "GLOBAL catalog Ã¢â‚¬â€ readable/writable by any authenticated user"
-   (`for all Ã¢â‚¬Â¦ using (true) with check (true)`), and `role_permissions` / `user_permissions`
+   `permissions` a "GLOBAL catalog ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â readable/writable by any authenticated user"
+   (`for all ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¦ using (true) with check (true)`), and `role_permissions` / `user_permissions`
    appear nowhere in `008`, so they still carry the Phase-2 policy
    `using (true) with check (true)` for all authenticated users
    (`web/supabase/001_security_rls.sql:69`). Worse, the `create-user` Edge Function runs
@@ -92,7 +92,7 @@ order: **push every rule into Postgres, then let the app trust it.**
 
 | # | Threat today | Closed by |
 |---|---|---|
-| T1 | Client-supplied prices/totals are stored verbatim Ã¢â€ â€™ under-selling, silent margin loss | Phase 1 |
+| T1 | Client-supplied prices/totals are stored verbatim ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ under-selling, silent margin loss | Phase 1 |
 | T2 | Overselling; two parallel checkouts both succeed; stock silently negative | Phase 1 |
 | T3 | Duplicate / meaningless invoice numbers from the JS fallback | Phase 1 |
 | T4 | Double-submit or dropped response creating two sales | Phase 1 |
@@ -112,70 +112,70 @@ order: **push every rule into Postgres, then let the app trust it.**
 
 ---
 
-## 3. Phase 0 Ã¢â‚¬â€ Safety net before changing anything Ã‚Â· ~0.5 day
+## 3. Phase 0 ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â Safety net before changing anything ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â· ~0.5 day
 
 - [x] **Add CI**, which does not exist today (`.github` is absent). One workflow running the
-  scripts already defined in `web/package.json`: `npm run lint` (oxlint) Ã¢â€ â€™ `npx tsc -b` Ã¢â€ â€™
-  `npm run test` (vitest) Ã¢â€ â€™ `npm run build`, plus a second `db` job that applies
-  `000Ã¢â‚¬Â¦012` to a throwaway Postgres and runs the pgTAP gate.
+  scripts already defined in `web/package.json`: `npm run lint` (oxlint) ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ `npx tsc -b` ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢
+  `npm run test` (vitest) ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ `npm run build`, plus a second `db` job that applies
+  `000ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¦012` to a throwaway Postgres and runs the pgTAP gate.
 - [x] **Commit a schema baseline**: a `pg_dump` of the live `public` schema stored in
   `web/supabase/baseline/`, so every later migration has a reference snapshot to diff against.
-  *Status: **done** Ã¢â‚¬â€ captured by the `SUPABASE_DB_URL` secret +
+  *Status: **done** ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â captured by the `SUPABASE_DB_URL` secret +
   `.github/workflows/schema-baseline.yml` (run #36282916171), committed as
   `web/supabase/baseline/schema_after_012.sql` (3,336 lines: 32 tables, 12 top-level
   functions, 98 policies, 22 indexes; no keys or passwords in the file).* Why CI and not the
   local CLI: `supabase db dump` runs `pg_dump` inside a Docker container (Docker is not
   installed on the dev machine), and the direct host `db.<ref>.supabase.co` is IPv6-only,
-  which GitHub-hosted runners cannot reach Ã¢â‚¬â€ so the dump runs on a runner through the IPv4
+  which GitHub-hosted runners cannot reach ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â so the dump runs on a runner through the IPv4
   **session pooler** (port `5432`) using the `postgres:18` client image.
   *Naming note: the file says **after_012**, not before, because `012` was already applied to
-  the live project when it was captured Ã¢â‚¬â€ a "before" name would have been a quiet lie for the
-  next diff. The dump doubles as the evidence that Phase 1 is live in production (see Ã‚Â§4).*
+  the live project when it was captured ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â a "before" name would have been a quiet lie for the
+  next diff. The dump doubles as the evidence that Phase 1 is live in production (see ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â§4).*
 - [x] **Reconcile the types file.** Decision: keep the hand-maintained
   `web/src/lib/database.types.ts` as the source of truth for now, and give it the drift
-  protection CI can provide token-free Ã¢â‚¬â€ `web/src/lib/database.types.test.ts` lists the
+  protection CI can provide token-free ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â `web/src/lib/database.types.test.ts` lists the
   money-critical columns with `satisfies readonly (keyof T)[]`, so `tsc -b` (the CI step)
   fails the moment one disappears. Generating types from the *live* DB as the enforced
   truth would bless today's drift in the wrong direction; full regen-and-diff enforcement
   lands in Phase 5 once migrations live under the CLI root.
 
 > **Gate:** CI is green on `main`, and the type file covers the `sale_payments` columns
-> added by `011`. *Do not start Phase 1 without this* Ã¢â‚¬â€ Phase 1 changes both SQL and TS
+> added by `011`. *Do not start Phase 1 without this* ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â Phase 1 changes both SQL and TS
 > across several files, and CI is the only thing that catches a half-applied edit.
 
 ---
 
-## 4. Phase 1 Ã¢â‚¬â€ Money and stock become true in the database Ã‚Â· 2Ã¢â‚¬â€œ3 days Ã°Å¸â€Â´
+## 4. Phase 1 ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â Money and stock become true in the database ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â· 2ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œ3 days ÃƒÆ’Ã‚Â°Ãƒâ€¦Ã‚Â¸ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒâ€šÃ‚Â´
 
 Highest-value work in the repository. Everything later (ledger statements, day-close,
 offline replay, line discounts) rests on a checkout the database vouches for.
 
-**New migration: `web/supabase/012_integrity.sql`** Ã¢â‚¬â€ replaces `create_sale_order` with a
+**New migration: `web/supabase/012_integrity.sql`** ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â replaces `create_sale_order` with a
 function that *validates and recomputes* instead of merely recording:
 
 1. **Re-price and re-total server-side.** Read `inventory.sale_price` for each line, apply
    the discount rule, recompute `total_amount`, `discount`, `net_amount`. If the client's
-   figure differs by more than Ã‚Â±0.01, `raise exception` rather than write Ã¢â‚¬â€ today
+   figure differs by more than ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â±0.01, `raise exception` rather than write ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â today
    `011_sale_payments.sql:197-207` records whatever the browser sent.
    `web/src/features/pos/pricing.ts` is demoted to a *preview*: the cashier sees the same
    number, it just stops being the number that wins.
 2. **Guard stock inside the transaction.** New `available_stock(p_product uuid)` SQL
    function (sum of `stock_movements.qty` for the caller's store, index-backed). Lock the
-   product row with `select Ã¢â‚¬Â¦ for update` and `raise exception 'insufficient stock'` on
+   product row with `select ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¦ for update` and `raise exception 'insufficient stock'` on
    shortage. This fixes overselling, and it is only possible once stock exists in SQL.
 3. **Give stock a home.** Add `inventory.stock_qty` as a **trigger-maintained read model**
-   over `stock_movements` Ã¢â‚¬â€ the ledger stays the source of truth. `useInventory` can then
+   over `stock_movements` ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â the ledger stays the source of truth. `useInventory` can then
    drop its "download every movement" aggregation (`web/src/data/inventory.ts:24-34`), which
    today grows by one row per sold line, forever.
 
 4. **Move the invoice sequence into the database.** `getNextInvoiceNo()`
    (`web/src/data/sales.ts:190-250`) is pure JS: it inspects the newest 100 invoices by
    number *and* by date, keeps the max in memory, and if that max is 0 seeds itself from
-   `count(*)` (`:222-227`) Ã¢â‚¬â€ wrong the moment a sale is deleted or a non-numeric invoice
+   `count(*)` (`:222-227`) ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â wrong the moment a sale is deleted or a non-numeric invoice
    exists. On any error it returns `String(Date.now() % 1000000)` (`:246-249`): a
    duplicate-looking or meaningless invoice number instead of a failure. Replace all of it
    with an `invoice_counter(store_id, prefix, next_val)` row updated by
-   `insert Ã¢â‚¬Â¦ on conflict Ã¢â‚¬Â¦ returning next_val` **inside** the checkout transaction, so two
+   `insert ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¦ on conflict ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¦ returning next_val` **inside** the checkout transaction, so two
    registers can never draw the same number, and keep the RPC's conflict loop as a
    belt-and-braces. Delete the client function and the `PRESC-<base36 epoch>` invoice it
    bypasses (`sales.ts:717`).
@@ -183,14 +183,14 @@ function that *validates and recomputes* instead of merely recording:
    storable alongside the POS draft) and `sales` gets `unique (store_id, idempotency_key)`;
    on conflict the RPC returns the existing sale instead of creating a second one. This also
    makes Phase 6's offline replay safe to build later.
-6. **Constraints that make illegal states unrepresentable** Ã¢â‚¬â€ added `not valid`, then
+6. **Constraints that make illegal states unrepresentable** ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â added `not valid`, then
    `validate constraint`, so existing bad rows are *reported* rather than blocking the
    migration: `qty > 0`, `unit_price >= 0`, `total_price = qty * unit_price`,
    `0 <= discount <= total_amount`, `amount_paid >= 0`,
    `net_amount = total_amount - discount`.
 7. **Close the legacy paths.** Keep the fallback client-side inserts
    (`web/src/data/sales.ts:386-445`) only while `012` is unapplied, and make the fallback
-   *visible* when it is used Ã¢â‚¬â€ today it is silent, so a half-written order (header without
+   *visible* when it is used ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â today it is silent, so a half-written order (header without
    items, or items without movements) looks like a success. Note also that the older
    `002_create_sale_rpc.sql` in the repo silently drops `rx_image_path` /
    `frame_image_path` (fixed in `011`): any store that stopped at 002 loses photos.
@@ -199,12 +199,12 @@ function that *validates and recomputes* instead of merely recording:
 `web/src/features/pos/pricing.ts`, the stock badge in `features/inventory`, and the cart
 availability check in `features/pos/steps`.
 
-> **Gate Ã¢â‚¬â€ pgTAP suite must prove:** tampered totals are rejected Ã‚Â· oversell is rejected Ã‚Â·
-> two concurrent checkouts draw two different invoice numbers Ã‚Â· double-submit with the same
-> key creates exactly one sale Ã‚Â· `stock_qty` equals the sum of movements on a seeded
+> **Gate ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â pgTAP suite must prove:** tampered totals are rejected ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â· oversell is rejected ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â·
+> two concurrent checkouts draw two different invoice numbers ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â· double-submit with the same
+> key creates exactly one sale ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â· `stock_qty` equals the sum of movements on a seeded
 > dataset. *Money and stock stop being promises once these five tests exist.*
 
-> **Status Ã¢â‚¬â€ implemented.** `web/supabase/012_integrity.sql` + the 26-assertion pgTAP gate
+> **Status ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â implemented.** `web/supabase/012_integrity.sql` + the 26-assertion pgTAP gate
 > (`web/supabase/tests/012_integrity_test.sql`, run by `npm run test:db` and CI job `db`)
 > + the client switch are in. Deliberate deviations from the sketch above:
 > - **Oversell follows the code's documented intent** (`POSContext`): new
@@ -217,43 +217,43 @@ availability check in `features/pos/steps`.
 >   counter's row lock plus the RPC's in-transaction draw (when no number is supplied)
 >   keep the atomicity guarantee. Gaps from abandoned carts are accepted.
 > - **The legacy JS numbering survives** behind `isMissingRpc('next_invoice_no')` until 012
->   is confirmed deployed everywhere Ã¢â‚¬â€ deprecated and warned, never silent (removed in
+>   is confirmed deployed everywhere ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â deprecated and warned, never silent (removed in
 >   Phase 5 with the other fallbacks).
-> - **Re-checkout (`useUpdateSaleFull`) still writes client-side** Ã¢â‚¬â€ it is not
+> - **Re-checkout (`useUpdateSaleFull`) still writes client-side** ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â it is not
 >   server-validated yet; Phase 2's "header edits" item owns that.
-> - **RedÃ¢â€ â€™green was demonstrated in CI itself** (runs #1Ã¢â‚¬â€œ#5 red, run #6 green Ã¢â‚¬â€ there is no
+> - **RedÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢green was demonstrated in CI itself** (runs #1ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œ#5 red, run #6 green ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â there is no
 >   Docker/psql on the dev machine, so CI is the only runner). The red states exposed three
 >   *harness/test* gaps, never a flaw in `012`'s money logic: missing `USAGE` grants on the
 >   `auth`/`storage` schemas for `authenticated`, then that grant being placed *before*
 >   `create schema`, and finally the assertion form `f(...) IS NOT NULL` (PostgreSQL's
->   row-wise null test evaluates false for a composite function call here Ã¢â‚¬â€ replaced with a
->   field-based `is()`). With the auth grant fixed, 25/26 passed immediately Ã¢â‚¬â€ all six
->   rejection paths returned exactly the designed messages (`price changed: Ã¢â‚¬Â¦`,
+>   row-wise null test evaluates false for a composite function call here ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â replaced with a
+>   field-based `is()`). With the auth grant fixed, 25/26 passed immediately ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â all six
+>   rejection paths returned exactly the designed messages (`price changed: ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¦`,
 >   `invalid line quantity`, `payment exceeds net amount`, `unknown product in cart`,
->   `negative net amount`, `insufficient stock: Ã¢â‚¬Â¦`); 26/26 followed with the assertion fix.
-> - **Flip the switch:** `update public.stores set allow_negative_stock = false where id = 'Ã¢â‚¬Â¦';`
->   (a Platform-page toggle needs the stores write policy loosened Ã¢â‚¬â€ Phase 3 territory).
+>   `negative net amount`, `insufficient stock: ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¦`); 26/26 followed with the assertion fix.
+> - **Flip the switch:** `update public.stores set allow_negative_stock = false where id = 'ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¦';`
+>   (a Platform-page toggle needs the stores write policy loosened ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â Phase 3 territory).
 
-> **Status Ã¢â‚¬â€ APPLIED TO PRODUCTION Ã¢Å“â€¦.** Confirmed empirically, not assumed: the live
+> **Status ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â APPLIED TO PRODUCTION ÃƒÆ’Ã‚Â¢Ãƒâ€¦Ã¢â‚¬Å“ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦.** Confirmed empirically, not assumed: the live
 > `pg_dump` in [`web/supabase/baseline/schema_after_012.sql`](./web/supabase/baseline/schema_after_012.sql)
-> contains every 012 object Ã¢â‚¬â€ `available_stock()`, `next_invoice_no()`, `add_inventory_item()`,
+> contains every 012 object ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â `available_stock()`, `next_invoice_no()`, `add_inventory_item()`,
 > `sync_stock_qty()`; `inventory.stock_qty` + the `stock_qty_sync` trigger;
 > `sales.idempotency_key`; the **5-argument** `create_sale_order(..., p_idempotency_key uuid)`;
 > `stores.allow_negative_stock`; and all **seven** money constraints **validated** (zero
 > `NOT VALID` remaining, so the guarded validate passed with no violating legacy rows). The
-> same dump re-confirms what Phases 2Ã¢â‚¬â€œ3 still own: **44** `lensy_tenant_delete` policies,
-> `lensy_authenticated_all Ã¢â‚¬Â¦ USING (true)` on `permissions` / `role_permissions` /
+> same dump re-confirms what Phases 2ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œ3 still own: **44** `lensy_tenant_delete` policies,
+> `lensy_authenticated_all ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¦ USING (true)` on `permissions` / `role_permissions` /
 > `user_permissions`, and `sale_payments_amount_check CHECK (amount > 0)` blocking refunds.
 > Remaining: `allow_negative_stock` is still `true` on every store (overselling still
 > allowed, by design) and the legacy JS invoice-number fallback is still reachable.
 
 ---
 
-## 5. Phase 2 Ã¢â‚¬â€ A sale can be reversed, and no one can erase one Ã‚Â· 2 days Ã°Å¸â€Â´
+## 5. Phase 2 ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â A sale can be reversed, and no one can erase one ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â· 2 days ÃƒÆ’Ã‚Â°Ãƒâ€¦Ã‚Â¸ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒâ€šÃ‚Â´
 
 **The sharpest finding in the audit:** `008_multi_tenancy.sql:332-339` creates
 `lensy_tenant_delete` on all 20 store-scoped tables, and `011_sale_payments.sql:150-155` adds
-the same for `sale_payments`. The rule is only *store + active license* Ã¢â‚¬â€ there is no role
+the same for `sale_payments`. The rule is only *store + active license* ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â there is no role
 check. So **any signed-in cashier can wipe the store's sales, sale items, stock movements or
 payment ledger with a single `DELETE /rest/v1/sales` request.** No UI does this; the API
 allows it.
@@ -261,7 +261,7 @@ allows it.
 - [x] **Revoke direct `delete` on every financial table** (`sales`, `sale_items`,
   `sale_payments`, `stock_movements`, `purchases`, `purchase_items`,
   `purchase_payments`) and keep deletes only through `security definer` functions.
-- [x] **Add `void_sale(sale_id, reason)`** Ã¢â‚¬â€ sets `voided_at` / `voided_by` /
+- [x] **Add `void_sale(sale_id, reason)`** ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â sets `voided_at` / `voided_by` /
   `void_reason`, writes compensating `stock_movements` (`type = 'return'`), and leaves every
   original row in place. Voiding is an event, never an edit.
 - [x] **Add refunds and returns.** Drop `check (amount > 0)` on `sale_payments`
@@ -277,13 +277,13 @@ allows it.
 - [x] **Line-level discounts with a reason** (`sale_items.discount` + `discount_reason`),
   which needs nothing beyond a column, a rule in the RPC from Phase 1, and two fields in the
   cart step.
-- [x] **`sale_payments.paid_at` as `timestamptz`, not `date`** Ã¢â‚¬â€ a day-only column cannot
+- [x] **`sale_payments.paid_at` as `timestamptz`, not `date`** ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â a day-only column cannot
   support shift/day close, and makes two payments on one indistinguishable.
 - [x] **Give `stock_movements` a real vocabulary** (enum or FK to `movement_types`) instead
   of free-text, so a void, a purchase receipt, a transfer and a correction can be told apart.
 
 
-> **Status Ã¢â‚¬â€ implemented, gate green.** `web/supabase/013_void_refunds.sql` (757 lines)
+> **Status ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â implemented, gate green.** `web/supabase/013_void_refunds.sql` (757 lines)
 > + a 54-assertion pgTAP gate (`tests/013_void_refunds_test.sql`), both run by
 > `npm run test:db` and the CI `db` job. Deliberate deviations from the sketch:
 > - **The gate asserts behaviour, not `has_table_privilege`.** RLS, not grants, is
@@ -294,14 +294,14 @@ allows it.
 > - **Revoking DELETE forced the re-checkout rewrite.** `useUpdateSaleFull`
 >   deleted and reinserted `sale_items` / `stock_movements` / `sale_payments`
 >   from the browser, so the gate could not be met without moving it into
->   `update_sale_order()` first Ã¢â‚¬â€ which is also the fix for T6. The client path
+>   `update_sale_order()` first ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â which is also the fix for T6. The client path
 >   survives as the pre-013 fallback for unmigrated databases.
 > - **The Suppliers screen had two real deletes too** (a purchase and a payment
 >   row), so it got `delete_purchase()` / `delete_purchase_payment()` rather than
 >   a special exemption. Reads and ordinary writes are untouched everywhere.
 > - **`create_sale_order` was redefined** on a shared `price_cart()` core so
 >   re-checkout is priced by exactly the checkout rules. Phase 1's 26-assertion
->   gate re-proves checkout after that refactor Ã¢â‚¬â€ it stayed green.
+>   gate re-proves checkout after that refactor ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â it stayed green.
 > - **The money guard uses a transaction-local GUC** (`lensy.money_write`) that
 >   the checkout RPC, the re-checkout RPC and the ledger's own sync trigger raise
 >   around their writes. SECURITY DEFINER alone would not have been enough:
@@ -313,61 +313,61 @@ allows it.
 >   everything; single-tender refunds belong with Phase 6's customer ledger),
 >   and storage cleanup of `rx_image_path` / `frame_image_path` on void
 >   (Phase 3/5).
-> - **Gate status:** CI run #19 green Ã¢â‚¬â€ 013 applied cleanly, all 54 Phase 2
+> - **Gate status:** CI run #19 green ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â 013 applied cleanly, all 54 Phase 2
 >   assertions pass, and Phase 1's 26 still pass after the refactor. Getting
 >   there took four genuine test bugs (inverted "is refused" assertions, a
 >   re-checkout aimed at an already-voided sale, a wrong sale count, and two
->   wrong pgTAP call forms Ã¢â‚¬â€ `like` does not exist, and `is(bigint, integer,
+>   wrong pgTAP call forms ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â `like` does not exist, and `is(bigint, integer,
 >   text)` does not resolve), each caught by the CI annotations rather than
 >   guessed at.
-> - **013 is NOT yet applied to production** Ã¢â‚¬â€ see `web/supabase/SETUP.md`
+> - **013 is NOT yet applied to production** ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â see `web/supabase/SETUP.md`
 >   step 7, which also says to deploy the app in the same breath, because the
 >   direct `DELETE`s the old client sent are gone.
 
 ---
 
-## 6. Phase 3 Ã¢â‚¬â€ Authority leaves the browser Ã‚Â· 2 days Ã°Å¸â€Â´
+## 6. Phase 3 ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â Authority leaves the browser ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â· 2 days ÃƒÆ’Ã‚Â°Ãƒâ€¦Ã‚Â¸ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒâ€šÃ‚Â´
 
 Four separate holes, one theme.
 
-1. Ã°Å¸â€Â´ **The RBAC tables are world-readable and world-writable to all staff.**
-   `008_multi_tenancy.sql:371-376` deliberately makes `permissions` a "GLOBAL catalog Ã¢â‚¬â€
-   readable/writable by any authenticated user" (`for all Ã¢â‚¬Â¦ using (true) with check (true)`),
+1. ÃƒÆ’Ã‚Â°Ãƒâ€¦Ã‚Â¸ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒâ€šÃ‚Â´ **The RBAC tables are world-readable and world-writable to all staff.**
+   `008_multi_tenancy.sql:371-376` deliberately makes `permissions` a "GLOBAL catalog ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â
+   readable/writable by any authenticated user" (`for all ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¦ using (true) with check (true)`),
    and `role_permissions` / `user_permissions` are not mentioned anywhere in `008`, so they keep
-   the blanket policy from `001_security_rls.sql:69` Ã¢â‚¬â€ also `using (true) with check (true)` for
+   the blanket policy from `001_security_rls.sql:69` ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â also `using (true) with check (true)` for
    `authenticated`. A cashier can read another store's role matrix and insert a row granting
    themselves `sales.delete`. Fix: make `permissions` a read-only catalogue for
    `authenticated` (writes only via platform admin), and give `role_permissions` /
-   `user_permissions` policies that resolve the owning role/user through its `store_id` Ã¢â‚¬â€ they
+   `user_permissions` policies that resolve the owning role/user through its `store_id` ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â they
    need a `store_id` column of their own, or a join-based policy.
-2. Ã°Å¸â€Â´ **`auth_store_id()` has a cross-store fallback.** `008_multi_tenancy.sql:176-183`
+2. ÃƒÆ’Ã‚Â°Ãƒâ€¦Ã‚Â¸ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒâ€šÃ‚Â´ **`auth_store_id()` has a cross-store fallback.** `008_multi_tenancy.sql:176-183`
    falls back to matching `auth.users.username` against `users.username` when the JWT
    `sub` finds nothing. Usernames are not guaranteed unique across stores, so an account
-   whose `user_id` is missing can resolve into *another store's* tenant Ã¢â‚¬â€ and every policy
+   whose `user_id` is missing can resolve into *another store's* tenant ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â and every policy
    downstream trusts that answer. Fix: make `store_id` a claim on the JWT (or a
    `user_roles`-derived lookup that is unique by `auth_uid`), never a username match; make
    "no store resolved" a hard failure, not a guess.
-3. Ã°Å¸Å¸Â  **Role checks exist only in TSX.** `resolveCan` (`web/src/data/permissions.tsx:64`) is
-   the whole permission system, and `routes/AppRouter.tsx:38` is the only route gate Ã¢â‚¬â€ so the
+3. ÃƒÆ’Ã‚Â°Ãƒâ€¦Ã‚Â¸Ãƒâ€¦Ã‚Â¸Ãƒâ€šÃ‚Â  **Role checks exist only in TSX.** `resolveCan` (`web/src/data/permissions.tsx:64`) is
+   the whole permission system, and `routes/AppRouter.tsx:38` is the only route gate ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â so the
    rules apply to buttons, not to data. Add `can(user uid, perm text) returns boolean` as a
    `security definer` SQL function and use it inside RLS policies on
    `users`/`roles`/`settings`/financial tables, plus a `require_perm()` call at the top of
    each privileged RPC. Keep the TSX checks for UX; they stop being enforcement.
-4. Ã°Å¸â€Â´ **The `create-user` Edge Function is an unmetered privilege escalation.**
-   `supabase/functions/create-user/index.ts` runs with the **service-role key** (correct Ã¢â‚¬â€ that
+4. ÃƒÆ’Ã‚Â°Ãƒâ€¦Ã‚Â¸ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒâ€šÃ‚Â´ **The `create-user` Edge Function is an unmetered privilege escalation.**
+   `supabase/functions/create-user/index.ts` runs with the **service-role key** (correct ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â that
    key must never reach the browser) but its only gate is a valid JWT: `supabase/config.toml`
    sets `verify_jwt = true`, and the handler then checks only that `username` exists and
-   `password` is Ã¢â€°Â¥ 6 characters. It then inserts into `public.users` with whatever `role_id` and
+   `password` is ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â°Ãƒâ€šÃ‚Â¥ 6 characters. It then inserts into `public.users` with whatever `role_id` and
    `store_id` the caller sent. So **any signed-in cashier** can mint an admin login, or mint a
    user inside *another tenant's* store, and bypass every RLS policy afterwards through that
-   account Ã¢â‚¬â€ including the plan's `max_staff` limit. Fix: inside the function, call the same
+   account ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â including the plan's `max_staff` limit. Fix: inside the function, call the same
    `can()` / `require_perm()` from item 3, pin `store_id` to `auth_store_id()` unless the caller
    is `is_platform_admin()`, and enforce the staff quota in SQL so it cannot be raced.
 
 Also in this phase:
 
 - [x] Enforce plan limits (`max_staff`, `features`) inside the RPC that adds a user, not
-  only in the Staff screen Ã¢â‚¬â€ `lib/licensing.ts` gates reads and writes, not quota.
+  only in the Staff screen ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â `lib/licensing.ts` gates reads and writes, not quota.
 - [ ] Give the platform-admin surface (`features/platform`, backed by `licensing.ts`) a
   service-role key instead of a logged-in staff token where it crosses tenants. *Not done: the
   surface reads licenses through RLS, which already scopes it to a platform admin, so
@@ -403,11 +403,11 @@ Also in this phase:
 >   Cutting the fallback locked out a real account on the day it shipped, and
 >   the cause was step 2 of `SETUP.md`: the admin staff row is created by hand
 >   with its own uuid, while the person signs in through Supabase Auth with a
->   different one Ã¢â‚¬â€ the state the fallback had been hiding all along.
+>   different one ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â the state the fallback had been hiding all along.
 >   `015_link_staff_ids.sql` repairs that in both directions (a disagreeing row
 >   is moved onto the login's id, six referencing columns with it; a login with
 >   no staff row gets one at the real store, with no usable password, since one
->   cannot be recovered) and **refuses anything ambiguous** Ã¢â‚¬â€ a name two logins
+>   cannot be recovered) and **refuses anything ambiguous** ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â a name two logins
 >   could own is listed for a human instead of guessed at, because guessing is
 >   how you hand somebody's sales history to the wrong person. Three real
 >   defects surfaced while getting there, all caught by its 13-assertion gate:
@@ -418,7 +418,7 @@ Also in this phase:
 > - **`014` had a genuine idempotency bug**, which matters because the operator
 >   flow *is* "paste into the SQL Editor": four `create policy` statements had no
 >   preceding `drop policy if exists`, so a second paste died with `42710 ...
->   already exists` Ã¢â‚¬â€ exactly the failure the re-runnability rule at the bottom
+>   already exists` ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â exactly the failure the re-runnability rule at the bottom
 >   of this document exists to prevent. Fixed in the same commit as 015.
 > - **The UI and the database deliberately disagree**, and G-X asserts it. The
 >   provider grants *everything* to an account with no position (`openAccess`,
@@ -461,54 +461,54 @@ Also in this phase:
 
 ---
 
-## 7. Phase 4 Ã¢â‚¬â€ Numbers that stay true at scale Ã‚Â· 2 days Ã°Å¸Å¸Â 
+## 7. Phase 4 ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â Numbers that stay true at scale ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â· 2 days ÃƒÆ’Ã‚Â°Ãƒâ€¦Ã‚Â¸Ãƒâ€¦Ã‚Â¸Ãƒâ€šÃ‚Â 
 
 Not performance polish: each item is a screen that quietly stops being correct
-as data grows Ã¢â‚¬â€ and, as it turned out, one of them was already wrong.
+as data grows ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â and, as it turned out, one of them was already wrong.
 
-1. Ã°Å¸Å¸Â  **Reports aggregate in the browser over an unbounded fetch.**
+1. ÃƒÆ’Ã‚Â°Ãƒâ€¦Ã‚Â¸Ãƒâ€¦Ã‚Â¸Ãƒâ€šÃ‚Â  **Reports aggregate in the browser over an unbounded fetch.**
    `useSalesSummary` selected *every* sale header in the store with no `range`
    or `limit`, then `ReportsPage.tsx` summed it in JS and sliced the top 5. Fine
    at a few thousand invoices; at 200k it is a multi-megabyte download and a
    stalled tab. Replaced by `report_sales_window` / `report_top_customers` /
    `report_payment_mix` / `report_voided_count` (`016_reporting.sql`), each
    returning a fixed-size payload.
-2. Ã°Å¸â€Â´ **Two different definitions of "today" in one app** Ã¢â‚¬â€ three, in fact.
+2. ÃƒÆ’Ã‚Â°Ãƒâ€¦Ã‚Â¸ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒâ€šÃ‚Â´ **Two different definitions of "today" in one app** ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â three, in fact.
    Reports used the **UTC** date (`new Date().toISOString().slice(0, 10)`);
    History used the store-local `localDate()`; and the cash-up panel filtered
    `paid_at` with a bare date string against a `timestamptz`, where
-   `lte('2026-09-28')` means midnight at the **start** of that day Ã¢â‚¬â€ so every
+   `lte('2026-09-28')` means midnight at the **start** of that day ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â so every
    payment after midnight was dropped. A sale at 1:00 AM counted as yesterday
    on one screen and today on another. Now one `stores.time_zone` and
    `store_day_range()`.
-3. Ã°Å¸Å¸Â  **Lexical comparisons against `timestamptz`.** Reports compared
+3. ÃƒÆ’Ã‚Â°Ãƒâ€¦Ã‚Â¸Ãƒâ€¦Ã‚Â¸Ãƒâ€šÃ‚Â  **Lexical comparisons against `timestamptz`.** Reports compared
    `order_date` with `startsWith` on `'YYYY-MM-DD'` strings, while History sent
    naive `${localDate()}T00:00:00` that Postgres read in the session timezone.
    Both now go through explicit timestamptz boundaries.
-4. Ã°Å¸Å¸Â  **Zero-total "prescription sales" pollute revenue.** They write a sale
+4. ÃƒÆ’Ã‚Â°Ãƒâ€¦Ã‚Â¸Ãƒâ€¦Ã‚Â¸Ãƒâ€šÃ‚Â  **Zero-total "prescription sales" pollute revenue.** They write a sale
    with a `PRESC-<base36 epoch>` invoice and all-zero totals. Phase 1 removed
    the JS invoice numbering, so the second namespace is gone; `sales.kind` is
    still Phase 6 work.
-5. Ã°Å¸Å¸Â  **Search destroys legitimate queries instead of escaping them.** `,()`
+5. ÃƒÆ’Ã‚Â°Ãƒâ€¦Ã‚Â¸Ãƒâ€¦Ã‚Â¸Ãƒâ€šÃ‚Â  **Search destroys legitimate queries instead of escaping them.** `,()`
    were stripped from every term, so `Ahmed (Cairo)` silently matched nothing;
    and every field was `ilike '%term%'`, unindexable. Now `search_text(term)`
    over `pg_trgm` + GIN, so no filter string is assembled in the browser at all.
-6. Ã°Å¸Å¸Â¡ **Index sweep.** Confirmed or added: `sales (store_id, order_date desc)`,
+6. ÃƒÆ’Ã‚Â°Ãƒâ€¦Ã‚Â¸Ãƒâ€¦Ã‚Â¸Ãƒâ€šÃ‚Â¡ **Index sweep.** Confirmed or added: `sales (store_id, order_date desc)`,
    `sales_live_idx` (partial, `where voided_at is null`),
    `sale_payments (sale_id, paid_at)`, `stock_movements (product_id)`, and
    `idx_trgm_*` on the five searchable columns.
 
-> **Status Ã¢â‚¬â€ implemented; gates green.** `web/supabase/016_reporting.sql` + a
+> **Status ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â implemented; gates green.** `web/supabase/016_reporting.sql` + a
 > 30-assertion pgTAP gate, plus the client switch. The money fix is a separate
 > commit so it is not waiting on a migration paste.
 > - **A live money bug, found by reading rather than by a failing test.**
 >   Phase 2 made voiding possible, and `void_sale` deliberately leaves
->   `net_amount` intact so the audit trail reads true Ã¢â‚¬â€ but the Reports screen
+>   `net_amount` intact so the audit trail reads true ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â but the Reports screen
 >   summed that column and never selected `voided_at`. So **voiding a 5,000 EGP
 >   invoice made the shop look 5,000 richer**, and `balanceDue` inflated with
->   it. The partial index written for exactly this in 013 Ã¢â‚¬â€ `sales_live_idx Ã¢â‚¬Â¦
+>   it. The partial index written for exactly this in 013 ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â `sales_live_idx ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¦
 >   where voided_at is null`, with a comment saying *"Reports/History filter on
->   this"* Ã¢â‚¬â€ was never used. I wrote both halves. `computeReport` is now its own
+>   this"* ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â was never used. I wrote both halves. `computeReport` is now its own
 >   tested module, and the exclusion is stated in the SQL too, so it is enforced
 >   by the schema rather than remembered by whoever edits the screen next.
 > - **Voids are reported, not hidden.** `voidedCount` / `voidedNet` surface a
@@ -517,7 +517,7 @@ as data grows Ã¢â‚¬â€ and, as it turned out, one of them was already 
 > - **Red first, in the repo:** with the filter removed the gate reports
 >   `expected 6000 to be 1000` and `expected 5000 not to be 5000`.
 > - **Every expectation the gate corrected was mine, and the database was right
->   each time** Ã¢â‚¬â€ recorded because it is the opposite of what a test-first phase
+>   each time** ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â recorded because it is the opposite of what a test-first phase
 >   usually looks like:
 >   - `paid` came back 1600, not 1500: the 011 sync trigger recomputes
 >     `amount_paid` from the ledger and overwrote my fixture, which now states
@@ -528,8 +528,8 @@ as data grows Ã¢â‚¬â€ and, as it turned out, one of them was already 
 >     late. Verified against the runner's tzdata.
 >   - a lab counter saw two jobs, not one: `sales.lab_status` **defaults to
 >     `'Not Started'`**, so an unrelated fixture had quietly become a lab job.
->   - a payment expected 70 came back Ã¢Ë†â€™330: the Ã¢Ë†â€™400 refund falls in the same
->     Cairo day. A refund belongs to the day the money went back Ã¢â‚¬â€ which is the
+>   - a payment expected 70 came back ÃƒÆ’Ã‚Â¢Ãƒâ€¹Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢330: the ÃƒÆ’Ã‚Â¢Ãƒâ€¹Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢400 refund falls in the same
+>     Cairo day. A refund belongs to the day the money went back ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â which is the
 >     entire point of netting refunds in the cash-up.
 >   - `like()` does not exist in pgTAP (the same trap Phase 2 hit), and `EXPLAIN`
 >     is a statement rather than an expression, so the index assertion is
@@ -542,14 +542,14 @@ as data grows Ã¢â‚¬â€ and, as it turned out, one of them was already 
 >   G-S2 seeds an *identical* name in another store, because a search that leaks
 >   tenants is worse than one that misses.
 > - **Both client changes fall back** behind `isMissingRpc`, so an un-migrated
->   database keeps working Ã¢â‚¬â€ and the fallback keeps its old behaviour on
+>   database keeps working ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â and the fallback keeps its old behaviour on
 >   purpose, since a fallback that quietly reintroduces a bug is worse than none.
 > - **Not done:** History's paging is still offset-based, so concurrent inserts
 >   can shift rows between pages.
 > - **The last client-side sub-totals are gone.** Reports used to compute its
 >   "today" and "month" figures in the browser from the same rows it had already
 >   fetched, which meant two definitions of the same number: one from the
->   database, one from `order_date.slice(0, 10)` in the browser's own zone Ã¢â‚¬â€ so
+>   database, one from `order_date.slice(0, 10)` in the browser's own zone ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â so
 >   a 1am sale was credited to the day before. Both are now asked for
 >   separately, with the store's own day bounds. That was the last item on the
 >   "not done" list above, and it closed a defect rather than just a
@@ -562,14 +562,14 @@ as data grows Ã¢â‚¬â€ and, as it turned out, one of them was already 
 > - **The end bound is EXCLUSIVE, and that is load-bearing.** A store-day bound
 >   from `store_day_range` is the *next* local midnight, not the end of this
 >   day, so the cash-up compares with `<`. Passing a bare date still means that
->   whole day and needs `<=` Ã¢â‚¬â€ the same two arguments meaning different things
+>   whole day and needs `<=` ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â the same two arguments meaning different things
 >   is what made the panel come back empty. `usePaymentsRange` now takes the
 >   convention as an argument, so the mistake is visible at the call site, and
 >   the KPIs and the cash-up are handed the same bounds, so the two panels can
 >   no longer disagree about which day they are describing.
 > - **A defect the migration introduced, not one it exposed.** PostgREST wraps a
 >   set-returning function in an array even when it returns exactly one row, so
->   reading fields off the result gave `undefined` Ã¢â‚¬â€ and
+>   reading fields off the result gave `undefined` ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â and
 >   `Number(undefined ?? 0)` is `0`. Reports rendered a tidy, confident row of
 >   zeros while Top Customers, the one call that used `.map()`, showed real
 >   names. Nothing threw; the screen simply lied. `callReportRow` handles the
@@ -581,37 +581,37 @@ as data grows Ã¢â‚¬â€ and, as it turned out, one of them was already 
 > boundaries, tenant isolation, refund netting, and the bracketed-name search.
 > Two gate items are **not** covered and stay open: the <300 ms / <20 KB payload
 > claim is asserted structurally (the partial index exists and its predicate is
-> the void filter) rather than measured against a seeded 50k-row dataset Ã¢â‚¬â€ and
-> `EXPLAIN` plan-shape on a three-row fixture would be false comfort Ã¢â‚¬â€ and
-> History's offsetÃ¢â€ â€™cursor paging.
+> the void filter) rather than measured against a seeded 50k-row dataset ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â and
+> `EXPLAIN` plan-shape on a three-row fixture would be false comfort ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â and
+> History's offsetÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢cursor paging.
 
-## 8. Phase 5 Ã¢â‚¬â€ Making the schema trustworthy to change Ã‚Â· 1Ã¢â‚¬â€œ2 days Ã°Å¸Å¸Â 
+## 8. Phase 5 ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â Making the schema trustworthy to change ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â· 1ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œ2 days ÃƒÆ’Ã‚Â°Ãƒâ€¦Ã‚Â¸Ãƒâ€¦Ã‚Â¸Ãƒâ€šÃ‚Â 
 
 `web/supabase/000_base_schema.sql:14-17` openly states the live project has drifted from the
 file, and `SETUP.md` is a hand-paste-into-the-SQL-Editor flow. So two "identical" installs
 can differ, and nothing will ever notice.
 
-- [x] **pgTAP** Ã¢â‚¬â€ *already done before this phase; recorded here because the box was stale.*
+- [x] **pgTAP** ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â *already done before this phase; recorded here because the box was stale.*
    `create extension pgtap`, gates under `web/supabase/tests/*_test.sql`, wired to
    `npm run test:db`, gated in CI on every push. `test-db.sh` globs both the migrations and the
    gates, so a new phase drops in a file and is picked up with no runner change. Six gates,
    ~169 assertions, no live project touched.
 - [ ] **Fixtures.** A seeded store (one invoice per edge case: part-paid, voided, returned,
-   zero-total prescription, multi-tender) so money tests are deterministic. Ã¢â‚¬â€ **Deferred.** Every
+   zero-total prescription, multi-tender) so money tests are deterministic. ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â **Deferred.** Every
    gate already seeds exactly the rows it asserts on, inside a transaction that rolls back, so a
    shared fixture would mostly be a second thing to keep in sync. Revisit if a gate ever needs to
    assert against another's data.
-- [x] **Make failures visible.** Ã¢â‚¬â€ `017_schema_version.sql` + `SchemaBanner` + the two money paths.
-- [x] **Schema drift is now detected**, replacing "regenerate types in CI" Ã¢â‚¬â€ see the status note.
+- [x] **Make failures visible.** ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â `017_schema_version.sql` + `SchemaBanner` + the two money paths.
+- [x] **Schema drift is now detected**, replacing "regenerate types in CI" ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â see the status note.
 
-> **Status Ã¢â‚¬â€ implemented, except CLI migration tooling (deliberately deferred).**
+> **Status ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â implemented, except CLI migration tooling (deliberately deferred).**
 >
 > The root cause of the three silent fallbacks was that nothing in the system knew what version
-> the database was, so the app could only *infer* drift from an error code Ã¢â‚¬â€ and inference fails
+> the database was, so the app could only *infer* drift from an error code ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â and inference fails
 > quietly. `017_schema_version.sql` gives both sides a fact: the database records which migrations
 > it absorbed, the app ships `EXPECTED_SCHEMA_VERSION`, and `SchemaBanner` names the version it
 > found when they disagree. A pre-017 database reads as `unknown`, not `behind`, because that is
-> the ordinary state of every shop that updates the app before the SQL Ã¢â‚¬â€ a false alarm would
+> the ordinary state of every shop that updates the app before the SQL ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â a false alarm would
 > train people to ignore the one banner that matters. Gate: 13 assertions.
 >
 > **`getNextInvoiceNo` no longer invents a number.** The old catch-all returned
@@ -621,8 +621,8 @@ can differ, and nothing will ever notice.
 > asserted the *old* behaviour (`resolves.toMatch(/^\d{6}$/)`) and was rewritten to pin the new
 > contract, since the test was the reason the bug looked intended.
 >
-> The non-atomic checkout fallback stays Ã¢â‚¬â€ removing it would refuse to sell to a shop that has not
-> run 002 Ã¢â‚¬â€ but it now `console.error`s with context instead of degrading silently.
+> The non-atomic checkout fallback stays ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â removing it would refuse to sell to a shop that has not
+> run 002 ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â but it now `console.error`s with context instead of degrading silently.
 >
 > **Two deviations from the plan above, both forced by facts found while doing it:**
 > 1. **`supabase gen types` cannot run in this CI.** It needs a live project id + access token, or
@@ -636,7 +636,7 @@ can differ, and nothing will ever notice.
 >    that only exists in CI), so that run reports rather than enforces.
 > 2. **CLI migration tooling deferred.** `supabase db pull` writes *one* baseline snapshot and
 >    discards the 17-file history, and it needs the database password. Detection was the actual
->    requirement Ã¢â‚¬â€ "nothing will ever notice" Ã¢â‚¬â€ and it is now met without a password and without
+>    requirement ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â "nothing will ever notice" ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â and it is now met without a password and without
 >    rewriting history. Adoption stays available as a separate, reversible step.
 >
 > **Not verified locally:** no Docker or Postgres on this machine, so the pgTAP gate and the
@@ -646,12 +646,12 @@ can differ, and nothing will ever notice.
 > **CI run #69: green, both jobs.** The gate, the fingerprint step and the web job all pass. Two
 > rounds of real failures came out of this phase first, and both are worth keeping in mind:
 >
-> - **#67** Ã¢â‚¬â€ `has_function(..., '[]')`: pgTAP wants a real `text[]`, and a string is not one, so
+> - **#67** ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â `has_function(..., '[]')`: pgTAP wants a real `text[]`, and a string is not one, so
 >   psql aborted at line 39 before a single assertion ran. A latent twin sat in G-S10, where
 >   `p_note` has a DEFAULT: the declared signature is `(integer, text)` but the identity is
 >   `(integer)`, and `has_function_privilege` raises 42883 on a mismatch rather than returning
 >   false. Both now resolve by OID from `pg_proc`, so there is no signature left to get wrong.
-> - **#68** Ã¢â‚¬â€ G-S4 asserted an empty ledger, but 017 stamps version 17 as it *applies*, so the
+> - **#68** ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â G-S4 asserted an empty ledger, but 017 stamps version 17 as it *applies*, so the
 >   gate was checking 0 against 17. And pgTAP has no `is(bigint, integer, unknown)` overload, so
 >   `is(count(*), 1)` aborted the file at line 80. That trap is already documented in the 013
 >   gate, which makes the repeat a fair process failure rather than a bad break.
@@ -660,14 +660,14 @@ can differ, and nothing will ever notice.
 > good as its first CI run, and pgTAP's implicit typing punishes exactly the comparisons a
 > migration gate is made of.** Cast every `count(*)`/catalog value, and resolve functions by OID.
 >
-> The awk fix in the same series earned its place immediately Ã¢â‚¬â€ under #67 the real one-line error
+> The awk fix in the same series earned its place immediately ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â under #67 the real one-line error
 > sat below six phantom annotations; under #68 it was the first annotation.
 
-> **Gate:** `npm run test:db` runs in CI Ã¢Å“â€¦ Ã‚Â· `SchemaBanner` warns only on an affirmative `behind`
-> Ã¢Å“â€¦ Ã‚Â· no money path can invent a value Ã¢Å“â€¦ Ã‚Â· schema drift fails CI once a baseline is recorded Ã¢Å“â€¦
+> **Gate:** `npm run test:db` runs in CI ÃƒÆ’Ã‚Â¢Ãƒâ€¦Ã¢â‚¬Å“ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â· `SchemaBanner` warns only on an affirmative `behind`
+> ÃƒÆ’Ã‚Â¢Ãƒâ€¦Ã¢â‚¬Å“ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â· no money path can invent a value ÃƒÆ’Ã‚Â¢Ãƒâ€¦Ã¢â‚¬Å“ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â· schema drift fails CI once a baseline is recorded ÃƒÆ’Ã‚Â¢Ãƒâ€¦Ã¢â‚¬Å“ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦
 
 > **The baseline attempt failed, and the reason is the most valuable thing in this phase.**
-> Committing the hash from run #70 turned run #71 red Ã¢â‚¬â€ against a schema that had not changed by
+> Committing the hash from run #70 turned run #71 red ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â against a schema that had not changed by
 > a single byte. The diff between the two runs touches no migration at all.
 >
 > Cause: since 17.6 and its backports, `pg_dump` brackets its output in
@@ -675,7 +675,7 @@ can differ, and nothing will ever notice.
 > meta-command injection (CVE-2025-1094 / CVE-2026-18408). **The token is regenerated on every
 > invocation**, so hashing raw output yields a fresh digest for an identical schema. The check
 > would have failed on every push forever, and the obvious human response to a permanently red
-> build is to delete the check Ã¢â‚¬â€ which would have removed the drift detection this whole phase
+> build is to delete the check ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â which would have removed the drift detection this whole phase
 > exists to provide.
 >
 > Two fixes, and the second matters more than the first:
@@ -692,27 +692,27 @@ can differ, and nothing will ever notice.
 > the next run reports a hash that is stable by construction. It must not be committed until a
 > green run has shown `(stable across 2 runs)`.
 >
-> **Done Ã¢â‚¬â€ the check is enforcing.** Run #73 reported a stable hash across two invocations, and
-> `web/supabase/schema.fingerprint` now holds it (`4e18d7c7Ã¢â‚¬Â¦`). From the next push on, a migration
+> **Done ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â the check is enforcing.** Run #73 reported a stable hash across two invocations, and
+> `web/supabase/schema.fingerprint` now holds it (`4e18d7c7ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¦`). From the next push on, a migration
 > that changes the schema shape fails the build until someone updates the file deliberately. Note
 > that this value differs from the run #70 hash: that one hashed the random `\restrict` token, and
 > this is the first hash of the schema alone.
 >
 > Getting the baseline in took one wrong turn worth recording. Run #71 failed, and the obvious
-> response Ã¢â‚¬â€ "the value CI printed, therefore the value to commit" Ã¢â‚¬â€ was correct in principle and
+> response ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â "the value CI printed, therefore the value to commit" ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â was correct in principle and
 > wrong in practice: the step's summary text was never visible to the person downloading, so the
 > hash had to come from the artifact, and the two must agree. They did not, because the run that
 > produced it predated the determinism fix. **A drift baseline should be copied from the step
-> summary in the run that reported it, not from whichever artifact link is to hand** Ã¢â‚¬â€ a stale
+> summary in the run that reported it, not from whichever artifact link is to hand** ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â a stale
 > artifact is indistinguishable from a fresh one by its contents, since both are a bare 64-character
 > hex string. The step summary now prints `stable across 2 runs` next to the value for exactly this
 > reason, and the summary is the thing to trust.
 
 ---
 
-## 9. Phase 6 Ã¢â‚¬â€ New capabilities that are now cheap Ã°Å¸â€Âµ Ã‚Â· 5Ã¢â‚¬â€œ8 days
+## 9. Phase 6 ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â New capabilities that are now cheap ÃƒÆ’Ã‚Â°Ãƒâ€¦Ã‚Â¸ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒâ€šÃ‚Âµ ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â· 5ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œ8 days
 
-Nothing here is possible *safely* today, which is why it sits last. Once Phase 1Ã¢â‚¬â€œ2 land, each
+Nothing here is possible *safely* today, which is why it sits last. Once Phase 1ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œ2 land, each
 item is a small RPC plus a screen.
 
 > **Re-scoped after reading the code, not just this table.** Three of the seven items were
@@ -720,42 +720,42 @@ item is a small RPC plus a screen.
 > The original order put new screens in front of a data-loss bug, so the order below is by
 > risk, not by appeal.
 >
-> - [x] **Audit log** Ã¢â‚¬â€ **already done, in Phase 3.** `014_server_rbac.sql` has `audit_log` with
+> - [x] **Audit log** ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â **already done, in Phase 3.** `014_server_rbac.sql` has `audit_log` with
 >   a trigger, RLS, three indexes and a gate assertion. The row was stale; deleting it rather
 >   than re-implementing it.
-> - [x] Ã°Å¸â€Â´ **The offline banner was a false promise** Ã¢â‚¬â€ *not a capability, a defect*.
+> - [x] ÃƒÆ’Ã‚Â°Ãƒâ€¦Ã‚Â¸ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒâ€šÃ‚Â´ **The offline banner was a false promise** ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â *not a capability, a defect*.
 >   `OfflineBanner` told staff "Changes will sync when you reconnect" and there was **no write
 >   queue anywhere** (zero matches for `setMutationDefaults` / `networkMode`). A sale rung up on
->   wifi was silently lost while the banner said it was safe Ã¢â‚¬â€ the same category as the
+>   wifi was silently lost while the banner said it was safe ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â the same category as the
 >   `Date.now()` invoice number Phase 5 removed. The copy now states the truth, and checkout is
 >   genuinely queued (`lib/offlineMutations.ts`, `queryClient.ts:26`).
-> - [x] Ã°Å¸â€Â´ **Receiving a purchase did not add stock** Ã¢â‚¬â€ *not a capability, a data-loss bug, and
+> - [x] ÃƒÆ’Ã‚Â°Ãƒâ€¦Ã‚Â¸ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒâ€šÃ‚Â´ **Receiving a purchase did not add stock** ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â *not a capability, a data-loss bug, and
 >   worse than recorded*. `useAddPurchase` wrote a `purchases` row and nothing else, and
->   `purchase_items` was **never written by the app at all** Ã¢â‚¬â€ a shipment was a bare total with
+>   `purchase_items` was **never written by the app at all** ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â a shipment was a bare total with
 >   no products, so there was no line to receive and `stock_qty` never moved. Now
 >   `receive_purchase()` (`018`), idempotent and row-locked, plus `received_at` so an
 >   unreceived shipment is visible rather than merely unpaid.
-> - [x] Ã°Å¸Å¸Â  **Customer ledger & statements** Ã¢â‚¬â€ `sale_payments` existed since 011 and nothing
+> - [x] ÃƒÆ’Ã‚Â°Ãƒâ€¦Ã‚Â¸Ãƒâ€¦Ã‚Â¸Ãƒâ€šÃ‚Â  **Customer ledger & statements** ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â `sale_payments` existed since 011 and nothing
 >   aggregated it; the README claimed balances that did not exist. `customer_balance()` /
 >   `customer_debtors()` (`018`), tenant-scoped as functions rather than views, because a report
 >   nobody can scope eventually leaks.
-> - [ ] **Day / shift close (Z report)** Ã¢â‚¬â€ now cheap: `paid_at` is a `timestamptz` (013), voids
+> - [ ] **Day / shift close (Z report)** ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â now cheap: `paid_at` is a `timestamptz` (013), voids
 >   net correctly (016), and 018's `customer_debtors` demonstrates the windowed aggregate.
-> - [x] **Lab dwell time is measurable** â€” `019_lab_dwell.sql`. `lab_status` was a bare string
+> - [x] **Lab dwell time is measurable** ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â `019_lab_dwell.sql`. `lab_status` was a bare string
 >   with no timestamp, so the Lab screen could colour a badge by status and could not say
 >   which job was stuck. `lab_status_changed_at` / `lab_started_at` / `lab_ready_at`, all
 >   maintained by a trigger, plus `lab_queue()` returning the wait per job. The two
 >   "once-only" columns are the point: a re-opened job must not erase how long the lenses
 >   took. Still open from the original item: **lab cost per lens into margin**.
-> - [x] **History cursor paging** Ã¢â‚¬â€ now a `(order_date, id)` cursor rather than OFFSET, so a
+> - [x] **History cursor paging** ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â now a `(order_date, id)` cursor rather than OFFSET, so a
 >   sale rung up while the cashier reads page 2 no longer shifts rows and shows one invoice
 >   twice while hiding another. The id tiebreak matters because sales can share a timestamp.
-> - [ ] **Receipt share / thermal print** Ã¢â‚¬â€ `features/pos/receipt.ts` has tested formatting;
+> - [ ] **Receipt share / thermal print** ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â `features/pos/receipt.ts` has tested formatting;
 >   share-to-WhatsApp and an 80 mm stylesheet are additive.
-> - [ ] **Consolidated multi-store reporting** Ã¢â‚¬â€ platform-admin view, now that store scoping
+> - [ ] **Consolidated multi-store reporting** ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â platform-admin view, now that store scoping
 >   is trustworthy.
 
-**Deliberately deferred:** true offline-first (conflict-merged) data model Ã¢â‚¬â€ queue-and-replay
+**Deliberately deferred:** true offline-first (conflict-merged) data model ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â queue-and-replay
 covers the real need at 1/10 the cost; realtime two-register sync; Playwright end-to-end.
 
 **Scope note on the queue.** Checkout is the *only* queued mutation, and that is a decision
@@ -764,34 +764,34 @@ a view of the world that has since moved on; replaying them minutes later would 
 state that no longer exists. Those keep failing loudly. Extending the queue is a per-mutation
 judgement, never a blanket default.
 
-> **Status Ã¢â‚¬â€ implemented. CI run #82 green, both jobs, every gate.** The offline queue, receiving
+> **Status ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â implemented. CI run #82 green, both jobs, every gate.** The offline queue, receiving
 > and the customer ledger are all in, and all 19 of the 018 gate's assertions pass alongside
-> 012Ã¢â‚¬â€œ017.
+> 012ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œ017.
 >
-> **Six CI runs to get 018 green, and the failures are the interesting part** Ã¢â‚¬â€ none of them was a
+> **Six CI runs to get 018 green, and the failures are the interesting part** ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â none of them was a
 > bug in the migration, and five of six were readable in the existing gates:
 >
-> - **#75** Ã¢â‚¬â€ the fixtures omitted `purchase_items.store_id`, which 008 made `NOT NULL`. I had read
+> - **#75** ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â the fixtures omitted `purchase_items.store_id`, which 008 made `NOT NULL`. I had read
 >   the DDL in `000_base_schema.sql` instead of checking whether a later migration added it. Same
 >   class of error as Phase 5's `pronargs`: assuming a column from the file that is easiest to read.
-> - **#76** Ã¢â‚¬â€ `license_write_ok()` refused the first receive, correctly. The gate had no licence.
+> - **#76** ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â `license_write_ok()` refused the first receive, correctly. The gate had no licence.
 >   The rival store is licensed too on purpose: unlicensed, G-P6 would have passed for the wrong
 >   reason (refused for licence, not for tenancy).
-> - **#77** Ã¢â‚¬â€ the worst one, and the most valuable. Every balance came back `NULL` and the
+> - **#77** ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â the worst one, and the most valuable. Every balance came back `NULL` and the
 >   cross-store refusal never fired, because **the gate never impersonated anyone**.
 >   `auth_store_id()` returns NULL with no JWT, `store_id = NULL` matches nothing, so the functions
->   found no customers Ã¢â‚¬â€ and G-P6 was about to pass for entirely the wrong reason, since the
+>   found no customers ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â and G-P6 was about to pass for entirely the wrong reason, since the
 >   purchase was never found rather than refused. **A gate can be green and mean nothing.** The
 >   `set role` / `set_config` block is now the same fixture 013, 014 and 016 use.
-> - **#78/#79** Ã¢â‚¬â€ `sale_payments.recorded_by` references **`auth.users`**, not `public.users`. I
+> - **#78/#79** ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â `sale_payments.recorded_by` references **`auth.users`**, not `public.users`. I
 >   seeded only the staff row, so there was no Auth identity for the FK. Naming `recorded_by` was
 >   correct but insufficient; the fix was creating *both* rows, as every other gate does.
-> - **#80** Ã¢â‚¬â€ the only failure that was a genuine arithmetic error, and **the database was right**:
+> - **#80** ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â the only failure that was a genuine arithmetic error, and **the database was right**:
 >   the weighted average of 10@4 then 10@6 is 4.67, not the 5 I asserted. Fixing an expectation is
 >   normally forbidden by this document's own rules, and it is legitimate here only because the
->   value is recomputable by hand from the fixture Ã¢â‚¬â€ which is the test of whether "the database says
+>   value is recomputable by hand from the fixture ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â which is the test of whether "the database says
 >   so" is evidence.
-> - **#81** Ã¢â‚¬â€ every gate green, and the **only** remaining failure was the schema fingerprint,
+> - **#81** ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â every gate green, and the **only** remaining failure was the schema fingerprint,
 >   because 018 genuinely added `purchase_items.received_at` and three functions. The drift check
 >   from Phase 5 catching a real change, four runs after catching three of my own mistakes.
 >
@@ -802,11 +802,11 @@ judgement, never a blanket default.
 > Getting 019 green took two runs and both were the same mistake, which is the single most
 > expensive habit in this repository: **writing a fixture for a state the migration had already
 > passed through.**
-> - **#84** — `select is( (update … returning …), … )`: a data-modifying statement cannot sit inside
->   a sub-select. While fixing it I found G-L3 was not testing its own label — it said "an unrelated
+> - **#84** Ã¢â‚¬â€ `select is( (update Ã¢â‚¬Â¦ returning Ã¢â‚¬Â¦), Ã¢â‚¬Â¦ )`: a data-modifying statement cannot sit inside
+>   a sub-select. While fixing it I found G-L3 was not testing its own label Ã¢â‚¬â€ it said "an unrelated
 >   update does NOT reset the clock" while the statement changed the status, so it asserted the same
 >   thing as G-L2. It now writes the SAME status, which is the real test.
-> - **#85** — the fixture row meant to be "a job Ready since 2026-09-01" arrived with all three
+> - **#85** Ã¢â‚¬â€ the fixture row meant to be "a job Ready since 2026-09-01" arrived with all three
 >   timestamps NULL, because **019's backfill runs once at migration time and the gate's rows are
 >   inserted after it.** The trigger then correctly filled `lab_ready_at` on the way to 'Received',
 >   and the assertion read that correct behaviour as a failure. The fixture now writes the stamps the
@@ -815,7 +815,7 @@ judgement, never a blanket default.
 >   companion assertion that the *other* column did move.
 >
 > **#86** is the exception worth noting: every gate passed and the ONLY failure was the schema
-> fingerprint, because 019 really did add four columns. That is the drift check working — the second
+> fingerprint, because 019 really did add four columns. That is the drift check working Ã¢â‚¬â€ the second
 > time it has been right, and the first time it was not about my own mistake.
 >
 > **The backfill itself is not gated, and cannot be.** It only touches rows that existed before the
@@ -823,13 +823,46 @@ judgement, never a blanket default.
 > migration rather than behaviour, and `SETUP.md` step 15 gives the query that checks it on the live
 > database. Declared in the gate file rather than left to be assumed.
 >
-> **And the reason all of this cost a push each: there is no local Postgres.** The EDB installer is 403
+> **Phase 6 Ã‚Â· 020 Ã¢â‚¬â€ the drift check was itself the blind spot.** A shop applied 018 and 019, then
+> asked why `schema_version()` still answered 17. It answered 17 because **018 and 019 never
+> recorded their own versions** Ã¢â‚¬â€ 017 did, and I did not carry the habit forward. A shop with
+> every migration applied and a shop that had stopped at 017 were indistinguishable, so the
+> "your database is behind" banner could never fire. The one check built so a mismatch cannot
+> pass unnoticed was the thing that was not noticing.
+>
+> **No test could have caught it**, which is the part worth recording: the 017 gate asserted
+> `schema_version()` returns 17, and that was *true*. Every individual value was correct. It
+> surfaced only because a human upgraded and asked a question no assertion was asking.
+>
+> The fix is two enforcement points rather than a convention:
+> - `web/scripts/check-migrations-stamp.sh`, wired into `test-db.sh` as step 2 of 4, checks the
+>   FILES. It runs before any migration is applied, so a missing stamp is a two-second failure
+>   with a one-line message instead of a confusing version number afterwards. 018 and 019 are
+>   grandfathered by name Ã¢â‚¬â€ the repository rule forbids editing an applied migration, and 020
+>   backfills the ledger for both.
+> - `assert_versions_recorded()` (020) checks the LEDGER against the applied migrations and
+>   **raises** rather than returning false, because a gate that returns a boolean can be ignored
+>   while an exception during a paste cannot.
+> - `schemaVersion.test.ts` pins `EXPECTED_SCHEMA_VERSION` to the newest migration, so bumping
+>   the constant is part of adding a migration.
+>
+> The guard was verified by making it fail: a temporary `021_temp_bad.sql` with no stamp was
+> flagged with the exact line to add. And Git Bash turned out to be available, so the script was
+> actually executed Ã¢â‚¬â€ which immediately caught a syntax error of my own in the failure message
+> (a nested `'Ã¢â‚¬Â¦'` inside a double-quoted `echo` truncated the quoting, and the shell tried to
+> parse the rest as code). A syntax error in the error message is the worst possible place for
+> one, and nothing but running it would have found it.
+>
+> **And the reason the SQL gates cost a push each: no local Postgres.** The EDB installer is 403
 > behind this network and `embedded-postgres` ships every contrib extension *except pgTAP*, so the
-> gates cannot run here at all. Every failure above was readable in the existing gates — the
+> pgTAP suite cannot run here at all. Every failure above was readable in the existing gates Ã¢â‚¬â€ the
 > impersonation block, the licence row, the `auth.users` half of a login, a `NOT NULL` column, a
-> sub-select that cannot contain an UPDATE — and a local database would have caught all of them on
-> the first attempt. **Solving that is the highest-value infrastructure left**, and it is worth doing
-> before the next migration rather than paying this cost again.
+> sub-select that cannot contain an UPDATE Ã¢â‚¬â€ and a local database would have caught all of them on
+> the first attempt. **Solving that is the highest-value infrastructure left.**
+>
+> Git Bash *is* available at `C:\Program Files\Git\bin\bash.exe`, which is enough to run the
+> shell-level checks locally. Worth remembering before concluding that nothing here can execute
+> shell code Ã¢â‚¬â€ I assumed otherwise for several phases before looking properly.
 
 ---
 
@@ -842,7 +875,7 @@ Deferred on purpose, with the trigger that should bring each one back:
 | Replacing the `users` table with Supabase Auth identities | Large blast radius; tenancy already works on top of it | After Phase 3 locks store resolution |
 | Realtime sync between two open registers | Needs Phase 1 idempotency to avoid double-writes | Two stores ask for it |
 | True offline-first (conflict-merged) data model | Queue-and-replay covers the real need at 1/10 the cost | Offline is a paid feature |
-| Upgrading the toolchain (React 19.2 / Vite 8.1 / TS ~6.0 / vitest 5 / oxlint) | Hygiene, not value Ã¢â‚¬â€ never mix with a money phase | Standalone PR after Phase 0 |
+| Upgrading the toolchain (React 19.2 / Vite 8.1 / TS ~6.0 / vitest 5 / oxlint) | Hygiene, not value ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â never mix with a money phase | Standalone PR after Phase 0 |
 | Playwright end-to-end suite | Slow to build, thin value until the DB is authoritative | After Phase 2 |
 | Image de-duplication by hash | Needs a storage listing pass; orphan cleanup (Phase 3) is the urgent half | Storage costs show it |
 | PDF invoice archiving | Nice-to-have; receipt print comes first | A customer asks for e-invoices |
@@ -858,15 +891,15 @@ The repo has **9 Vitest files, all pure functions**:
 `features/pos/pricing.test.ts`, `features/pos/receipt.test.ts`, `features/pos/types.test.ts`,
 `i18n/translations.test.ts`, `lib/payments.test.ts`, `lib/posDraft.test.ts`.
 They are good tests of arithmetic and string building. **None of them touches Postgres**, so
-nothing in the database has ever been tested Ã¢â‚¬â€ which is exactly where the money defects live.
+nothing in the database has ever been tested ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â which is exactly where the money defects live.
 
 | Layer | Tool | Covers | Status |
 |---|---|---|---|
-| Pure logic | Vitest (`npm run test`) | pricing, receipt text, payment split maths, draft shape | Ã¢Å“â€¦ exists |
-| **Database** | **pgTAP** (`npm run test:db`) | re-priced totals, stock guard, invoice uniqueness, idempotency, constraints | Ã¢Å“â€¦ Phase 1 (26 assertions, CI `db` job) |
-| **Authorisation** | pgTAP + REST probe with a cashier JWT + one `create-user` invocation | RLS matrix per role Ãƒâ€” table, denied deletes, denied cross-store reads, denied admin minting | Ã¢ÂÅ’ Phase 2/3 |
-| Migration safety | `supabase db push` on a preview project + `pg_dump` diff | drift between live and repo | Ã¢ÂÅ’ Phase 5 |
-| Query cost | `EXPLAIN (ANALYZE)` assertions in pgTAP | no seq scans on the hot paths | Ã¢ÂÅ’ Phase 4 |
+| Pure logic | Vitest (`npm run test`) | pricing, receipt text, payment split maths, draft shape | ÃƒÆ’Ã‚Â¢Ãƒâ€¦Ã¢â‚¬Å“ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ exists |
+| **Database** | **pgTAP** (`npm run test:db`) | re-priced totals, stock guard, invoice uniqueness, idempotency, constraints | ÃƒÆ’Ã‚Â¢Ãƒâ€¦Ã¢â‚¬Å“ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ Phase 1 (26 assertions, CI `db` job) |
+| **Authorisation** | pgTAP + REST probe with a cashier JWT + one `create-user` invocation | RLS matrix per role ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â table, denied deletes, denied cross-store reads, denied admin minting | ÃƒÆ’Ã‚Â¢Ãƒâ€šÃ‚ÂÃƒâ€¦Ã¢â‚¬â„¢ Phase 2/3 |
+| Migration safety | `supabase db push` on a preview project + `pg_dump` diff | drift between live and repo | ÃƒÆ’Ã‚Â¢Ãƒâ€šÃ‚ÂÃƒâ€¦Ã¢â‚¬â„¢ Phase 5 |
+| Query cost | `EXPLAIN (ANALYZE)` assertions in pgTAP | no seq scans on the hot paths | ÃƒÆ’Ã‚Â¢Ãƒâ€šÃ‚ÂÃƒâ€¦Ã¢â‚¬â„¢ Phase 4 |
 | UI smoke | Vitest + testing-library | checkout wizard renders, void dialog | optional |
 
 **Rules for this roadmap:**
@@ -875,7 +908,7 @@ nothing in the database has ever been tested Ã¢â‚¬â€ which is exactly
    demonstrated rather than described.
 3. Never weaken a gate to make it green; if a gate is wrong, fix the gate in a separate commit
    and say why.
-4. Keep migration operational steps in `web/supabase/SETUP.md` Ã¢â‚¬â€ this document lists *what*
+4. Keep migration operational steps in `web/supabase/SETUP.md` ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â this document lists *what*
    must be true, `SETUP.md` says *how* to apply it. Do not duplicate order-of-application or
    env-var instructions here.
 
@@ -886,43 +919,43 @@ nothing in the database has ever been tested Ã¢â‚¬â€ which is exactly
 | Phase | Theme | Days | Gate that must pass |
 |---|---|---:|---|
 | 0 | Safety net (CI, baseline, types) | 0.5 | CI green; type file matches `011` |
-| 1 | Money + stock true in the DB | 2Ã¢â‚¬â€œ3 | 5 pgTAP gates (price, stock, sequence, idempotency, ledger) |
+| 1 | Money + stock true in the DB | 2ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œ3 | 5 pgTAP gates (price, stock, sequence, idempotency, ledger) |
 | 2 | Reversible sales, undeletable ledger | 2 | void works end-to-end; `delete` revoked on 7 tables |
 | 3 | Authority leaves the browser | 2 | cashier JWT fails every privileged probe, incl. minting an admin |
 | 4 | Numbers that stay true at scale | 2 | <300 ms reports, one definition of "today", indexed search |
-| 5 | Schema trustworthy to change | 1Ã¢â‚¬â€œ2 | `test:db` in CI; live == repo |
-| 6 | New capabilities | 5Ã¢â‚¬â€œ8 | per feature |
-| | **Phases 0Ã¢â‚¬â€œ5 total** | **Ã¢â€°Ë†9.5Ã¢â‚¬â€œ11.5 days** | |
+| 5 | Schema trustworthy to change | 1ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œ2 | `test:db` in CI; live == repo |
+| 6 | New capabilities | 5ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œ8 | per feature |
+| | **Phases 0ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œ5 total** | **ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â°Ãƒâ€¹Ã¢â‚¬Â 9.5ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œ11.5 days** | |
 
-**Recommended order if time is short:** 0 Ã¢â€ â€™ 1 Ã¢â€ â€™ 3 Ã¢â€ â€™ 2 Ã¢â€ â€™ 4 Ã¢â€ â€™ 5.
+**Recommended order if time is short:** 0 ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ 1 ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ 3 ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ 2 ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ 4 ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ 5.
 Phase 3 is cheap relative to its risk and is pulled forward when a second store is onboarding,
 because cross-store resolution and the open RBAC tables are the two things that make a second
 tenant unsafe.
 
 **Migration discipline for every phase** (as practised in `008`/`011`): additive first, then
-backfill, then switch reads, then tighten constraints `not valid` Ã¢â€ â€™ `validate constraint`;
+backfill, then switch reads, then tighten constraints `not valid` ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ `validate constraint`;
 every migration idempotent (`create or replace`, `drop policy if exists`), tenant-safe
 (backfills set `store_id` explicitly), and re-runnable after a half-applied paste.
 
 ---
 
-## Appendix A Ã¢â‚¬â€ Per-feature defect backlog
+## Appendix A ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â Per-feature defect backlog
 
 Every row is a finding from the audit with its evidence. Phase column = where it gets fixed.
 
 | Feature | Defect | Evidence | Phase |
 |---|---|---|---|
-| POS Ã‚Â· Checkout | Prices/totals persisted exactly as the browser sent them | `011_sale_payments.sql:197-207` | 1 |
-| POS Ã‚Â· Checkout | Stock availability never checked in the database (oversell possible) | `data/inventory.ts:24-34` | 1 |
-| POS Ã‚Â· Checkout | ~~Invoice number generated in JS; on error returns `Date.now() % 1000000`~~ **fixed in Phase 5** Ã¢â‚¬â€ the invented number is gone, the path now throws | `data/sales.ts` (`getNextInvoiceNo`) | 1 |
-| POS Ã‚Â· Checkout | ~~When the RPC is missing, a silent non-atomic multi-table fallback runs~~ **Phase 5** Ã¢â‚¬â€ the fallback still exists (removing it would block sales) but `console.error`s with context, and `SchemaBanner` names the cause | `data/sales.ts` (createSaleOrder), `components/SchemaBanner.tsx` | 1 |
-| POS Ã‚Â· Checkout | Legacy 3-arg RPC drops `rx_image_path` / `frame_image_path` | `002_create_sale_rpc.sql` | 1 |
-| POS Ã‚Â· Checkout | No idempotency key Ã¢â‚¬â€ a retry after a lost response can create a second sale | `data/sales.ts:298-455` | 1 |
-| POS Ã‚Â· Checkout | A sale can never be voided, refunded or returned | `011_sale_payments.sql:48` (`check amount > 0`), no `void_*` RPC | 2 |
-| POS Ã‚Â· Checkout | Order-editor patch can rewrite `net_amount` / `amount_paid`, bypassing the ledger | `data/sales.ts:662-700` (`:691`) | 2 |
-| POS Ã‚Â· Checkout | No line-level discount (order-level only) | `sale_items` columns | 2 |
-| POS Ã‚Â· Checkout | Payment timestamp is a `date`, not a `timestamptz` | `sale_payments` DDL in `011` | 2 |
-| POS Ã‚Â· Checkout | Standalone prescriptions create zero-total sales with a `PRESC-<epoch36>` invoice | `data/sales.ts:704-734`, `:717` | 4 |
+| POS ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â· Checkout | Prices/totals persisted exactly as the browser sent them | `011_sale_payments.sql:197-207` | 1 |
+| POS ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â· Checkout | Stock availability never checked in the database (oversell possible) | `data/inventory.ts:24-34` | 1 |
+| POS ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â· Checkout | ~~Invoice number generated in JS; on error returns `Date.now() % 1000000`~~ **fixed in Phase 5** ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â the invented number is gone, the path now throws | `data/sales.ts` (`getNextInvoiceNo`) | 1 |
+| POS ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â· Checkout | ~~When the RPC is missing, a silent non-atomic multi-table fallback runs~~ **Phase 5** ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â the fallback still exists (removing it would block sales) but `console.error`s with context, and `SchemaBanner` names the cause | `data/sales.ts` (createSaleOrder), `components/SchemaBanner.tsx` | 1 |
+| POS ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â· Checkout | Legacy 3-arg RPC drops `rx_image_path` / `frame_image_path` | `002_create_sale_rpc.sql` | 1 |
+| POS ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â· Checkout | No idempotency key ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â a retry after a lost response can create a second sale | `data/sales.ts:298-455` | 1 |
+| POS ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â· Checkout | A sale can never be voided, refunded or returned | `011_sale_payments.sql:48` (`check amount > 0`), no `void_*` RPC | 2 |
+| POS ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â· Checkout | Order-editor patch can rewrite `net_amount` / `amount_paid`, bypassing the ledger | `data/sales.ts:662-700` (`:691`) | 2 |
+| POS ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â· Checkout | No line-level discount (order-level only) | `sale_items` columns | 2 |
+| POS ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â· Checkout | Payment timestamp is a `date`, not a `timestamptz` | `sale_payments` DDL in `011` | 2 |
+| POS ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â· Checkout | Standalone prescriptions create zero-total sales with a `PRESC-<epoch36>` invoice | `data/sales.ts:704-734`, `:717` | 4 |
 | History | Paging is correct (server-filtered, 50/page) but offset-based, so concurrent inserts can shift rows between pages | `data/sales.ts:103-119` | 4 |
 | History | Range filter sends naive `${localDate()}T00:00:00` strings | `data/sales.ts:118-119` | 4 |
 | Inventory | Stock is a browser-side sum of **all** movement rows | `data/inventory.ts:15-37` | 1 |
@@ -931,12 +964,12 @@ Every row is a finding from the audit with its evidence. Phase column = where it
 | Reports | Whole sales table (headers) downloaded, then summed in JS | `data/sales.ts:67-82` + `reports/ReportsPage.tsx:27` | 4 |
 | Reports | "Today"/"month" computed in **UTC** while History uses local time; duplicated in two components | `reports/ReportsPage.tsx:19-20`, `:116-117` vs `data/sales.ts:84-87` | 4 |
 | Reports | Top-5 / low-stock lists are sliced client-side *after* the full download | `reports/ReportsPage.tsx:47`, `:155` | 4 |
-| Customers | No balance / statement view Ã¢â‚¬â€ `sale_payments` exists but is never aggregated per customer | `data/salesPayments.ts` | 6 |
+| Customers | No balance / statement view ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â `sale_payments` exists but is never aggregated per customer | `data/salesPayments.ts` | 6 |
 | Customers | Doctor-name search needs two queries merged in the browser | `data/customers.ts:74-95` | 4 |
-| Search | Sanitizer replaces `,()` with spaces, so bracketed queries silently return nothing; all matches are `ilike '%Ã¢â‚¬Â¦%'` (unindexable) | `data/search.ts:14`, `:23`, `:29`; `data/customers.ts:68` | 4 |
+| Search | Sanitizer replaces `,()` with spaces, so bracketed queries silently return nothing; all matches are `ilike '%ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¦%'` (unindexable) | `data/search.ts:14`, `:23`, `:29`; `data/customers.ts:68` | 4 |
 | Staff / RBAC | Permission model is TSX-only (`resolveCan`); one route gate | `data/permissions.tsx:64`, `routes/AppRouter.tsx:38` | 3 |
-| Staff / RBAC | `permissions` made a global catalogue (`for all Ã¢â‚¬Â¦ using (true)`); `role_permissions` / `user_permissions` absent from `008` Ã¢â€ â€™ keep the blanket policy | `008_multi_tenancy.sql:371-376`; `001_security_rls.sql:69` | 3 |
-| Staff / RBAC | `create-user` Edge Function holds the service-role key but checks only "has a JWT" Ã¢â€ â€™ any cashier can mint an admin login, in any store | `supabase/functions/create-user/index.ts`, `supabase/config.toml` | 3 |
+| Staff / RBAC | `permissions` made a global catalogue (`for all ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¦ using (true)`); `role_permissions` / `user_permissions` absent from `008` ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ keep the blanket policy | `008_multi_tenancy.sql:371-376`; `001_security_rls.sql:69` | 3 |
+| Staff / RBAC | `create-user` Edge Function holds the service-role key but checks only "has a JWT" ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ any cashier can mint an admin login, in any store | `supabase/functions/create-user/index.ts`, `supabase/config.toml` | 3 |
 | Staff / RBAC | Plan limits (`max_staff`, features) enforced only in the UI | Staff screen vs `lib/licensing.ts` | 3 |
 | Staff / RBAC | No audit log of who changed what | schema-wide | 6 |
 | Tenancy | `auth_store_id()` falls back to matching `username` across stores | `008_multi_tenancy.sql:176-183` | 3 |
@@ -944,51 +977,52 @@ Every row is a finding from the audit with its evidence. Phase column = where it
 | Lab | Status is free text with no per-status timestamps, so dwell time is unmeasurable | `data/sales.ts:647-659` | 6 |
 | Purchasing | Receiving does not create stock movements; supplier balance is not computable | `003_purchase_payments.sql`, purchasing screen | 6 |
 | Uploads | Replaced/voided prescription & frame images are never deleted | `007_order_images.sql`, `lib/storage.ts` | 3/5 |
-| Offline | The banner promises "Changes will sync when you reconnect", but there is no write queue Ã¢â‚¬â€ a checkout made while offline is lost, and a blind retry can double-book it | `components/OfflineBanner.tsx:17` vs `lib/queryClient.ts:19-20` | 6 |
-| Process | ~~Live schema has drifted from `000_base_schema.sql` (stated in its own header)~~ **Phase 5** Ã¢â‚¬â€ drift is now *detected*: `schema_version()` in the DB, a banner in the app, and a `pg_dump` fingerprint compared in CI | `017_schema_version.sql`, `lib/schemaVersion.ts`, `scripts/schema-fingerprint.sh` | 5 |
-| Process | ~~No CI, no SQL/RPC/RLS tests; `database.types.ts` is hand-maintained while `gen:types:reference` has never been run~~ **Phase 0/1 + 5** Ã¢â‚¬â€ CI runs the pgTAP gates; the unusable `gen:types` script is replaced by a schema fingerprint that needs no credentials | `.github/workflows/ci.yml` | 0/5 |
+| Offline | The banner promises "Changes will sync when you reconnect", but there is no write queue ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â a checkout made while offline is lost, and a blind retry can double-book it | `components/OfflineBanner.tsx:17` vs `lib/queryClient.ts:19-20` | 6 |
+| Process | ~~Live schema has drifted from `000_base_schema.sql` (stated in its own header)~~ **Phase 5** ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â drift is now *detected*: `schema_version()` in the DB, a banner in the app, and a `pg_dump` fingerprint compared in CI | `017_schema_version.sql`, `lib/schemaVersion.ts`, `scripts/schema-fingerprint.sh` | 5 |
+| Process | ~~No CI, no SQL/RPC/RLS tests; `database.types.ts` is hand-maintained while `gen:types:reference` has never been run~~ **Phase 0/1 + 5** ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â CI runs the pgTAP gates; the unusable `gen:types` script is replaced by a schema fingerprint that needs no credentials | `.github/workflows/ci.yml` | 0/5 |
 
 ---
 
-## Appendix B Ã¢â‚¬â€ Migration chain (applied, and planned)
+## Appendix B ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â Migration chain (applied, and planned)
 
 Application order and the manual steps live in `web/supabase/SETUP.md`; this table is only a
 map of what each file is responsible for, so a review can tell which phase owns which file.
 
 | File | Responsibility | Note for this roadmap |
 |---|---|---|
-| `000_base_schema.sql` | Base tables (customers, sales, sale_items, order_examinations, prescriptions, inventory, stock_movements, suppliers, purchases/purchase_items, warehouses, lens/frame metadata, settings) | Header (`:14-17`) admits the live DB has drifted Ã¢â‚¬â€ Phase 5 |
-| `001_security_rls.sql` | Roles + one blanket `lensy_authenticated_all` policy, `using (true)` (`:64-71`) | Still in force for every table `008` omits Ã¢â‚¬â€ Phase 3 |
-| `002_create_sale_rpc.sql` | First atomic checkout RPC (3-arg) | Superseded by `011`; silently drops order images Ã¢â‚¬â€ Phase 1 |
-| `003_purchase_payments.sql` | `purchase_payments` ledger per shipment, one-off backfill of legacy `amount_paid` (`:29-32`), blanket `lensy_authenticated_all` (`:42-43`) | ReceivingÃ¢â€ â€™stock work lands later (Phase 6) |
+| `000_base_schema.sql` | Base tables (customers, sales, sale_items, order_examinations, prescriptions, inventory, stock_movements, suppliers, purchases/purchase_items, warehouses, lens/frame metadata, settings) | Header (`:14-17`) admits the live DB has drifted ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â Phase 5 |
+| `001_security_rls.sql` | Roles + one blanket `lensy_authenticated_all` policy, `using (true)` (`:64-71`) | Still in force for every table `008` omits ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â Phase 3 |
+| `002_create_sale_rpc.sql` | First atomic checkout RPC (3-arg) | Superseded by `011`; silently drops order images ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â Phase 1 |
+| `003_purchase_payments.sql` | `purchase_payments` ledger per shipment, one-off backfill of legacy `amount_paid` (`:29-32`), blanket `lensy_authenticated_all` (`:42-43`) | ReceivingÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢stock work lands later (Phase 6) |
 | `004_rbac_notes.sql` | `permissions`, `role_permissions`, `user_permissions`, notes + role seeds | The three tables Phase 3 must bring under tenant RLS |
 | `005_notes_edit.sql`, `006_note_seen.sql` | Note editing and per-user "seen" state | Healthy; no phase owns them |
-| `007_order_images.sql` | `rx_image_path`, `frame_image_path` on `sales` | Orphan cleanup Ã¢â‚¬â€ Phase 3/5 |
-| `008_multi_tenancy.sql` | `stores`, `store_id` everywhere, `auth_store_id()` (`:176-183`), RLS v2 loop (`:287-340`) | Fallback bug + table-list gap + delete policy Ã¢â‚¬â€ Phases 2/3 |
-| `009_store_licensing.sql` | Licenses/plans, `license_read_ok()`, `license_write_ok()`, `is_platform_admin()` | Good design; quota enforcement still missing Ã¢â‚¬â€ Phase 3 |
+| `007_order_images.sql` | `rx_image_path`, `frame_image_path` on `sales` | Orphan cleanup ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â Phase 3/5 |
+| `008_multi_tenancy.sql` | `stores`, `store_id` everywhere, `auth_store_id()` (`:176-183`), RLS v2 loop (`:287-340`) | Fallback bug + table-list gap + delete policy ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â Phases 2/3 |
+| `009_store_licensing.sql` | Licenses/plans, `license_read_ok()`, `license_write_ok()`, `is_platform_admin()` | Good design; quota enforcement still missing ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â Phase 3 |
 | `010_metadata_sort.sql` | Re-numbers lens/frame metadata by name (`:18`, `:26`) | Cosmetic |
 | `011_sale_payments.sql` | Payment ledger (`:48` positivity check), store-id trigger (`:88`), `sync_sale_amount_paid()` (`:90-112`), RLS (`:118-155`), 4-arg `create_sale_order` (`:164-248`) | The RPC Phase 1 rewrites from "record" to "validate" |
-| `012_integrity.sql` | Server re-pricing, stock guard (`stores.allow_negative_stock`, default allow), `available_stock()`, `stock_qty` read model, `invoice_counter` / `next_invoice_no()`, idempotency key, money constraints | Implemented Ã¢â‚¬â€ gate: `tests/012_integrity_test.sql`. **Applied to production** (proven by `baseline/schema_after_012.sql`) |
-| `013_void_refunds.sql` | `void_sale()`, refund tenders, movement vocabulary, `paid_at` Ã¢â€ â€™ `timestamptz`, delete revocation, `update_sale_order()` | Implemented Ã¢â‚¬â€ gate: `tests/013_void_refunds_test.sql` (54 assertions) |
+| `012_integrity.sql` | Server re-pricing, stock guard (`stores.allow_negative_stock`, default allow), `available_stock()`, `stock_qty` read model, `invoice_counter` / `next_invoice_no()`, idempotency key, money constraints | Implemented ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â gate: `tests/012_integrity_test.sql`. **Applied to production** (proven by `baseline/schema_after_012.sql`) |
+| `013_void_refunds.sql` | `void_sale()`, refund tenders, movement vocabulary, `paid_at` ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ `timestamptz`, delete revocation, `update_sale_order()` | Implemented ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â gate: `tests/013_void_refunds_test.sql` (54 assertions) |
 | **`014_server_rbac.sql`** | `resolve_can()` / `require_perm()`, tenant RLS on the three RBAC tables, store resolution without the username fallback, `audit_log` | Implemented - gate: `tests/014_server_rbac_test.sql` (33 assertions) | `can()` / `require_perm()`, tenant RLS on the three RBAC tables, store resolution without username fallback | Phase 3 |
-| `015_link_staff_ids.sql` | `link_staff_ids()` Ã¢â‚¬â€ moves a disagreeing staff row onto its login (both directions), refuses ambiguous names, `staff_id_problems` view | Implemented Ã¢â‚¬â€ gate: `tests/015_link_staff_ids_test.sql` (13 assertions) |
-| `016_reporting.sql` | Report RPCs (`report_sales_window` / `report_top_customers` / `report_payment_mix` / `report_voided_count`), `stores.time_zone` + `store_day_range()`, `search_text()` + `pg_trgm`/GIN | Implemented Ã¢â‚¬â€ gate: `tests/016_reporting_test.sql` (30 assertions) |
-| `supabase/config.toml` *(repo root)* | CLI project root; `verify_jwt = true` for `create-user` | Split from the SQL in `web/supabase/` Ã¢â‚¬â€ adopting the CLI migrations is deferred to a separate PR |
-| `017_schema_version.sql` | `schema_version()` + the `lensy_schema_versions` ledger (RLS on, no direct read) | Implemented Ã¢â‚¬â€ gate: `tests/017_schema_version_test.sql` (14 assertions) |
-| `web/scripts/schema-fingerprint.sh` | `pg_dump --schema-only` hash of the public schema, compared in CI | Phase 5 drift check Ã¢â‚¬â€ replaces `supabase gen types`, which cannot run without a live project or the Supabase container stack |
-| `018_purchase_stock.sql` | `receive_purchase()` (idempotent, row-locked, weighted-average cost) + `customer_balance()` / `customer_debtors()`, and `purchase_items.received_at` | Phase 6 Ã¢â‚¬â€ fixes a recorded purchase never moving stock, and the missing answer to "what does this customer owe?" |
+| `015_link_staff_ids.sql` | `link_staff_ids()` ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â moves a disagreeing staff row onto its login (both directions), refuses ambiguous names, `staff_id_problems` view | Implemented ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â gate: `tests/015_link_staff_ids_test.sql` (13 assertions) |
+| `016_reporting.sql` | Report RPCs (`report_sales_window` / `report_top_customers` / `report_payment_mix` / `report_voided_count`), `stores.time_zone` + `store_day_range()`, `search_text()` + `pg_trgm`/GIN | Implemented ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â gate: `tests/016_reporting_test.sql` (30 assertions) |
+| `supabase/config.toml` *(repo root)* | CLI project root; `verify_jwt = true` for `create-user` | Split from the SQL in `web/supabase/` ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â adopting the CLI migrations is deferred to a separate PR |
+| `017_schema_version.sql` | `schema_version()` + the `lensy_schema_versions` ledger (RLS on, no direct read) | Implemented ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â gate: `tests/017_schema_version_test.sql` (14 assertions) |
+| `web/scripts/schema-fingerprint.sh` | `pg_dump --schema-only` hash of the public schema, compared in CI | Phase 5 drift check ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â replaces `supabase gen types`, which cannot run without a live project or the Supabase container stack |
+| `018_purchase_stock.sql` | `receive_purchase()` (idempotent, row-locked, weighted-average cost) + `customer_balance()` / `customer_debtors()`, and `purchase_items.received_at` | Phase 6 ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â fixes a recorded purchase never moving stock, and the missing answer to "what does this customer owe?" |
 | `019_lab_dwell.sql` | `lab_status_changed_at` / `lab_started_at` / `lab_ready_at` (trigger-maintained; the last two written ONCE) + `lab_queue()` | Phase 6 - makes "how long has this job been waiting?" answerable at all |
-| `supabase/functions/create-user/index.ts` | Creates an Auth user + mirrors it into `public.users` using the service-role key | JWT-only gate, caller-supplied `role_id`/`store_id` Ã¢â‚¬â€ Phase 3 |
-| `web/supabase/tests/_shim.sql`, `tests/012_integrity_test.sql` | Plain-Postgres shims (roles, `auth/`, `storage/`, pgTAP) + the Phase 1 gate (26 assertions) | Run by `npm run test:db` and CI job `db` Ã¢â‚¬â€ no live project touched |
-| `web/supabase/baseline/schema_after_012.sql` | Live `pg_dump --schema-only` of `public`, captured in CI | The **after-012** reference snapshot (012 was already applied when captured) Ã¢â‚¬â€ the diff base for `013`+. Supersedes the drifting `000_base_schema.sql`; Phase 5 turns the drift check into a job |
+| `020_version_gate.sql` | Backfills the ledger for 018/019, adds `assert_versions_recorded()` (raises, not returns false), and `scripts/check-migrations-stamp.sh` makes an unstamped migration a red build | Phase 6 - the drift check was the blind spot: 018/019 shipped without recording themselves, so a fully-migrated shop was indistinguishable from a shop stuck at 017 |
+| `supabase/functions/create-user/index.ts` | Creates an Auth user + mirrors it into `public.users` using the service-role key | JWT-only gate, caller-supplied `role_id`/`store_id` ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â Phase 3 |
+| `web/supabase/tests/_shim.sql`, `tests/012_integrity_test.sql` | Plain-Postgres shims (roles, `auth/`, `storage/`, pgTAP) + the Phase 1 gate (26 assertions) | Run by `npm run test:db` and CI job `db` ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â no live project touched |
+| `web/supabase/baseline/schema_after_012.sql` | Live `pg_dump --schema-only` of `public`, captured in CI | The **after-012** reference snapshot (012 was already applied when captured) ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â the diff base for `013`+. Supersedes the drifting `000_base_schema.sql`; Phase 5 turns the drift check into a job |
 
 **Migration rules that apply to every one of these:**
 
-- Never edit an already-applied file Ã¢â‚¬â€ forward-fix in the next number, so a store that ran the
+- Never edit an already-applied file ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â forward-fix in the next number, so a store that ran the
   old version and a fresh install converge on the same schema.
 - Every file must be safely re-runnable (the hand-paste flow means half-applied pastes happen).
 - Money-touching migrations ship with their pgTAP file in the same commit.
-- Constraints go in `not valid` first, backfill, then `validate constraint` Ã¢â‚¬â€ never block a
+- Constraints go in `not valid` first, backfill, then `validate constraint` ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â never block a
   live checkout on a cleanup.
 - When Phase 5 moves these files into a real migrations directory (the CLI root is the repo
   root, so `supabase/migrations/`), keep the numbers and record the mapping, so history stays

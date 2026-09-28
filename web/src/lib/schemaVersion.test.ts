@@ -83,8 +83,13 @@ describe('schema version', () => {
   })
 
   it('keeps the app constant in step with the migration it names', () => {
-    // If someone bumps the migration without bumping this, the banner goes
-    // permanently quiet — the exact failure 017 exists to prevent.
-    expect(EXPECTED_SCHEMA_VERSION).toBe(17)
+    // The whole point of the check: if someone adds a migration and does NOT bump
+    // this, the banner goes permanently quiet, and nothing else in the codebase
+    // would notice. This failed once already - 018 and 019 shipped without
+    // recording their versions, so the database kept answering 17 and this
+    // constant still said 17, and the two agreed perfectly while the drift check
+    // was blind. Migration 020 makes the omission a red build; this test makes the
+    // bump one.
+    expect(EXPECTED_SCHEMA_VERSION).toBe(20)
   })
 })

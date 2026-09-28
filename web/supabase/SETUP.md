@@ -446,6 +446,33 @@ Its gate is [`tests/019_lab_dwell_test.sql`](./tests/019_lab_dwell_test.sql)
 jobs is not covered by the gate — a gate builds a fresh database, so there is no
 history to back-date. The query above is how to check that part.
 
+## Step 16 - `020_version_gate.sql` (keeps the drift check honest)
+
+**Your database is already correct** — you recorded 18 and 19 by hand, and
+`select public.schema_version();` returns 19.
+
+This migration exists because the version ledger had a hole in it. 017 introduced
+the ledger and recorded itself; **018 and 019 did not.** So a shop that had applied
+every migration answered the same version as a shop that had stopped at 017 — and
+the "your database is behind" banner could never appear, which is the one thing it
+was built to do.
+
+Paste this and it repairs the ledger and adds a guard:
+
+```sql
+select public.assert_versions_recorded(array['017_a.sql','018_b.sql','019_c.sql','020_d.sql']);
+```
+
+It **fails loudly** if a migration in that list has not recorded its version. You
+can run it with the real file names any time; it only raises when something is
+actually missing.
+
+You do not need to paste this for anything else to work. It exists so the
+mismatch warning keeps working later.
+
+Its gate is [`tests/020_version_gate_test.sql`](./tests/020_version_gate_test.sql)
+(10 assertions), also run by `npm run test:db` and CI.
+
 ## Schema baseline (recommended, ~2 minutes)
 
 The hardening roadmap (Phase 0) wants a `pg_dump` of the **live** `public`
