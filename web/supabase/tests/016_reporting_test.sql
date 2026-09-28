@@ -282,8 +282,6 @@ select is((select count(*) from pg_indexes
             where schemaname = 'public' and indexname like 'idx_trgm_%')::bigint,
   5::bigint, 'G-S5 a trigram index per searchable column exists');
 
-rollback;
-
 reset role;
 
 rollback;
