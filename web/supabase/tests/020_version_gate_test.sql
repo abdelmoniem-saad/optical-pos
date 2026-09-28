@@ -137,12 +137,19 @@ select is(
   'G-V6 re-recording a version adds no duplicate row'
 );
 
--- The version the app compares against must be the highest one applied, or the
--- banner either nags a migrated shop or stays silent through real drift.
-select is(
-  public.schema_version(),
-  20,
-  'G-V6b schema_version() is the highest applied version, so the drift check is live'
+-- The version the app compares against must not read OLDER than the guard's own
+-- migration, or the banner nags a migrated shop.
+--
+-- Asserted as "at least 20", NOT "equals 20". A hardcoded equality here went
+-- stale the moment 021 added a function, and it would have failed again for
+-- every future migration - in a file whose entire subject is the guard, not the
+-- number. The other half of this invariant, that the app's
+-- EXPECTED_SCHEMA_VERSION names the NEWEST migration, is pinned in
+-- web/src/lib/schemaVersion.test.ts: a number that is supposed to change with
+-- every migration is asserted where it changes.
+select ok(
+  public.schema_version() >= 20,
+  'G-V6b schema_version() is at least the guard'\''s own version, so the drift check is live'
 );
 
 rollback;

@@ -89,7 +89,11 @@ describe('schema version', () => {
     // recording their versions, so the database kept answering 17 and this
     // constant still said 17, and the two agreed perfectly while the drift check
     // was blind. Migration 020 makes the omission a red build; this test makes the
-    // bump one.
-    expect(EXPECTED_SCHEMA_VERSION).toBe(20)
+    // bump one. Adding 021 (the first-platform-admin bootstrap) is the first
+    // time this number moved for a reason that was not a money fix, and the 020
+    // SQL gate's own "equals 20" assertion had to be relaxed at the same time -
+    // a hardcoded version inside a migration gate goes stale on every migration,
+    // which is why the half of this invariant that MOVES is asserted here.
+    expect(EXPECTED_SCHEMA_VERSION).toBe(21)
   })
 })
