@@ -591,29 +591,59 @@ as data grows — and, as it turned out, one of them was already wrong.
 file, and `SETUP.md` is a hand-paste-into-the-SQL-Editor flow. So two "identical" installs
 can differ, and nothing will ever notice.
 
-- [ ] **Real migration tooling.** Move the 12 flat files (`000`…`011`) into a real migrations
-   directory. Note the wrinkle: the Supabase CLI project root is the **repository root** — that
-   is where `supabase/config.toml` and `supabase/functions/create-user/` already live — so
-   `supabase migration up` will look in `supabase/migrations/`, not `web/supabase/`. Either
-   move the SQL there (keeping the numbers) or use a `schema_migrations` table plus a CI check,
-   and deploy with `supabase migration up`. Reconcile live → repo once with `supabase db pull`.
-   Keep `SETUP.md` as the operator guide; stop treating it as the deployment mechanism.
-- [ ] **pgTAP.** `create extension pgtap`, tests under `web/supabase/tests/`, wired to
-   `npm run test:db` and gated in CI. Every gate in this document is a pgTAP assertion —
-   that is what makes "we tested it" mean something six months from now.
+- [x] **pgTAP** — *already done before this phase; recorded here because the box was stale.*
+   `create extension pgtap`, gates under `web/supabase/tests/*_test.sql`, wired to
+   `npm run test:db`, gated in CI on every push. `test-db.sh` globs both the migrations and the
+   gates, so a new phase drops in a file and is picked up with no runner change. Six gates,
+   ~169 assertions, no live project touched.
 - [ ] **Fixtures.** A seeded store (one invoice per edge case: part-paid, voided, returned,
-   zero-total prescription, multi-tender) so money tests are deterministic.
-- [ ] **Make failures visible.** `getNextInvoiceNo` logs its own failure with `console.warn`
-   and then invents a number (`web/src/data/sales.ts:246-249`); the RPC-missing fallback
-   (`:40-46`) degrades silently. Convention: a mutation either surfaces a toast and keeps
-   the draft, or it is documented as non-critical. Add a persistent "schema out of date —
-   run 012" banner whenever the `isMissingFunction` path fires, because silent fallback is
-   precisely how drift hides.
-- [ ] **Regenerate types in CI** so a schema change cannot land without a type error.
+   zero-total prescription, multi-tender) so money tests are deterministic. — **Deferred.** Every
+   gate already seeds exactly the rows it asserts on, inside a transaction that rolls back, so a
+   shared fixture would mostly be a second thing to keep in sync. Revisit if a gate ever needs to
+   assert against another's data.
+- [x] **Make failures visible.** — `017_schema_version.sql` + `SchemaBanner` + the two money paths.
+- [x] **Schema drift is now detected**, replacing "regenerate types in CI" — see the status note.
 
-> **Gate:** `npm run test:db` runs in CI; a fresh project + `migration up` produces a schema
-> that matches production's `pg_dump` on the money-critical tables; every fallback path in
-> `sales.ts` is either removed or visible to the cashier.
+> **Status — implemented, except CLI migration tooling (deliberately deferred).**
+>
+> The root cause of the three silent fallbacks was that nothing in the system knew what version
+> the database was, so the app could only *infer* drift from an error code — and inference fails
+> quietly. `017_schema_version.sql` gives both sides a fact: the database records which migrations
+> it absorbed, the app ships `EXPECTED_SCHEMA_VERSION`, and `SchemaBanner` names the version it
+> found when they disagree. A pre-017 database reads as `unknown`, not `behind`, because that is
+> the ordinary state of every shop that updates the app before the SQL — a false alarm would
+> train people to ignore the one banner that matters. Gate: 13 assertions.
+>
+> **`getNextInvoiceNo` no longer invents a number.** The old catch-all returned
+> `Date.now() % 1000000`: plausible, unique, and unrelated to the store's sequence. One dropped
+> connection could write one against a real sale, and a duplicate-invoice report would have had
+> nothing to point at. It now throws, keeping the original error as `cause`. The existing test
+> asserted the *old* behaviour (`resolves.toMatch(/^\d{6}$/)`) and was rewritten to pin the new
+> contract, since the test was the reason the bug looked intended.
+>
+> The non-atomic checkout fallback stays — removing it would refuse to sell to a shop that has not
+> run 002 — but it now `console.error`s with context instead of degrading silently.
+>
+> **Two deviations from the plan above, both forced by facts found while doing it:**
+> 1. **`supabase gen types` cannot run in this CI.** It needs a live project id + access token, or
+>    `supabase db start` (the whole Supabase container stack); this repo's `db` job is a plain
+>    `postgres:16` built by `test-db.sh`, and `gen types --db-url` against a non-Supabase server
+>    requires Docker Desktop (supabase/cli#2536, closed as *not planned*). Rather than add a CI
+>    step that could not run, drift is detected with `web/scripts/schema-fingerprint.sh`: a
+>    `pg_dump --schema-only` hash of the whole public schema, compared against a recorded baseline
+>    in CI. It needs only `psql`, covers every table rather than the subset TypeScript imports,
+>    and cannot leak credentials. The baseline is recorded on the first run (it hashes a database
+>    that only exists in CI), so that run reports rather than enforces.
+> 2. **CLI migration tooling deferred.** `supabase db pull` writes *one* baseline snapshot and
+>    discards the 17-file history, and it needs the database password. Detection was the actual
+>    requirement — "nothing will ever notice" — and it is now met without a password and without
+>    rewriting history. Adoption stays available as a separate, reversible step.
+>
+> **Not verified locally:** no Docker or Postgres on this machine, so the pgTAP gate and the
+> fingerprint step are proven by CI only, on this push.
+
+> **Gate:** `npm run test:db` runs in CI ✅ · `SchemaBanner` warns only on an affirmative `behind`
+> ✅ · no money path can invent a value ✅ · schema drift fails CI once a baseline is recorded ✅
 
 ---
 
@@ -716,8 +746,8 @@ Every row is a finding from the audit with its evidence. Phase column = where it
 |---|---|---|---|
 | POS · Checkout | Prices/totals persisted exactly as the browser sent them | `011_sale_payments.sql:197-207` | 1 |
 | POS · Checkout | Stock availability never checked in the database (oversell possible) | `data/inventory.ts:24-34` | 1 |
-| POS · Checkout | Invoice number generated in JS; on error returns `Date.now() % 1000000` | `data/sales.ts:190-250`, `:222-227`, `:246-249` | 1 |
-| POS · Checkout | When the RPC is missing, a silent non-atomic multi-table fallback runs | `data/sales.ts:40-46`, `:386-445` | 1 |
+| POS · Checkout | ~~Invoice number generated in JS; on error returns `Date.now() % 1000000`~~ **fixed in Phase 5** — the invented number is gone, the path now throws | `data/sales.ts` (`getNextInvoiceNo`) | 1 |
+| POS · Checkout | ~~When the RPC is missing, a silent non-atomic multi-table fallback runs~~ **Phase 5** — the fallback still exists (removing it would block sales) but `console.error`s with context, and `SchemaBanner` names the cause | `data/sales.ts` (createSaleOrder), `components/SchemaBanner.tsx` | 1 |
 | POS · Checkout | Legacy 3-arg RPC drops `rx_image_path` / `frame_image_path` | `002_create_sale_rpc.sql` | 1 |
 | POS · Checkout | No idempotency key — a retry after a lost response can create a second sale | `data/sales.ts:298-455` | 1 |
 | POS · Checkout | A sale can never be voided, refunded or returned | `011_sale_payments.sql:48` (`check amount > 0`), no `void_*` RPC | 2 |
@@ -747,8 +777,8 @@ Every row is a finding from the audit with its evidence. Phase column = where it
 | Purchasing | Receiving does not create stock movements; supplier balance is not computable | `003_purchase_payments.sql`, purchasing screen | 6 |
 | Uploads | Replaced/voided prescription & frame images are never deleted | `007_order_images.sql`, `lib/storage.ts` | 3/5 |
 | Offline | The banner promises "Changes will sync when you reconnect", but there is no write queue — a checkout made while offline is lost, and a blind retry can double-book it | `components/OfflineBanner.tsx:17` vs `lib/queryClient.ts:19-20` | 6 |
-| Process | Live schema has drifted from `000_base_schema.sql` (stated in its own header) | `000_base_schema.sql:14-17` | 5 |
-| Process | No CI, no SQL/RPC/RLS tests; `database.types.ts` is hand-maintained while `gen:types:reference` (`web/package.json:13`) has never been run — `src/lib/database.gen.ts` does not exist | no `.github/`; `web/src/lib/` | 0/5 |
+| Process | ~~Live schema has drifted from `000_base_schema.sql` (stated in its own header)~~ **Phase 5** — drift is now *detected*: `schema_version()` in the DB, a banner in the app, and a `pg_dump` fingerprint compared in CI | `017_schema_version.sql`, `lib/schemaVersion.ts`, `scripts/schema-fingerprint.sh` | 5 |
+| Process | ~~No CI, no SQL/RPC/RLS tests; `database.types.ts` is hand-maintained while `gen:types:reference` has never been run~~ **Phase 0/1 + 5** — CI runs the pgTAP gates; the unusable `gen:types` script is replaced by a schema fingerprint that needs no credentials | `.github/workflows/ci.yml` | 0/5 |
 
 ---
 
@@ -775,7 +805,9 @@ map of what each file is responsible for, so a review can tell which phase owns 
 | **`014_server_rbac.sql`** | `resolve_can()` / `require_perm()`, tenant RLS on the three RBAC tables, store resolution without the username fallback, `audit_log` | Implemented - gate: `tests/014_server_rbac_test.sql` (33 assertions) | `can()` / `require_perm()`, tenant RLS on the three RBAC tables, store resolution without username fallback | Phase 3 |
 | `015_link_staff_ids.sql` | `link_staff_ids()` — moves a disagreeing staff row onto its login (both directions), refuses ambiguous names, `staff_id_problems` view | Implemented — gate: `tests/015_link_staff_ids_test.sql` (13 assertions) |
 | `016_reporting.sql` | Report RPCs (`report_sales_window` / `report_top_customers` / `report_payment_mix` / `report_voided_count`), `stores.time_zone` + `store_day_range()`, `search_text()` + `pg_trgm`/GIN | Implemented — gate: `tests/016_reporting_test.sql` (30 assertions) |
-| `supabase/config.toml` *(repo root)* | CLI project root; `verify_jwt = true` for `create-user` | Split from the SQL in `web/supabase/` — Phase 5 |
+| `supabase/config.toml` *(repo root)* | CLI project root; `verify_jwt = true` for `create-user` | Split from the SQL in `web/supabase/` — adopting the CLI migrations is deferred to a separate PR |
+| `017_schema_version.sql` | `schema_version()` + the `lensy_schema_versions` ledger (RLS on, no direct read) | Implemented — gate: `tests/017_schema_version_test.sql` (13 assertions) |
+| `web/scripts/schema-fingerprint.sh` | `pg_dump --schema-only` hash of the public schema, compared in CI | Phase 5 drift check — replaces `supabase gen types`, which cannot run without a live project or the Supabase container stack |
 | `supabase/functions/create-user/index.ts` | Creates an Auth user + mirrors it into `public.users` using the service-role key | JWT-only gate, caller-supplied `role_id`/`store_id` — Phase 3 |
 | `web/supabase/tests/_shim.sql`, `tests/012_integrity_test.sql` | Plain-Postgres shims (roles, `auth/`, `storage/`, pgTAP) + the Phase 1 gate (26 assertions) | Run by `npm run test:db` and CI job `db` — no live project touched |
 | `web/supabase/baseline/schema_after_012.sql` | Live `pg_dump --schema-only` of `public`, captured in CI | The **after-012** reference snapshot (012 was already applied when captured) — the diff base for `013`+. Supersedes the drifting `000_base_schema.sql`; Phase 5 turns the drift check into a job |

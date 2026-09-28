@@ -90,8 +90,9 @@ npm run dev                 # http://localhost:5173 (LAN-exposed for shop tablet
 | `npm run preview` | Serve the production build locally |
 | `npm run lint` | oxlint |
 | `npm test` / `npm run test:watch` | vitest suite |
-| `npm run test:db` | pgTAP database gate — applies `000…012` to a throwaway Postgres and runs every assertion (needs `psql`/`bash`; CI runs it on every push) |
-| `npm run gen:types:reference` | Regenerate `src/lib/database.gen.ts` (reference only, git-ignored) |
+| `npm run test:db` | pgTAP database gate — applies every migration in order to a throwaway Postgres and runs all gates (needs `psql`/`bash`/`pgTAP`; CI runs it on every push) |
+| `npm run db:fingerprint` | Print the schema fingerprint (needs a migrated database + `pg_dump`) |
+| `npm run db:update-fingerprint` | Record the current schema fingerprint as the drift baseline |
 
 ## Database & migrations
 

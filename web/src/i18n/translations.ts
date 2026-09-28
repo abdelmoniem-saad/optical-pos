@@ -304,6 +304,13 @@ export const ar: Record<string, string> = {
   'Offline - showing cached data. Changes will sync when you reconnect.':
     'غير متصل - يتم عرض بيانات مخزّنة. ستتم المزامنة عند عودة الاتصال.',
 
+  // Schema drift (migration 017). Says what to DO, not just what is wrong -
+  // the person reading this is staff, not whoever deployed the update.
+  'This app needs a database update. Ask your administrator to run the latest migration file.':
+    'هذا التطبيق يحتاج تحديث قاعدة البيانات. اطلب من المسؤول تشغيل ملف الترحيل الأحدث.',
+  Expected: 'المطلوب',
+  installed: 'المُثبَّت',
+
   // Optical settings
   'Optical Settings': 'إعدادات البصريات',
   'Lens types and colors used in prescriptions.':

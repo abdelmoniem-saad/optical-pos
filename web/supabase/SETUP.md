@@ -275,6 +275,41 @@ Its gate is [`tests/016_reporting_test.sql`](./tests/016_reporting_test.sql)
 under the totals saying how many were excluded. Switch the period between
 Today and Month and compare against History for the same day — they now agree.
 
+## Step 12 - `017_schema_version.sql` (the app can tell when you are behind)
+
+Every migration so far is applied by hand, and until this one the app had no
+way to know it was running against an older database. It could only discover a
+missing function by catching the error, and its three recovery paths were
+quiet - worst of all, a failed invoice-number query used to return
+`Date.now() % 1000000`. That is a real, plausible-looking invoice number
+unrelated to your sequence, written against a real sale. If you ever find a
+number like that in the ledger, this is where it came from.
+
+017 records which migrations the database has absorbed:
+
+```sql
+select public.schema_version();   -- 17 once this migration has been applied
+```
+
+The app compares that against the version it was built for and shows a red
+strip across the top of every screen when the database is behind, naming the
+version it found. Apply this migration and the strip disappears.
+
+**The app is safe if you skip it.** A database with no `schema_version()` at
+all is every shop that updates the app before the SQL, so the app treats
+"cannot read the version" as silence rather than an alarm. Nothing breaks;
+you just lose the warning that tells you a *later* migration is missing.
+
+Re-running is safe: the ledger keeps the timestamp of when the version was
+first recorded, so a second paste changes nothing.
+
+**Check it worked:** run the query above in the SQL editor. It should return
+`17`, and the app should show no banner. Re-apply the file and run it again -
+still `17`, and the same `applied_at`.
+
+Its gate is [`tests/017_schema_version_test.sql`](./tests/017_schema_version_test.sql)
+(13 assertions), also run by `npm run test:db` and CI.
+
 ### Manual probe for `create-user` (no live project in CI)
 
 The SQL half is covered by pgTAP. The Edge Function needs a deployed project,

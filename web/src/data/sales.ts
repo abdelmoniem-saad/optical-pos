@@ -423,8 +423,18 @@ export async function getNextInvoiceNo(): Promise<string> {
     }
     return String(candidate).padStart(6, '0')
   } catch (err) {
-    console.warn('getNextInvoiceNo failed, falling back to timestamp-based sequence:', err)
-    return String(Date.now() % 1000000).padStart(6, '0')
+    // Previously this returned `Date.now() % 1000000` — a number shaped like a
+    // real invoice, carrying a real sale, that had no relationship to the
+    // store's sequence. A single dropped connection could mint one, and the
+    // duplicate-invoice bug report would start there with nothing to trace it
+    // to. Failing a checkout is recoverable; a wrong number in the ledger is
+    // not, and the cashier has no way to tell which one they are looking at.
+    // So this surfaces. The retry in createSaleOrder's invoice-conflict loop
+    // still applies above: a collision is a normal race, not a failure.
+    throw new Error(
+      'Could not determine the next invoice number. Check the connection and try again.',
+      { cause: err },
+    )
   }
 }
 
@@ -596,6 +606,19 @@ export function useCreateSale() {
           }
 
           // Fallback (RPC not installed yet): non-atomic client-side inserts.
+          // This is NOT atomic — a failure part-way through leaves a sale
+          // header with no items, and the stock movement is applied by the
+          // browser. It is kept only so a shop that has not yet run 002 can
+          // still take money; removing it would mean refusing to sell. What
+          // changed is that it can no longer happen quietly: the console
+          // record survives a closed tab, and SchemaBanner tells the user the
+          // actual cause. Once 002 is applied this branch is never reached.
+          console.error(
+            'create_sale_order() is not installed (run 002_create_sale_rpc.sql) - ' +
+              'falling back to NON-ATOMIC client-side inserts. A partial failure can ' +
+              'leave an incomplete sale.',
+            { hasItems: items.length > 0, hasExams: exams.length > 0, hasPayments: pay.length > 0 },
+          )
           const { data: sale, error: saleErr } = await supabase
             .from('sales')
             .insert(salePayload)

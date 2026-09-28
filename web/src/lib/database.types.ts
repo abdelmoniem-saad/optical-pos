@@ -2,9 +2,11 @@
 //
 // These are hand-derived from how app/database/repository.py reads/writes each
 // table, so they cover every column the app actually uses. They are NOT
-// auto-generated - for the authoritative shape (exact nullability/types of
-// every column), run `npm run gen:types` once you have a Supabase access token
-// (see scripts in package.json). TypeScript will flag any drift at build time.
+// auto-generated, and they are deliberately not: `supabase gen types` only
+// works against a live project (access token) or a full local Supabase stack,
+// and this repo's CI database is plain Postgres - see
+// web/scripts/schema-fingerprint.sh for why, and for the drift check that
+// covers the whole public schema instead of just the columns typed here.
 
 export interface Role {
   id: string
@@ -222,7 +224,7 @@ export type OrderExaminationInsert = Omit<OrderExamination, 'id'>
 export interface Prescription {
   id: string
   customer_id: string
-  // Optical prescription columns vary; refine with gen:types.
+  // Optical prescription columns vary; see the file header.
   [extra: string]: unknown
 }
 

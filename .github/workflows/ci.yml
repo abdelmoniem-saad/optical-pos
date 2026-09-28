@@ -55,7 +55,7 @@ jobs:
       - name: Install the psql client
         run: sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client
 
-      - name: Apply 000…012 and run the pgTAP gate
+      - name: Apply every migration in order and run the pgTAP gates
         env:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/lensy
         run: |
@@ -90,3 +90,61 @@ jobs:
             echo "::error::db gate failed (exit $status)"
             exit "$status"
           fi
+
+      - name: Install pg_dump (postgresql-client)
+        # pg_dump ships in postgresql-client-NN, not in the bare
+        # postgresql-client meta-package on every runner image.
+        run: |
+          if ! command -v pg_dump >/dev/null 2>&1; then
+            sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client-16
+          fi
+          pg_dump --version
+
+      - name: Schema drift · fingerprint
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/lensy
+        run: |
+          set -o pipefail
+          actual="$(bash web/scripts/schema-fingerprint.sh)"
+          baseline_file=web/supabase/schema.fingerprint
+          {
+            echo "### schema fingerprint"
+            echo ""
+            echo '```'
+            echo "actual:   $actual"
+            if [ -f "$baseline_file" ]; then
+              echo "recorded: $(cat "$baseline_file")"
+            else
+              echo "recorded: (none yet - this run records it)"
+            fi
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          echo "$actual" > schema.fingerprint.actual
+
+          if [ ! -f "$baseline_file" ]; then
+            # BOOTSTRAP. The baseline is a hash of a database that only exists
+            # in CI, so the first run cannot have one. Record it as an artifact
+            # and let the human commit it - a drift signal that has never been
+            # recorded is not a drift signal, and silently passing would be the
+            # worst version of that.
+            echo "::notice::No schema.fingerprint recorded yet. Download the artifact, commit it, and this step becomes enforcing."
+            exit 0
+          fi
+
+          recorded="$(cat "$baseline_file")"
+          if [ "$actual" != "$recorded" ]; then
+            echo "::error file=web/supabase/schema.fingerprint::The database shape changed. recorded=$recorded actual=$actual"
+            echo "::error::A migration altered the schema (or one was added/edited). Review the diff, then update web/supabase/schema.fingerprint with: $actual"
+            exit 1
+          fi
+          echo "Schema fingerprint matches ($actual)"
+
+      - name: Upload fingerprint artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: schema-fingerprint
+          path: |
+            schema.fingerprint.actual
+            web/supabase/schema.fingerprint
+          if-no-files-found: ignore

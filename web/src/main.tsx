@@ -6,6 +6,7 @@ import { AuthProvider } from './lib/auth'
 import { LanguageProvider } from './i18n/LanguageContext'
 import { AppRouter } from './routes/AppRouter'
 import { OfflineBanner } from './components/OfflineBanner'
+import { SchemaBanner } from './components/SchemaBanner'
 import { FeedbackProvider } from './components/Feedback'
 import './index.css'
 
@@ -23,6 +24,7 @@ createRoot(document.getElementById('root')!).render(
         <AuthProvider>
           <FeedbackProvider>
             <OfflineBanner />
+            <SchemaBanner />
             <AppRouter />
           </FeedbackProvider>
         </AuthProvider>

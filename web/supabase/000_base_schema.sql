@@ -16,6 +16,12 @@
 -- id). Treat this as the base, not as current truth - a pg_dump snapshot of
 -- the live database is the only exact source of truth.
 --
+-- Drift is now DETECTABLE rather than merely declared here. `schema_version()`
+-- (017) tells the app which migration the live database has absorbed, and the
+-- app shows a banner when it is behind; `npm run db:fingerprint` hashes the
+-- whole public schema so CI can compare it against a recorded baseline. So
+-- "this file is not current truth" is a checked statement, not a caveat.
+--
 -- (Lived at the repo root as supabase_full_schema.sql until the Flet/Python
 -- app was retired; moved here so every schema artefact ships with the web app.)
 -- ============================================

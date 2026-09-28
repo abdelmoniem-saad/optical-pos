@@ -97,12 +97,39 @@ describe('getNextInvoiceNo', () => {
     await expect(getNextInvoiceNo()).resolves.toBe('000012')
   })
 
-  it('falls back to a timestamp sequence when the query fails', async () => {
-    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+  // This test used to assert the opposite: that a failed query yields a
+  // timestamp-shaped number like '483920'. That fallback minted an invoice
+  // number with no relation to the store's sequence, so one dropped
+  // connection could write a plausible-looking, permanently wrong number into
+  // the ledger - and a duplicate-invoice report would have no trace of where
+  // it came from. The contract is now: an undeterminable number is an error,
+  // never a guess.
+  it('throws rather than inventing a number when the query fails', async () => {
     state.fail = true
-    await expect(getNextInvoiceNo()).resolves.toMatch(/^\d{6}$/)
-    expect(warn).toHaveBeenCalled()
-    warn.mockRestore()
+    await expect(getNextInvoiceNo()).rejects.toThrow(
+      /could not determine the next invoice number/i,
+    )
+  })
+
+  it('keeps the original error as the cause, for diagnostics', async () => {
+    state.fail = true
+    // The thrown message is user-facing and generic on purpose; `cause` is
+    // where the actual network/PostgREST detail survives for the console.
+    await expect(getNextInvoiceNo()).rejects.toThrowError(
+      expect.objectContaining({ cause: expect.objectContaining({ message: 'network down' }) }),
+    )
+  })
+
+  it('does not swallow the failure silently', async () => {
+    // Regression guard for the exact bug: any path here that returns a string
+    // on total failure is re-introducing the invented number.
+    const error = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    state.fail = true
+    await expect(getNextInvoiceNo()).rejects.toThrow()
+    // The old code warned AND invented a number. Warning is not enough on its
+    // own - the number still reached the database.
+    expect(error).not.toHaveBeenCalled()
+    error.mockRestore()
   })
 })
 
