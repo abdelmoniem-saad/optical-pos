@@ -174,9 +174,9 @@ select is((select voided_net::bigint from public.report_voided_count(null, null)
 select is((select count(*) from pg_indexes
             where schemaname = 'public' and indexname = 'sales_live_idx')::bigint,
   1::bigint, 'G-R10 the partial index over live sales exists');
-select like((select indexdef from pg_indexes
+select matches((select indexdef from pg_indexes
               where schemaname = 'public' and indexname = 'sales_live_idx'),
-  '%voided_at IS NULL%',
+  'voided_at IS NULL',
   'G-R10b ...and its predicate is the void exclusion, so the filter is free');
 reset role;
 
