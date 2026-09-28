@@ -236,8 +236,14 @@ select is((select total::bigint
                (select from_at from public.store_day_range('2026-09-21'::date)),
                (select to_at   from public.store_day_range('2026-09-21'::date)))
             where method = 'cash'),
-  1500::bigint,
-  'G-T3b the 21st keeps its own cash; the 23:30 UTC row is not counted there');
+  500::bigint,
+  'G-T3b the 21st keeps only its own 500; the 23:30 UTC row is not counted there');
+
+-- For the record, the fixture's cash across the three days is
+-- 20th 1000 (R0001) | 21st 500 (R0002) | 22nd -330 (R0004''s 70 and the -400
+-- refund) = 1170, which is what G-R8 asserts for all time. So the daily split
+-- and the total agree, which is the property that actually matters: a day
+-- boundary that quietly duplicated or dropped money would break it.
 
 reset role;
 
