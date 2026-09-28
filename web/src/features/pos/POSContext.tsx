@@ -7,6 +7,7 @@ import {
   type ReactNode,
 } from 'react'
 import { supabase } from '../../lib/supabase'
+import { isQueuedOffline } from '../../lib/offlineMutations'
 import {
   nextInvoiceNo,
   useCreateSale,
@@ -645,6 +646,19 @@ export function POSProvider({ children }: { children: ReactNode }) {
       })
     } catch (e: any) {
       console.error('finishOrder failed:', e)
+      // Offline queue (mutation 018): a checkout made while the device is
+      // offline is PAUSED, not rejected, so mutateAsync never settles and the
+      // wizard would sit on "saving" with no outcome at all. Detect the pause
+      // and say the true thing - the sale is held and will be written on
+      // reconnect, it is NOT saved yet. Reporting this as a failure would be
+      // equally wrong: the cashier would retry and queue it a second time.
+      if (isQueuedOffline()) {
+        patch({
+          busy: false,
+          error: t('Saved on this device. It will sync to the shop when you reconnect.'),
+        })
+        return
+      }
       let msg =
         e?.message ||
         e?.error_description ||

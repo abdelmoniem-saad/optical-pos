@@ -15,7 +15,17 @@ createRoot(document.getElementById('root')!).render(
     <LanguageProvider>
       <PersistQueryClientProvider
         client={queryClient}
-        persistOptions={{ persister, maxAge: PERSIST_MAX_AGE }}
+        persistOptions={{
+          persister,
+          maxAge: PERSIST_MAX_AGE,
+          // The persister writes BOTH queries and mutations to the same key, but
+          // the library's default dehydrate filter keeps only PAUSED mutations -
+          // so a checkout rung up while offline is persisted, survives a page
+          // reload, and is resumed on reconnect. Successful mutations are never
+          // written, so the queue cannot grow without bound, and a mutation is
+          // safe to replay because its idempotency key makes the retry return
+          // the original sale rather than writing a second one.
+        }}
         onSuccess={() => {
           // Resume any writes that were queued while offline once the cache restores.
           queryClient.resumePausedMutations()

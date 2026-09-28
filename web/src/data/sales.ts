@@ -8,6 +8,7 @@ import {
 } from '../lib/payments'
 import { isMissingPaymentLedger, replaceSalePayments } from './salesPayments'
 import { isMissingRpc, type RpcErrorLike } from './rpc'
+import { CHECKOUT_MUTATION_KEY } from '../lib/offlineMutations'
 import { removeOrderImage } from '../lib/storage'
 import type {
   OrderExaminationInsert,
@@ -503,16 +504,20 @@ export type CreateSaleInput = {
 
 /**
  * Create a complete sale: header + line items + stock movements + examinations.
- * Mirrors repo.create_sale_order() / add_sale().
  *
- * NOTE: this runs as several sequential inserts and is therefore NOT atomic -
- * the same as the current Python implementation. Before go-live the whole
- * operation should move into a Postgres function (RPC) so a mid-way failure
- * can't leave a half-written order. Tracked for Phase 4/7 hardening.
+ * Preferred path is the atomic `create_sale_order` RPC (migration 002, extended
+ * by 011/012/013); the sequential client inserts below are the pre-002 fallback
+ * for a database that has not applied it yet, and they are NOT atomic.
+ *
+ * `mutationKey: CHECKOUT_MUTATION_KEY` opts this mutation into offline replay
+ * (see lib/offlineMutations.ts). It is safe because `input.idempotencyKey` is
+ * stable per attempt, so a replay returns the original sale rather than writing
+ * a second one.
  */
 export function useCreateSale() {
   const qc = useQueryClient()
   return useMutation({
+    mutationKey: CHECKOUT_MUTATION_KEY,
     mutationFn: async (input: CreateSaleInput): Promise<Sale> => {
       let lastError: any = null
       for (let attempt = 0; attempt < 3; attempt++) {

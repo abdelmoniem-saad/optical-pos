@@ -300,9 +300,14 @@ export const ar: Record<string, string> = {
   'Shop Name': 'اسم المتجر',
   Currency: 'العملة',
 
-  // Offline
+  // Offline. The wording states what actually happens to a WRITE made while
+  // offline, because the previous version promised a sync that did not exist.
   'Offline - showing cached data. Changes will sync when you reconnect.':
     'غير متصل - يتم عرض بيانات مخزّنة. ستتم المزامنة عند عودة الاتصال.',
+  'Offline - showing saved data. New sales cannot be saved until you reconnect.':
+    'غير متصل - يتم عرض بيانات محفوظة. لا يمكن حفظ عمليات بيع جديدة حتى يعود الاتصال.',
+  'Saved on this device. It will sync to the shop when you reconnect.':
+    'محفوظ على هذا الجهاز. سيتم مزامنته مع المحل عند عودة الاتصال.',
 
   // Schema drift (migration 017). Says what to DO, not just what is wrong -
   // the person reading this is staff, not whoever deployed the update.
