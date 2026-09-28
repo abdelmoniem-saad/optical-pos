@@ -760,7 +760,7 @@ a view of the world that has since moved on; replaying them minutes later would 
 state that no longer exists. Those keep failing loudly. Extending the queue is a per-mutation
 judgement, never a blanket default.
 
-> **Not verified here:** the 018 gate (17 assertions) is proven by CI only — no Docker or
+> **Not verified here:** the 018 gate (19 assertions) is proven by CI only — no Docker or
 > Postgres on the dev machine, and the EDB installer is 403 behind this network. The
 > offline→reconnect cycle needs a live project and a network toggle, so `SETUP.md` step 14
 > carries the manual probe.

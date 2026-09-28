@@ -371,7 +371,7 @@ functions; the Suppliers screen simply keeps the old behaviour of recording a
 total without touching stock, and the customer screen shows no balance.
 
 Its gate is [`tests/018_purchase_stock_test.sql`](./tests/018_purchase_stock_test.sql)
-(17 assertions), also run by `npm run test:db` and CI.
+(19 assertions), also run by `npm run test:db` and CI.
 
 ## Step 14 - Offline checkout queue (no SQL)
 

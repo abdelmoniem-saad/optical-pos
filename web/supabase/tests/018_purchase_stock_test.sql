@@ -35,13 +35,13 @@
 
 begin;
 create extension if not exists pgtap;
--- 17 assertions, each labelled. G-P0 is the control that makes G-P1b
+-- 19 assertions, each labelled. G-P0 is the control that makes G-P1b
 -- meaningful (a product that already had stock would prove nothing), and the
 -- b-suffixed ones are the second half of a pair rather than a second opinion:
 -- "the function reported success" and "the number actually moved" are different
 -- claims, and a stub that returns a count without writing anything passes only
 -- one of them.
-select plan(17);
+select plan(19);
 
 -- ===== fixtures ===========================================================
 -- One store for everything. A second store exists ONLY so G-P6 and G-C4 can
@@ -98,6 +98,25 @@ values ('ffffffff-ffff-4fff-8fff-000000000141',
         'ffffffff-ffff-4fff-8fff-000000000132',
         'ffffffff-ffff-4fff-8fff-000000000121', 5, 4, 20, _other_store())
 on conflict (id) do nothing;
+
+-- ===== impersonate a member of the receiving store =========================
+-- BOTH claim keys are set, because auth_store_id() reads the singular one and
+-- other helpers read the JSON one - the same impersonation block 013, 014 and
+-- 016 use. Without this the whole gate is vacuous: auth_store_id() returns
+-- NULL with no JWT, `store_id = NULL` matches nothing, and every balance
+-- function returns no row while the cross-store refusal never fires because the
+-- purchase is never found in the first place. CI run #77 proved it - four NULL
+-- balances, and a G-P6 that would have "passed" for entirely the wrong reason.
+insert into public.users (id, username, password_hash, store_id, is_active)
+values ('ffffffff-ffff-4fff-8fff-000000000191', 'receiver', '-', _rstore(), true)
+on conflict (id) do nothing;
+
+set role authenticated;
+do $$ begin
+  perform set_config('request.jwt.claim.sub', 'ffffffff-ffff-4fff-8fff-000000000191', false);
+  perform set_config('request.jwt.claims',
+                     '{"sub":"ffffffff-ffff-4fff-8fff-000000000191"}', false);
+end $$;
 
 -- ===== G-P1..G-P4: receiving adds stock, once, and re-costs it ==========
 select is(
@@ -158,6 +177,38 @@ select is(
   'G-P4 cost_price takes the purchase cost when the shelf was empty'
 );
 
+-- ===== the averaging case: a re-order at a new price ======================
+-- G-P4 above only proved the trivial branch (empty shelf -> take the cost). The
+-- branch that actually decides whether margin is honest is a second, differently
+-- priced delivery onto a NON-empty shelf, so it is asserted rather than claimed:
+-- a re-order must not retroactively rewrite the cost of stock already held.
+-- 10 @ 4 plus 10 @ 6 over 20 units = 5, not 6.
+insert into public.purchases (id, supplier_id, total_amount, amount_paid, store_id)
+values ('ffffffff-ffff-4fff-8fff-000000000133', null, 60, 0, _rstore())
+on conflict (id) do nothing;
+
+insert into public.purchase_items (id, purchase_id, product_id, qty, unit_cost, total_cost, store_id)
+values ('ffffffff-ffff-4fff-8fff-000000000144',
+        'ffffffff-ffff-4fff-8fff-000000000133',
+        'ffffffff-ffff-4fff-8fff-000000000121', 10, 6, 60, _rstore())
+on conflict (id) do nothing;
+
+select public.receive_purchase('ffffffff-ffff-4fff-8fff-000000000133');
+
+select is(
+  (select cost_price from public.inventory
+    where id = 'ffffffff-ffff-4fff-8fff-000000000121')::numeric,
+  5::numeric,
+  'G-P4b cost_price is the WEIGHTED AVERAGE, not simply the newest purchase price'
+);
+
+select is(
+  (select stock_qty from public.inventory
+    where id = 'ffffffff-ffff-4fff-8fff-000000000121')::int,
+  20,
+  'G-P4c the second delivery still added its stock'
+);
+
 -- ===== G-P5..G-P8: the refusals =========================================
 -- G-P5 is already proved: the successful receive above ran as the caller's
 -- store. These are the paths that must NOT work.
@@ -170,11 +221,23 @@ select throws_ok(
 
 -- A line with a non-positive quantity is a data-entry error. Accepting it
 -- would subtract stock on a "delivery".
+--
+-- `reset role` around the insert: purchase_items carries a tenant write policy,
+-- so a fixture inserted as `authenticated` would be refused by RLS for a reason
+-- that has nothing to do with the quantity this assertion is about. The claims
+-- survive the reset, so the receive below is still the scoped caller's.
+reset role;
 insert into public.purchase_items (id, purchase_id, product_id, qty, unit_cost, total_cost, store_id)
 values ('ffffffff-ffff-4fff-8fff-000000000143',
         'ffffffff-ffff-4fff-8fff-000000000131',
         'ffffffff-ffff-4fff-8fff-000000000121', 0, 4, 0, _rstore())
 on conflict (id) do nothing;
+
+-- Back to the scoped caller for the two remaining refusals. Running them as the
+-- table owner would bypass exactly what they are testing: the owner sees every
+-- store, so G-P8's "not found" would hold for the wrong reason and G-P7 would
+-- not be exercising the tenant's write at all.
+set role authenticated;
 
 select throws_ok(
   $$select public.receive_purchase('ffffffff-ffff-4fff-8fff-000000000131')$$,
@@ -191,6 +254,17 @@ select throws_ok(
 );
 
 -- ===== G-C1..G-C3: what a customer owes ==================================
+-- Back to the owner role for the fixtures. Under `authenticated` the RLS write
+-- policies apply and the 011/013 sync triggers expect to see the rows they
+-- maintain, so these are seeded as the table owner and only READ through the
+-- scoped functions. The rival store's sale in particular cannot be inserted as
+-- the receiving store at all.
+--
+-- The JWT claims above SURVIVE `reset role` (they are transaction settings, not
+-- role state), so the balance functions below are still scoped to the receiving
+-- store - which is what makes G-C4 meaningful rather than vacuous.
+reset role;
+
 insert into public.sales (id, invoice_no, customer_id, total_amount, discount,
                           net_amount, amount_paid, order_date, store_id)
 values ('ffffffff-ffff-4fff-8fff-000000000151', 'N0001',
