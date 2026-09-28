@@ -309,6 +309,28 @@ export const ar: Record<string, string> = {
   'Saved on this device. It will sync to the shop when you reconnect.':
     'محفوظ على هذا الجهاز. سيتم مزامنته مع المحل عند عودة الاتصال.',
 
+  // Purchasing and receiving (migration 018)
+  'Not received': 'لم يتم الاستلام',
+  'Receive into stock': 'استلام إلى المخزون',
+  'Receiving…': 'جارٍ الاستلام…',
+  '+ Add Shipment': '+ إضافة شحنة',
+  '+ Add item': '+ إضافة صنف',
+  'Choose a product…': 'اختر منتجاً…',
+  Cost: 'التكلفة',
+  'Save and receive': 'حفظ واستلام',
+  'List what arrived so the stock can be counted in. The total is worked out for you.':
+    'سجّل ما وصل ليتم احتسابه في المخزون. يتم حساب الإجمالي تلقائياً.',
+  'Receiving stock needs migration 018_purchase_stock.sql.':
+    'استلام المخزون يتطلب الترحيل 018_purchase_stock.sql.',
+
+  // Customer balances (migration 018)
+  Owes: 'المستحق عليه',
+  'Total purchases': 'إجمالي المشتريات',
+  'Nobody owes money.': 'لا يوجد مستحقات على أي عميل.',
+  'customer owes money': 'عميل عليهم مستحقات',
+  'Balances need migration 018_purchase_stock.sql.':
+    'الأرصدة تتطلب الترحيل 018_purchase_stock.sql.',
+
   // Schema drift (migration 017). Says what to DO, not just what is wrong -
   // the person reading this is staff, not whoever deployed the update.
   'This app needs a database update. Ask your administrator to run the latest migration file.':

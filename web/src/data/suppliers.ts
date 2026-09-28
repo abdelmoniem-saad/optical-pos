@@ -159,6 +159,34 @@ export type PurchaseItem = {
 
 export type PurchaseItemInsert = PurchaseItem & { purchase_id: string }
 
+/** The line items of one shipment (migration 018).
+ *
+ *  `received_at` is what the Receive button keys off, and it is the only way a
+ *  shop can tell "ordered" from "on the shelf". Null means paid for and not
+ *  counted, which is the state that was previously invisible. */
+export type PurchaseItemRow = PurchaseItem & {
+  id: string
+  received_at: string | null
+  product_id: string | null
+}
+
+export function usePurchaseItems(purchaseId: string | null) {
+  return useQuery({
+    queryKey: ['purchase-items', purchaseId],
+    enabled: !!purchaseId,
+    queryFn: async (): Promise<PurchaseItemRow[]> => {
+      const { data, error } = await supabase
+        .from('purchase_items')
+        .select('*')
+        .eq('purchase_id', purchaseId as string)
+        .order('created_at', { ascending: true })
+        .returns<PurchaseItemRow[]>()
+      if (error) throw error
+      return data ?? []
+    },
+  })
+}
+
 /** Receive a shipment into stock (migration 018).
  *
  *  Until this existed the app recorded a purchase as a bare TOTAL and never

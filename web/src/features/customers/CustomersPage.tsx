@@ -6,10 +6,79 @@ import {
   useDeleteCustomer,
   useInfiniteCustomers,
 } from '../../data/customers'
+import { useCustomerDebtors } from '../../data/customerLedger'
 import { useIsAdmin } from '../../data/staff'
 import { usePermissions } from '../../data/permissions'
 import { useI18n } from '../../i18n/LanguageContext'
 import { useConfirm, useToast } from '../../components/Feedback'
+
+/** Who owes money, largest first (migration 018).
+ *
+ *  This is the panel the shop actually wants on the Customers screen: an optician
+ *  does not open "customers" to browse a directory, they open it to chase the
+ *  balances. It is a separate list rather than a column on every row, because the
+ *  two answer different questions and the debtor set is a handful of people while
+ *  the directory is everyone.
+ *
+ *  `to: null` means unbounded, NOT "today" - the list is "who owes, as of now",
+ *  which is a different and more useful question than "who owes this month". */
+function DebtorsPanel() {
+  const { t } = useI18n()
+  const debtors = useCustomerDebtors(null)
+  const [open, setOpen] = useState(false)
+
+  if (debtors.isLoading) {
+    return <p className="mb-4 text-sm text-faint">{t('Loading…')}</p>
+  }
+  // Absent 018: say so rather than rendering an empty list, which would read as
+  // "nobody owes anything" - the exact false answer this is meant to prevent.
+  if (debtors.isError) {
+    return (
+      <div className="mb-4 rounded-lg bg-warning-bg px-3 py-2 text-sm text-warning">
+        {t(String((debtors.error as Error).message))}
+      </div>
+    )
+  }
+
+  const rows = debtors.data ?? []
+  if (rows.length === 0) {
+    return (
+      <p className="mb-4 rounded-lg bg-success-bg px-3 py-2 text-sm text-success">
+        {t('Nobody owes money.')}
+      </p>
+    )
+  }
+
+  return (
+    <div className="mb-5 overflow-hidden rounded-xl border border-warning/40 bg-white">
+      <button
+        onClick={() => setOpen((o) => !o)}
+        className="flex w-full items-center justify-between px-4 py-2.5 text-start text-sm"
+      >
+        <span className="font-semibold text-warning">
+          {rows.length} {t('customer owes money')}
+        </span>
+        <span className="text-faint">{open ? '▲' : '▼'}</span>
+      </button>
+
+      {open && (
+        <ul className="divide-y divide-line/40 border-t border-line/40">
+          {rows.map((d) => (
+            <li key={d.customer_id} className="flex items-center justify-between gap-3 px-4 py-2.5">
+              <Link to={`/customers/${d.customer_id}`} className="min-w-0 text-start">
+                <div className="truncate font-medium">{d.name}</div>
+                <div className="truncate text-xs text-faint">{d.phone || '-'}</div>
+              </Link>
+              <span className="shrink-0 font-semibold tabular-nums text-danger">
+                {d.balance_due.toFixed(2)}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  )
+}
 
 /** Customers list + search. The DEFAULT list is paged server-side and grows
  *  via "Load more"; search runs entirely server-side with hard limits, so
@@ -93,6 +162,8 @@ export function CustomersPage() {
       <p className="mb-5 text-sm text-muted">
         {all.data || search.data ? `${total} ${t('total')}` : t('Loading…')}
       </p>
+
+      <DebtorsPanel />
 
       <input
         value={term}

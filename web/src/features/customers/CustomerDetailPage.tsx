@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { useCustomer, useUpdateCustomer } from '../../data/customers'
+import { useCustomerBalance } from '../../data/customerLedger'
 import { useCustomerOrders } from '../../data/sales'
 import { useI18n } from '../../i18n/LanguageContext'
 import { prescriptionImageUrl } from '../../lib/storage'
@@ -10,6 +11,49 @@ import type { Customer, Sale } from '../../lib/database.types'
 
 function fmt(n: number | null | undefined) {
   return Number(n ?? 0).toFixed(2)
+}
+
+/** What this customer owes, and everything they have ever bought (migration 018).
+ *
+ *  An absent 018 is reported as "not available" rather than as zero. Those look
+ *  identical on a screen and mean opposite things, and a debt panel that silently
+ *  reads zero is the same class of bug as the Reports zeros Phase 4 fixed. */
+function BalanceStrip({ customerId }: { customerId: string | null }) {
+  const { t } = useI18n()
+  const balance = useCustomerBalance(customerId)
+
+  if (balance.isLoading) {
+    return <div className="mb-5 h-20 animate-pulse rounded-xl bg-white/60" />
+  }
+  if (balance.isError) {
+    return (
+      <div className="mb-5 rounded-lg bg-warning-bg px-3 py-2 text-sm text-warning">
+        {t(String((balance.error as Error).message))}
+      </div>
+    )
+  }
+
+  const b = balance.data
+  if (!b) return null
+
+  const cell = (label: string, value: string, tone: string) => (
+    <div className="flex-1 px-4 py-3">
+      <div className="text-xs text-faint">{label}</div>
+      <div className={`text-lg font-semibold tabular-nums ${tone}`}>{value}</div>
+    </div>
+  )
+
+  return (
+    <div className="mb-6 flex overflow-hidden rounded-xl border border-line bg-white shadow-sm">
+      {cell(
+        t('Owes'),
+        b.balance_due.toFixed(2),
+        b.balance_due > 0.01 ? 'text-danger' : 'text-success',
+      )}
+      {cell(t('Total purchases'), b.lifetime.toFixed(2), 'text-muted')}
+      {cell(t('Invoices'), String(b.invoice_count), 'text-muted')}
+    </div>
+  )
 }
 
 export function CustomerDetailPage() {
@@ -48,6 +92,12 @@ export function CustomerDetailPage() {
           </button>
         )}
       </div>
+
+      {/* The balance a customer is chasing (migration 018). Two numbers, because
+          they answer different questions: what they owe now, and everything ever
+          bought. Showing only "total spent" is how a shop talks itself into
+          writing off a debt it never actually measured. */}
+      <BalanceStrip customerId={id ?? null} />
 
       {/* Orders - prescriptions live inside each order's expanded panel, so
           the standalone "Prescriptions" section is no longer shown here. */}
