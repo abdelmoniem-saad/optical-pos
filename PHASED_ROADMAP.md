@@ -666,11 +666,15 @@ can differ, and nothing will ever notice.
 > **Gate:** `npm run test:db` runs in CI ✅ · `SchemaBanner` warns only on an affirmative `behind`
 > ✅ · no money path can invent a value ✅ · schema drift fails CI once a baseline is recorded ✅
 
-> **One thing left for a human, and it is small.** The fingerprint step passes in bootstrap mode: it
-> has no baseline to compare against, so it only reports. Download the `schema-fingerprint` artifact
-> from run #69 and commit its contents as `web/supabase/schema.fingerprint` — after that the step
-> enforces, and any future migration that changes the schema shape fails the build until the
-> baseline is consciously updated. Until then drift is reported, not blocked.
+> **The baseline is recorded, so the drift check is enforcing.** `web/supabase/schema.fingerprint`
+> holds the hash from run #70 (`3667e5c3…`). From the next push on, a migration that changes the
+> schema shape fails the build until someone updates the file deliberately. Two hardening details
+> went in with it, because a drift check that cries wolf gets switched off:
+> - `.gitattributes` marks it `-text`. `core.autocrlf=true` on Windows would otherwise rewrite the
+>   line as CRLF, and `cat` would then yield `<hash>\r` — a mismatch against an unchanged schema.
+> - the comparison strips whitespace and validates that the baseline really is 64 hex characters, so
+>   a truncated download, a saved zip, or an HTML error page fails with an explanation instead of
+>   a permanent red build nobody can interpret.
 
 ---
 

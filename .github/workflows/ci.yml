@@ -144,7 +144,20 @@ jobs:
             exit 0
           fi
 
-          recorded="$(cat "$baseline_file")"
+          # Both sides are compared with whitespace stripped. `cat` keeps the
+          # trailing newline, and a checkout on a machine with CRLF could add a
+          # CR - either would make a byte-comparison fail against a schema that
+          # has not changed, which is the worst possible failure for a drift
+          # check: it cries wolf until someone disables it. Also rejects a
+          # baseline that is not 64 hex characters, which means the file was
+          # saved wrong (a truncated download, a zip, an HTML error page) - that
+          # must be a clear error, not a permanent red build.
+          recorded="$(tr -d '[:space:]' < "$baseline_file")"
+          if ! printf '%s' "$recorded" | grep -Eq '^[0-9a-f]{64}$'; then
+            echo "::error file=web/supabase/schema.fingerprint::The baseline is not a 64-character hex hash (got '$recorded'). Re-download the schema-fingerprint artifact and save ONLY the hash line, renamed to schema.fingerprint."
+            exit 1
+          fi
+
           if [ "$actual" != "$recorded" ]; then
             echo "::error file=web/supabase/schema.fingerprint::The database shape changed. recorded=$recorded actual=$actual"
             echo "::error::A migration altered the schema (or one was added/edited). Review the diff, then update web/supabase/schema.fingerprint with: $actual"

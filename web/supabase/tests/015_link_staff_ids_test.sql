@@ -1,4 +1,11 @@
--- LensyPOS — Phase 3b gate: 015_link_staff_ids_test.sql (pgTAP)
+-- ============================================================
+-- !! DO NOT PASTE THIS INTO YOUR LIVE DATABASE. !!
+-- This is a TEST, not a migration. It runs inside `begin; ... rollback;`, so
+-- every change it makes is undone before the last line - but it also needs
+-- pgTAP and it asserts against a schema built by web/scripts/test-db.sh.
+-- To verify a migration on a real project, paste the MIGRATION file
+-- (web/supabase/0NN_*.sql) and check the query SETUP.md gives you.
+-- ============================================================-- LensyPOS — Phase 3b gate: 015_link_staff_ids_test.sql (pgTAP)
 -- ============================================================
 -- Phase 3 cut the username fallback in auth_store_id(), which turned a silent
 -- mismatch into a visible one: a staff row whose id is not the Supabase Auth id

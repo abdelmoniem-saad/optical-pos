@@ -3,3 +3,9 @@
 # rewrite the file, or every future diff against it is 300+ phantom line-ending
 # changes instead of the real schema delta.
 web/supabase/baseline/*.sql -text
+
+# The schema fingerprint is a single hash line compared with `cat` in CI. A
+# Windows checkout must not add a CR, or `cat` yields "<hash>\r" and every
+# comparison fails against a schema that has not changed at all. Same reasoning
+# as the baseline dump above, so -text rather than eol=lf.
+web/supabase/schema.fingerprint -text

@@ -1,4 +1,11 @@
--- LensyPOS — Phase 3 gate: 014_server_rbac_test.sql (pgTAP)
+-- ============================================================
+-- !! DO NOT PASTE THIS INTO YOUR LIVE DATABASE. !!
+-- This is a TEST, not a migration. It runs inside `begin; ... rollback;`, so
+-- every change it makes is undone before the last line - but it also needs
+-- pgTAP and it asserts against a schema built by web/scripts/test-db.sh.
+-- To verify a migration on a real project, paste the MIGRATION file
+-- (web/supabase/0NN_*.sql) and check the query SETUP.md gives you.
+-- ============================================================-- LensyPOS — Phase 3 gate: 014_server_rbac_test.sql (pgTAP)
 -- ============================================================
 -- Proves PHASED_ROADMAP §6: authority leaves the browser.
 --   G-S  store resolution cannot be hijacked by another user's username
