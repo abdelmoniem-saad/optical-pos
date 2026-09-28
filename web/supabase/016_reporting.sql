@@ -235,6 +235,12 @@ grant execute on function public.report_voided_count(timestamptz, timestamptz) t
 -- pg_trgm makes a substring search indexable, and moving the term into a
 -- function means no filter string is assembled in the browser at all - so the
 -- or-syntax injection surface goes away with the escaping problem.
+--
+-- `extensions` is the schema Supabase puts third-party extensions in, and it
+-- exists on every real project - but the pgTAP harness is plain Postgres, so
+-- it is created here rather than assumed. `create extension if not exists ...
+-- with schema` is a no-op when the extension is already installed.
+create schema if not exists extensions;
 create extension if not exists pg_trgm with schema extensions;
 
 do $$
