@@ -28,7 +28,7 @@
 
 begin;
 create extension if not exists pgtap;
-select plan(17);
+select plan(22);
 
 -- ===== fixtures ============================================================
 -- Two stores: the seeded one, and this one. If any report ever leaks across
@@ -80,7 +80,19 @@ values
   ('ffffffff-ffff-4fff-8fff-000000000021', 1000, 'cash',   'payment', '2026-09-20 10:00:00+00', _rstore()),
   ('ffffffff-ffff-4fff-8fff-000000000022',  500, 'cash',   'payment', '2026-09-21 10:00:00+00', _rstore()),
   ('ffffffff-ffff-4fff-8fff-000000000022',  500, 'wallet', 'payment', '2026-09-21 10:00:00+00', _rstore()),
-  ('ffffffff-ffff-4fff-8fff-000000000022', -400, 'cash',   'refund',  '2026-09-22 10:00:00+00', _rstore());
+  ('ffffffff-ffff-4fff-8fff-000000000022', -400, 'cash',   'refund',  '2026-09-22 10:00:00+00', _rstore()),
+  ('ffffffff-ffff-4fff-8fff-000000000025',   70, 'cash',   'payment', '2026-09-21 23:30:00+00', _rstore());
+
+-- The timezone fixture. 23:30 UTC on 2026-09-21 is 01:30 on 2026-09-22 in
+-- Cairo (UTC+2). The old Reports code asked for the UTC date, so it filed
+-- this sale under yesterday, while History - using the browser's local date -
+-- filed it under today. Two screens, one sale, two different days.
+insert into public.sales (id, invoice_no, customer_id, total_amount, discount,
+                          net_amount, amount_paid, order_date, store_id)
+values ('ffffffff-ffff-4fff-8fff-000000000026', 'R0004',
+        'ffffffff-ffff-4fff-8fff-000000000011',
+        300, 0, 300, 0, '2026-09-21 23:30:00+00', _rstore())
+on conflict (id) do nothing;
 
 -- Sign in as a member of the report store, so auth_store_id() resolves to it.
 insert into auth.users (id, email, username) values
@@ -109,19 +121,19 @@ do $$ begin
 end $$;
 
 -- ===== G-R1/G-R2/G-R3: revenue, balance and count exclude the void ======
--- Live sales are 1000 + 2000. The 5000 void and the 999999 other store must
--- both be absent. If the void leaked, revenue would be 8000.
+-- Live sales are 1000 + 2000 + 300. The 5000 void and the 999999 other store
+-- must both be absent. If the void leaked, revenue would be 8300.
 select is((select revenue::bigint from public.report_sales_window(null, null)),
-  3000::bigint, 'G-R1 revenue counts the two live sales and excludes the void');
+  3300::bigint, 'G-R1 revenue counts the live sales and excludes the void');
 
 select is((select paid::bigint from public.report_sales_window(null, null)),
-  1600::bigint, 'G-R2 paid is the live sales only (and the 011 sync trigger set it)');
+  1670::bigint, 'G-R2 paid is the live sales only (and the 011 sync trigger set it)');
 
 select is((select balance_due::bigint from public.report_sales_window(null, null)),
-  1400::bigint, 'G-R2b balance due excludes the voided 5000 entirely');
+  1630::bigint, 'G-R2b balance due excludes the voided 5000 entirely');
 
 select is((select order_count::bigint from public.report_sales_window(null, null)),
-  2::bigint, 'G-R3 the order count excludes the voided sale');
+  3::bigint, 'G-R3 the order count excludes the voided sale');
 
 -- ===== G-R4: lab counters exclude the void =============================
 select is((select ready_lab::bigint from public.report_sales_window(null, null)),
@@ -155,7 +167,7 @@ select is((select count(*) from public.report_payment_mix(
 -- ===== G-R8: refunds net against their payment =========================
 -- cash 500 paid, 400 refunded => 100. wallet 500 untouched.
 select is((select total::bigint from public.report_payment_mix(null, null) where method = 'cash'),
-  1100::bigint, 'G-R8 the refund nets against the cash it reversed (1500-400)');
+  1170::bigint, 'G-R8 the refund nets against the cash it reversed (1570-400)');
 select is((select total::bigint from public.report_payment_mix(null, null) where method = 'wallet'),
   500::bigint, 'G-R8b the untouched tender is unaffected');
 
@@ -178,6 +190,34 @@ select matches((select indexdef from pg_indexes
               where schemaname = 'public' and indexname = 'sales_live_idx'),
   'voided_at IS NULL',
   'G-R10b ...and its predicate is the void exclusion, so the filter is free');
+-- ===== G-T1/G-T2: one definition of "today" ==========================
+-- The store is Africa/Cairo (UTC+2). R0004 is at 23:30 UTC on the 21st, which
+-- is 01:30 on the 22nd in Cairo. Asking for the UTC day misses it; asking for
+-- the Cairo day catches it. The old Reports code did the former.
+select is((select from_at::text from public.store_day_range('2026-09-22'::date)),
+  '2026-09-21 22:00:00+00', 'G-T1 the Cairo day starts at 22:00 UTC the day before');
+select is((select to_at::text from public.store_day_range('2026-09-22'::date)),
+  '2026-09-22 22:00:00+00', 'G-T1b ...and ends 24 hours later, exclusive');
+select is((select revenue::bigint
+             from public.report_sales_window(
+               (select from_at from public.store_day_range('2026-09-21'::date)),
+               (select to_at   from public.store_day_range('2026-09-21'::date)))),
+  2000::bigint,
+  'G-T2 the 22:00-02:00 sale is NOT counted on the 21st, whatever UTC says');
+select is((select revenue::bigint
+             from public.report_sales_window(
+               (select from_at from public.store_day_range('2026-09-22'::date)),
+               (select to_at   from public.store_day_range('2026-09-22'::date)))),
+  300::bigint,
+  'G-T2b ...it IS counted on the 22nd, the day the shopkeeper means');
+select is((select total::bigint
+             from public.report_payment_mix(
+               (select from_at from public.store_day_range('2026-09-22'::date)),
+               (select to_at   from public.store_day_range('2026-09-22'::date)))
+            where method = 'cash'),
+  70::bigint,
+  'G-T3 the 23:30 UTC cash payment lands on the 22nd in the cash-up too');
+
 reset role;
 
 rollback;

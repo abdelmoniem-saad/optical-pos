@@ -151,8 +151,65 @@ language sql stable security definer set search_path = public as $$
 $$;
 
 -- ============================================================
--- 6) grants
+-- 7) ONE definition of "today"
 -- ============================================================
+-- Three screens disagreed, and in UTC+2 a sale made at 1:00 AM counted as
+-- yesterday on Reports (which used toISOString(), i.e. UTC) and as today on
+-- History (which used the browser's local date). The cash-up panel was worse:
+-- it filtered `paid_at` with a bare date against a timestamptz column, and
+-- `lte('2026-09-28')` means midnight at the START of that day, so every
+-- payment after midnight was silently dropped.
+--
+-- The store's zone is a column, not a client guess: a tablet set to the wrong
+-- timezone, or a cashier abroad, must not move the shop's books.
+alter table public.stores
+  add column if not exists time_zone text not null default 'Africa/Cairo';
+
+-- Per-store override in settings wins, so a store that moves is one UPDATE
+-- rather than a migration. Falls back to the column, then to UTC.
+create or replace function public.store_time_zone()
+returns text
+language sql stable security definer set search_path = public as $$
+  select coalesce(
+    (select s.value from public.settings s
+      where s.store_id = public.auth_store_id() and s.key = 'time_zone'),
+    (select st.time_zone from public.stores st where st.id = public.auth_store_id()),
+    'UTC'
+  )
+$$;
+
+-- The half-open UTC instants of the store's LOCAL day. Both bounds are
+-- timestamptz, so no caller has to think about what a bare date means against
+-- a timestamp column - the ambiguity that made the cash-up panel wrong.
+create or replace function public.store_day_range(p_day date default null)
+returns table (from_at timestamptz, to_at timestamptz)
+language plpgsql stable security definer set search_path = public as $$
+declare
+  v_zone text := public.store_time_zone();
+  v_day  date := coalesce(p_day, (now() at time zone v_zone)::date);
+begin
+  return query
+  select (v_day::text || ' 00:00:00')::timestamp at time zone v_zone,
+         ((v_day + 1)::text || ' 00:00:00')::timestamp at time zone v_zone;
+end $$;
+
+-- report_window() now honours the store's zone for a bare DATE, instead of
+-- assuming the string meant UTC. This is the same 016 function, redefined so
+-- that a caller passing '2026-09-28' gets that whole day in CAIRO time.
+create or replace function public.report_window(p_from timestamptz, p_to timestamptz)
+returns table (store_id uuid, from_at timestamptz, to_at timestamptz)
+language sql stable security definer set search_path = public as $$
+  select public.auth_store_id(),
+         p_from,
+         case when p_to is null then null
+              else ((p_to at time zone 'UTC')::date + 1
+                    )::timestamp at time zone public.store_time_zone()
+         end::timestamptz
+$$;
+
+grant execute on function public.store_time_zone() to authenticated;
+grant execute on function public.store_day_range(date) to authenticated;
+
 -- SECURITY DEFINER is required (these aggregate across rows the caller may not
 -- be able to page through), and they take NO store argument on purpose: the
 -- store comes from auth_store_id(), so a caller cannot ask for another shop's
