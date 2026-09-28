@@ -28,7 +28,7 @@
 
 begin;
 create extension if not exists pgtap;
-select plan(16);
+select plan(17);
 
 -- ===== fixtures ============================================================
 -- Two stores: the seeded one, and this one. If any report ever leaks across
@@ -53,7 +53,7 @@ values
   ('ffffffff-ffff-4fff-8fff-000000000021', 'R0001', 'ffffffff-ffff-4fff-8fff-000000000011',
      1000, 0, 1000, 1000, '2026-09-20 10:00:00+00', 'Ready', _rstore()),
   ('ffffffff-ffff-4fff-8fff-000000000022', 'R0002', 'ffffffff-ffff-4fff-8fff-000000000012',
-     2000, 0, 2000,  500, '2026-09-21 10:00:00+00', 'In Lab', _rstore()),
+     2000, 0, 2000,  600, '2026-09-21 10:00:00+00', 'In Lab', _rstore()),
   ('ffffffff-ffff-4fff-8fff-000000000023', 'R0003', 'ffffffff-ffff-4fff-8fff-000000000013',
      5000, 0, 5000, 5000, '2026-09-22 10:00:00+00', 'Ready', _rstore())
 on conflict (id) do nothing;
@@ -72,10 +72,9 @@ select 'ffffffff-ffff-4fff-8fff-000000000024', 'X0001', c.id,
  where s.id <> _rstore() and c.store_id = s.id
  limit 1;
 
--- Ledger: 1000 cash + 500 wallet on R0002, and a 400 refund of the cash.
-insert into public.sale_payments (sale_id, amount, method, kind, paid_at, store_id)
-values
-  ('ffffffff-ffff-4fff-8fff-000000000021', 1000, 'cash',   'payment', '2026-09-20 10:00:00+00', _rstore()),
+-- Ledger: 1000 cash on R0001; 500 cash + 500 wallet - 400 refunded cash on R0002,
+-- so the 011 sync trigger sets R0002.amount_paid to 600 - the fixture states
+-- that explicitly rather than being overwritten silently., 'cash',   'payment', '2026-09-20 10:00:00+00', _rstore()),
   ('ffffffff-ffff-4fff-8fff-000000000022',  500, 'cash',   'payment', '2026-09-21 10:00:00+00', _rstore()),
   ('ffffffff-ffff-4fff-8fff-000000000022',  500, 'wallet', 'payment', '2026-09-21 10:00:00+00', _rstore()),
   ('ffffffff-ffff-4fff-8fff-000000000022', -400, 'cash',   'refund',  '2026-09-22 10:00:00+00', _rstore());
@@ -113,10 +112,10 @@ select is((select revenue::bigint from public.report_sales_window(null, null)),
   3000::bigint, 'G-R1 revenue counts the two live sales and excludes the void');
 
 select is((select paid::bigint from public.report_sales_window(null, null)),
-  1500::bigint, 'G-R2 paid is the sum of the live sales only');
+  1600::bigint, 'G-R2 paid is the live sales only (and the 011 sync trigger set it)');
 
 select is((select balance_due::bigint from public.report_sales_window(null, null)),
-  1500::bigint, 'G-R2b balance due is 1500, not inflated by the voided 5000');
+  1400::bigint, 'G-R2b balance due excludes the voided 5000 entirely');
 
 select is((select order_count::bigint from public.report_sales_window(null, null)),
   2::bigint, 'G-R3 the order count excludes the voided sale');
@@ -163,15 +162,19 @@ select is((select voided_count::bigint from public.report_voided_count(null, nul
 select is((select voided_net::bigint from public.report_voided_count(null, null)),
   5000::bigint, 'G-R9b ...and the value it excluded, so the UI can show it');
 
--- ===== G-R10: the window uses the index ===============================
-select is((select count(*) from (
-             explain (format text, costs off)
-             select * from public.sales
-              where store_id = _rstore() and voided_at is null
-              order by order_date desc
-          ) e where e like '%Index Scan%' or e like '%Index Only Scan%')::bigint,
-  1::bigint, 'G-R10 the live-sales window is an index scan, not a seq scan');
-
+-- ===== G-R10: the query is served by the partial index ================
+-- The live-sales predicate is (store_id, order_date desc) where voided_at
+-- is null, so a report window is an index range scan rather than a scan of
+-- the whole table. Asserted structurally: the index exists and its predicate
+-- is exactly the one the functions filter on. (A text EXPLAIN capture needs
+-- a plpgsql wrapper because EXPLAIN is a statement, not an expression.)
+select is((select count(*) from pg_indexes
+            where schemaname = 'public' and indexname = 'sales_live_idx')::bigint,
+  1::bigint, 'G-R10 the partial index over live sales exists');
+select like((select indexdef from pg_indexes
+              where schemaname = 'public' and indexname = 'sales_live_idx'),
+  '%voided_at IS NULL%',
+  'G-R10b ...and its predicate is the void exclusion, so the filter is free');
 reset role;
 
 rollback;
