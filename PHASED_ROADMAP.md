@@ -795,10 +795,41 @@ judgement, never a blanket default.
 >   because 018 genuinely added `purchase_items.received_at` and three functions. The drift check
 >   from Phase 5 catching a real change, four runs after catching three of my own mistakes.
 >
-> **The real lesson is about this environment, not the SQL.** There is no local Postgres (the EDB
-> installer is 403 behind this network, and `embedded-postgres` ships no pgTAP, so the gates cannot
-> run here at all), which turned each of those into a push. A local database would have caught all
-> six on the first attempt. Worth solving before Phase 7 rather than paying this cost again.
+> **CI run #87: green. 8 gates, 203 assertions, both jobs.** The offline queue, receiving, customer
+> balances, lab dwell times and History cursor paging are all in, and every gate in the suite
+> passes together.
+>
+> Getting 019 green took two runs and both were the same mistake, which is the single most
+> expensive habit in this repository: **writing a fixture for a state the migration had already
+> passed through.**
+> - **#84** — `select is( (update … returning …), … )`: a data-modifying statement cannot sit inside
+>   a sub-select. While fixing it I found G-L3 was not testing its own label — it said "an unrelated
+>   update does NOT reset the clock" while the statement changed the status, so it asserted the same
+>   thing as G-L2. It now writes the SAME status, which is the real test.
+> - **#85** — the fixture row meant to be "a job Ready since 2026-09-01" arrived with all three
+>   timestamps NULL, because **019's backfill runs once at migration time and the gate's rows are
+>   inserted after it.** The trigger then correctly filled `lab_ready_at` on the way to 'Received',
+>   and the assertion read that correct behaviour as a failure. The fixture now writes the stamps the
+>   backfill would have produced. G-L5b was also comparing `lab_ready_at <> lab_status_changed_at`,
+>   which passes whenever both are NULL; it now compares against the exact recorded value, with a
+>   companion assertion that the *other* column did move.
+>
+> **#86** is the exception worth noting: every gate passed and the ONLY failure was the schema
+> fingerprint, because 019 really did add four columns. That is the drift check working — the second
+> time it has been right, and the first time it was not about my own mistake.
+>
+> **The backfill itself is not gated, and cannot be.** It only touches rows that existed before the
+> migration, and a gate builds a fresh database, so there is nothing for it to act on. It is a data
+> migration rather than behaviour, and `SETUP.md` step 15 gives the query that checks it on the live
+> database. Declared in the gate file rather than left to be assumed.
+>
+> **And the reason all of this cost a push each: there is no local Postgres.** The EDB installer is 403
+> behind this network and `embedded-postgres` ships every contrib extension *except pgTAP*, so the
+> gates cannot run here at all. Every failure above was readable in the existing gates — the
+> impersonation block, the licence row, the `auth.users` half of a login, a `NOT NULL` column, a
+> sub-select that cannot contain an UPDATE — and a local database would have caught all of them on
+> the first attempt. **Solving that is the highest-value infrastructure left**, and it is worth doing
+> before the next migration rather than paying this cost again.
 
 ---
 
