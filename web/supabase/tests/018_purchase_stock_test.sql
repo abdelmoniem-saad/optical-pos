@@ -57,6 +57,16 @@ language sql stable as $fn$ select 'ffffffff-ffff-4fff-8fff-000000000101'::uuid 
 create function _other_store() returns uuid
 language sql stable as $fn$ select 'ffffffff-ffff-4fff-8fff-000000000102'::uuid $fn$;
 
+-- BOTH stores need a licence. license_write_ok() gates every write policy
+-- (009), so receive_purchase() checks it and refuses an unlicensed store with
+-- 'store licence does not allow writes'. A perpetual 'pro' row is what makes the
+-- write path reachable at all; the licence is part of the fixture, not a detail
+-- of it. CI run #76 refused the whole gate on exactly this.
+insert into public.store_licenses (store_id, license_key, plan, expires_at)
+values (_rstore(), 'STORE-RCV', 'pro', null),
+       (_other_store(), 'STORE-RIVAL', 'pro', null)
+on conflict (store_id) do nothing;
+
 insert into public.customers (id, name, phone, store_id) values
   ('ffffffff-ffff-4fff-8fff-000000000111', 'Nadia', '01000000111', _rstore()),
   ('ffffffff-ffff-4fff-8fff-000000000112', 'Omar',  '01000000112', _rstore()),
