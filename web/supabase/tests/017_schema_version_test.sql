@@ -57,7 +57,18 @@ select has_function('public', 'record_schema_version',
 -- G-S4. The banner does `if (dbVersion < EXPECTED)`, and in JS `null < 1` is
 -- true but `undefined` is not — a NULL here would make the comparison depend
 -- on how the value crossed the wire instead of on the fact it is behind.
+--
+-- The ledger is emptied FIRST because 017 stamps version 17 as it applies, so
+-- by the time this gate runs the row already exists. CI run #68 caught that:
+-- G-S4 asserted 0 against a ledger holding 17 and failed. The empty case is
+-- still the one worth proving (it is exactly "017 was never applied"), so it
+-- is reached by emptying the table rather than by assuming its state. The
+-- stamp is put back immediately, still inside this transaction.
+delete from public.lensy_schema_versions;
 select is(public.schema_version(), 0, 'G-S4 an empty ledger reads 0');
+
+insert into public.lensy_schema_versions (version, note)
+values (17, 'schema version ledger + drift banner');
 
 -- ===== stamping ===========================================================
 -- 017 stamps itself on apply, so the number is the migration number.
@@ -73,8 +84,11 @@ select ok(
 -- upgraded. `applied_at` default now() is therefore not used by the re-stamp.
 select public.record_schema_version(17, 're-applied by hand');
 
+-- ::int on every count(*): count() returns bigint, and pgTAP has no
+-- is(bigint, integer, unknown) overload, so the bare form does not resolve
+-- and aborts the file. The same trap is called out in the 013 gate.
 select is(
-  (select count(*) from public.lensy_schema_versions where version = 17),
+  (select count(*) from public.lensy_schema_versions where version = 17)::int,
   1,
   'G-S6 re-stamping the same version adds no second row'
 );
@@ -148,10 +162,13 @@ select ok(
 -- G-S3b. p_note carries a DEFAULT, so pronargs is 2 while the function's
 -- identity is only (integer) - a distinction that has bitten this file once
 -- already. Assert the declared shape explicitly so the intent is on record.
+-- ::int because pronargs is smallint and pgTAP has no is(smallint, integer,
+-- unknown) overload - the same resolution failure count(*) caused, and the
+-- reason this file is now annotated about casts at each comparison.
 select is(
   (select p.pronargs from pg_proc p
      join pg_namespace n on n.oid = p.pronamespace
-    where n.nspname = 'public' and p.proname = 'record_schema_version'),
+    where n.nspname = 'public' and p.proname = 'record_schema_version')::int,
   2,
   'G-S3b record_schema_version declares two arguments'
 );
