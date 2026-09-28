@@ -461,7 +461,101 @@ Also in this phase:
 
 ---
 
----
+## 7. Phase 4 — Numbers that stay true at scale · 2 days 🟠
+
+Not performance polish: each item is a screen that quietly stops being correct
+as data grows — and, as it turned out, one of them was already wrong.
+
+1. 🟠 **Reports aggregate in the browser over an unbounded fetch.**
+   `useSalesSummary` selected *every* sale header in the store with no `range`
+   or `limit`, then `ReportsPage.tsx` summed it in JS and sliced the top 5. Fine
+   at a few thousand invoices; at 200k it is a multi-megabyte download and a
+   stalled tab. Replaced by `report_sales_window` / `report_top_customers` /
+   `report_payment_mix` / `report_voided_count` (`016_reporting.sql`), each
+   returning a fixed-size payload.
+2. 🔴 **Two different definitions of "today" in one app** — three, in fact.
+   Reports used the **UTC** date (`new Date().toISOString().slice(0, 10)`);
+   History used the store-local `localDate()`; and the cash-up panel filtered
+   `paid_at` with a bare date string against a `timestamptz`, where
+   `lte('2026-09-28')` means midnight at the **start** of that day — so every
+   payment after midnight was dropped. A sale at 1:00 AM counted as yesterday
+   on one screen and today on another. Now one `stores.time_zone` and
+   `store_day_range()`.
+3. 🟠 **Lexical comparisons against `timestamptz`.** Reports compared
+   `order_date` with `startsWith` on `'YYYY-MM-DD'` strings, while History sent
+   naive `${localDate()}T00:00:00` that Postgres read in the session timezone.
+   Both now go through explicit timestamptz boundaries.
+4. 🟠 **Zero-total "prescription sales" pollute revenue.** They write a sale
+   with a `PRESC-<base36 epoch>` invoice and all-zero totals. Phase 1 removed
+   the JS invoice numbering, so the second namespace is gone; `sales.kind` is
+   still Phase 6 work.
+5. 🟠 **Search destroys legitimate queries instead of escaping them.** `,()`
+   were stripped from every term, so `Ahmed (Cairo)` silently matched nothing;
+   and every field was `ilike '%term%'`, unindexable. Now `search_text(term)`
+   over `pg_trgm` + GIN, so no filter string is assembled in the browser at all.
+6. 🟡 **Index sweep.** Confirmed or added: `sales (store_id, order_date desc)`,
+   `sales_live_idx` (partial, `where voided_at is null`),
+   `sale_payments (sale_id, paid_at)`, `stock_movements (product_id)`, and
+   `idx_trgm_*` on the five searchable columns.
+
+> **Status — implemented; gates green.** `web/supabase/016_reporting.sql` + a
+> 30-assertion pgTAP gate, plus the client switch. The money fix is a separate
+> commit so it is not waiting on a migration paste.
+> - **A live money bug, found by reading rather than by a failing test.**
+>   Phase 2 made voiding possible, and `void_sale` deliberately leaves
+>   `net_amount` intact so the audit trail reads true — but the Reports screen
+>   summed that column and never selected `voided_at`. So **voiding a 5,000 EGP
+>   invoice made the shop look 5,000 richer**, and `balanceDue` inflated with
+>   it. The partial index written for exactly this in 013 — `sales_live_idx …
+>   where voided_at is null`, with a comment saying *"Reports/History filter on
+>   this"* — was never used. I wrote both halves. `computeReport` is now its own
+>   tested module, and the exclusion is stated in the SQL too, so it is enforced
+>   by the schema rather than remembered by whoever edits the screen next.
+> - **Voids are reported, not hidden.** `voidedCount` / `voidedNet` surface a
+>   line under the totals: excluding a void from revenue is correct, but
+>   silently dropping it would let a mistaken void look like a quiet day.
+> - **Red first, in the repo:** with the filter removed the gate reports
+>   `expected 6000 to be 1000` and `expected 5000 not to be 5000`.
+> - **Every expectation the gate corrected was mine, and the database was right
+>   each time** — recorded because it is the opposite of what a test-first phase
+>   usually looks like:
+>   - `paid` came back 1600, not 1500: the 011 sync trigger recomputes
+>     `amount_paid` from the ledger and overwrote my fixture, which now states
+>     the value the trigger computes.
+>   - `store_day_range` returned 21:00 UTC, not 22:00: **Africa/Cairo is EEST =
+>     UTC+3 all year** (Egypt moved to a permanent UTC+3 in 2023). My +2
+>     assumption came from pre-2023 Egypt and would have closed the shop an hour
+>     late. Verified against the runner's tzdata.
+>   - a lab counter saw two jobs, not one: `sales.lab_status` **defaults to
+>     `'Not Started'`**, so an unrelated fixture had quietly become a lab job.
+>   - a payment expected 70 came back −330: the −400 refund falls in the same
+>     Cairo day. A refund belongs to the day the money went back — which is the
+>     entire point of netting refunds in the cash-up.
+>   - `like()` does not exist in pgTAP (the same trap Phase 2 hit), and `EXPLAIN`
+>     is a statement rather than an expression, so the index assertion is
+>     structural.
+> - **The timezone is a column, not a client guess.** A tablet with the wrong
+>   system clock, or a cashier abroad, must not move the shop's books. A
+>   per-store `time_zone` key in `settings` overrides it, so moving a store is
+>   one `UPDATE`.
+> - **`search_text()` removes the sanitiser by removing the string it needed.**
+>   G-S2 seeds an *identical* name in another store, because a search that leaks
+>   tenants is worse than one that misses.
+> - **Both client changes fall back** behind `isMissingRpc`, so an un-migrated
+>   database keeps working — and the fallback keeps its old behaviour on
+>   purpose, since a fallback that quietly reintroduces a bug is worse than none.
+> - **Not done:** Reports still computes the "today" and "month" sub-totals on
+>   the client (they are the same two numbers, and moving them buys nothing
+>   while `computeReport` is still the fallback), and History's paging is still
+>   offset-based, so concurrent inserts can shift rows between pages.
+
+> **Gate:** the 016 gate covers the void exclusion, the store's own day
+> boundaries, tenant isolation, refund netting, and the bracketed-name search.
+> Two gate items are **not** covered and stay open: the <300 ms / <20 KB payload
+> claim is asserted structurally (the partial index exists and its predicate is
+> the void filter) rather than measured against a seeded 50k-row dataset — and
+> `EXPLAIN` plan-shape on a three-row fixture would be false comfort — and
+> History's offset→cursor paging.
 
 ## 8. Phase 5 — Making the schema trustworthy to change · 1–2 days 🟠
 
@@ -652,7 +746,7 @@ map of what each file is responsible for, so a review can tell which phase owns 
 | `013_void_refunds.sql` | `void_sale()`, refund tenders, movement vocabulary, `paid_at` → `timestamptz`, delete revocation, `update_sale_order()` | Implemented — gate: `tests/013_void_refunds_test.sql` (54 assertions) |
 | **`014_server_rbac.sql`** | `resolve_can()` / `require_perm()`, tenant RLS on the three RBAC tables, store resolution without the username fallback, `audit_log` | Implemented - gate: `tests/014_server_rbac_test.sql` (33 assertions) | `can()` / `require_perm()`, tenant RLS on the three RBAC tables, store resolution without username fallback | Phase 3 |
 | `015_link_staff_ids.sql` | `link_staff_ids()` — moves a disagreeing staff row onto its login (both directions), refuses ambiguous names, `staff_id_problems` view | Implemented — gate: `tests/015_link_staff_ids_test.sql` (13 assertions) |
-| **`015_reporting_search.sql`** *(planned)* | Report RPCs, `store_day_range()`, `search_text()` + `pg_trgm`/GIN, index sweep | Phase 4 |
+| `016_reporting.sql` | Report RPCs (`report_sales_window` / `report_top_customers` / `report_payment_mix` / `report_voided_count`), `stores.time_zone` + `store_day_range()`, `search_text()` + `pg_trgm`/GIN | Implemented — gate: `tests/016_reporting_test.sql` (30 assertions) |
 | `supabase/config.toml` *(repo root)* | CLI project root; `verify_jwt = true` for `create-user` | Split from the SQL in `web/supabase/` — Phase 5 |
 | `supabase/functions/create-user/index.ts` | Creates an Auth user + mirrors it into `public.users` using the service-role key | JWT-only gate, caller-supplied `role_id`/`store_id` — Phase 3 |
 | `web/supabase/tests/_shim.sql`, `tests/012_integrity_test.sql` | Plain-Postgres shims (roles, `auth/`, `storage/`, pgTAP) + the Phase 1 gate (26 assertions) | Run by `npm run test:db` and CI job `db` — no live project touched |

@@ -235,6 +235,46 @@ Re-running it repairs nothing, so it is safe to paste twice.
 Its gate is [`tests/015_link_staff_ids_test.sql`](./tests/015_link_staff_ids_test.sql)
 (13 assertions), also run by `npm run test:db` and CI.
 
+## Step 11 - `016_reporting.sql` (reports in the database, and one "today")
+
+**The last one for now.** It fixes a live money bug, then moves the reporting
+arithmetic out of the browser.
+
+- **Voided sales were being counted as revenue.** Voiding stamps `voided_at` and
+  deliberately leaves `net_amount` alone so the audit trail reads true, and the
+  Reports screen summed that column without ever looking at the flag. Voiding a
+  5,000 EGP invoice made the shop look 5,000 *richer*. Every function below
+  excludes voided rows, and the partial index `sales_live_idx` makes it free.
+- **`report_sales_window` / `report_top_customers` / `report_payment_mix` /
+  `report_voided_count`** replace a download of every sale header in the store
+  and a sum in JavaScript. The payload is now a fixed size no matter how much
+  history exists. None of them takes a store argument - the store comes from
+  `auth_store_id()`, so a caller cannot ask for another shop's report.
+- **`stores.time_zone` (default `Africa/Cairo`)** and `store_day_range()`. Three
+  screens disagreed about which day a sale belonged to: Reports used UTC,
+  History used the browser's clock, and the cash-up panel filtered a
+  `timestamptz` with a bare date - which means midnight at the *start* of that
+  day, so every payment after midnight was dropped. All of them now use the
+  store's own day. Change it per store with:
+  ```sql
+  update public.stores set time_zone = 'Africa/Cairo' where id = '...';
+  ```
+- **`search_text(term)`** plus trigram indexes. The search box used to strip
+  `,()` from your term to make a PostgREST `or()` string safe, so a customer
+  called `Ahmed (Cairo)` could not be found and no error was shown. The term is
+  now an argument, so there is nothing to escape.
+
+The app works without this migration - it falls back to the client path, which
+now also excludes voids. Apply it anyway, and the numbers stop depending on how
+long the shop has been trading.
+
+Its gate is [`tests/016_reporting_test.sql`](./tests/016_reporting_test.sql)
+(30 assertions), also run by `npm run test:db` and CI.
+
+**Check it worked:** open Reports. If a voided invoice exists, a line appears
+under the totals saying how many were excluded. Switch the period between
+Today and Month and compare against History for the same day — they now agree.
+
 ### Manual probe for `create-user` (no live project in CI)
 
 The SQL half is covered by pgTAP. The Edge Function needs a deployed project,
