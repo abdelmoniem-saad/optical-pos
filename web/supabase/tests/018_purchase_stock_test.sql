@@ -75,14 +75,18 @@ values ('ffffffff-ffff-4fff-8fff-000000000131', null, 300, 0, _rstore()),
        ('ffffffff-ffff-4fff-8fff-000000000132', null, 900, 0, _other_store())
 on conflict (id) do nothing;
 
-insert into public.purchase_items (id, purchase_id, product_id, qty, unit_cost, total_cost)
+-- store_id is set explicitly on BOTH purchases and their items: 008 made the
+-- column NOT NULL on purchase_items, so a fixture that omits it fails the
+-- constraint rather than defaulting. Tenancy on this table is real, not
+-- inherited from the parent, and the gate should say so.
+insert into public.purchase_items (id, purchase_id, product_id, qty, unit_cost, total_cost, store_id)
 values ('ffffffff-ffff-4fff-8fff-000000000141',
         'ffffffff-ffff-4fff-8fff-000000000131',
-        'ffffffff-ffff-4fff-8fff-000000000121', 10, 4, 40),
+        'ffffffff-ffff-4fff-8fff-000000000121', 10, 4, 40, _rstore()),
        -- rival's line points at a product in the RIVAL store
        ('ffffffff-ffff-4fff-8fff-000000000142',
         'ffffffff-ffff-4fff-8fff-000000000132',
-        'ffffffff-ffff-4fff-8fff-000000000121', 5, 4, 20)
+        'ffffffff-ffff-4fff-8fff-000000000121', 5, 4, 20, _other_store())
 on conflict (id) do nothing;
 
 -- ===== G-P1..G-P4: receiving adds stock, once, and re-costs it ==========
@@ -156,10 +160,10 @@ select throws_ok(
 
 -- A line with a non-positive quantity is a data-entry error. Accepting it
 -- would subtract stock on a "delivery".
-insert into public.purchase_items (id, purchase_id, product_id, qty, unit_cost, total_cost)
+insert into public.purchase_items (id, purchase_id, product_id, qty, unit_cost, total_cost, store_id)
 values ('ffffffff-ffff-4fff-8fff-000000000143',
         'ffffffff-ffff-4fff-8fff-000000000131',
-        'ffffffff-ffff-4fff-8fff-000000000121', 0, 4, 0)
+        'ffffffff-ffff-4fff-8fff-000000000121', 0, 4, 0, _rstore())
 on conflict (id) do nothing;
 
 select throws_ok(
