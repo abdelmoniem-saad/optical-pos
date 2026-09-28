@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../../lib/supabase'
 import { useI18n } from '../../i18n/LanguageContext'
-import { useIsPlatformAdmin } from '../../lib/licensing'
+import { useIsPlatformAdminQuery } from '../../lib/licensing'
 
 type StoreRow = {
   id: string
@@ -23,7 +23,8 @@ type StoreRow = {
 export function PlatformPage() {
   const { t } = useI18n()
   const qc = useQueryClient()
-  const isPlatform = useIsPlatformAdmin()
+  const platform = useIsPlatformAdminQuery()
+  const isPlatform = platform.data ?? false
   const [err, setErr] = useState<string | null>(null)
   const [form, setForm] = useState({
     name: '',
@@ -130,6 +131,12 @@ export function PlatformPage() {
       setErr(e instanceof Error ? e.message : String(e))
     }
   }
+
+  // Until the answer arrives we do not know who this is, so we must not say
+  // "Platform access only" - that would deny a real vendor for the length of
+  // one request, and it is the same conflation that let the licence bug read a
+  // missing answer as a verdict. Say nothing and let the gate resolve.
+  if (platform.isPending) return null
 
   if (isPlatform === false) {
     return (

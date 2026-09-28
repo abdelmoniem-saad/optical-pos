@@ -68,9 +68,14 @@ export function useStoreId() {
   })
 }
 
-/** Vendor accounts only (separate from store staff/superadmin). */
-export function useIsPlatformAdmin(): boolean {
-  const q = useQuery({
+/** Vendor accounts only (separate from store staff/superadmin).
+ *
+ *  The raw query, for callers that must NOT confuse "we have not asked yet"
+ *  with "the answer is no". `isPending` stays true while the query is dormant
+ *  (no session) or in flight, which is exactly the window in which a boolean
+ *  would be a guess. */
+export function useIsPlatformAdminQuery() {
+  return useQuery({
     queryKey: ['is-platform-admin'],
     staleTime: Infinity,
     enabled: useSessionReady(),
@@ -80,5 +85,14 @@ export function useIsPlatformAdmin(): boolean {
       return !!data
     },
   })
-  return q.data ?? false
+}
+
+/** Boolean form, for gating UI that is simply ABSENT for non-vendors.
+ *
+ *  Safe there precisely because it is not safe on the page itself: a false
+ *  answer while still loading only means the platform section has not appeared
+ *  yet, whereas rendering "Platform access only" would deny a vendor whose
+ *  answer had not arrived. Use useIsPlatformAdminQuery() for that. */
+export function useIsPlatformAdmin(): boolean {
+  return useIsPlatformAdminQuery().data ?? false
 }
