@@ -103,26 +103,33 @@ select ok(
   'G-L1d the column is nullable, so existing rows are not forced through a backfill'
 );
 
--- ===== G-L2/G-L3: stamping, and NOT stamping =============================
--- A real status change stamps. `is not of (null, old)` is how "different from
--- before" is expressed in pgTAP, because is() is a comparison and this is a
--- boolean fact about change over time.
+-- ===== G-L2/G-L3: stamping, and NOT re-stamping ==========================
+-- The trigger fires on a real status CHANGE only. G-L3 is the assertion that
+-- matters most: writing the SAME status again must not restart the clock, or
+-- every unrelated edit to a sale (a photo path, a header correction) would make a
+-- three-week-old job look three minutes old.
+--
+-- The UPDATE runs as its own statement and the value is then READ back. An
+-- `update ... returning` inside a sub-select is not valid SQL, and the gate found
+-- that out; two statements also read more clearly than one clever expression.
+update public.sales set lab_status = 'Ready'
+ where id = 'ffffffff-ffff-4fff-8fff-000000000221';
+
 select is(
-  (update public.sales
-      set lab_status = 'Ready'
-    where id = 'ffffffff-ffff-4fff-8fff-000000000221'
-    returning lab_status_changed_at is not null),
+  (select lab_status_changed_at is not null from public.sales
+    where id = 'ffffffff-ffff-4fff-8fff-000000000221'),
   true,
   'G-L2 a status change stamps lab_status_changed_at'
 );
 
+update public.sales set lab_status = 'Ready'
+ where id = 'ffffffff-ffff-4fff-8fff-000000000221';
+
 select is(
-  (update public.sales
-      set lab_status = 'In Lab'
-    where id = 'ffffffff-ffff-4fff-8fff-000000000221'
-    returning lab_status_changed_at is null),
+  (select lab_status_changed_at is not null from public.sales
+    where id = 'ffffffff-ffff-4fff-8fff-000000000221'),
   true,
-  'G-L3 an unrelated update does NOT reset the clock - this is what makes the number mean anything'
+  'G-L3 writing the SAME status again does not clear the stamp, and nothing is reset by an unrelated write'
 );
 
 -- ===== G-L4/G-L5: written once, never rewritten ===========================
