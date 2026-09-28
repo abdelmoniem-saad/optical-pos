@@ -6,7 +6,7 @@
 -- To verify a migration on a real project, paste the MIGRATION file
 -- (web/supabase/0NN_*.sql) and check the query SETUP.md gives you.
 -- ============================================================
--- LensyPOS Ã¢â‚¬â€ Phase 6 gate: 020_version_gate_test.sql (pgTAP)
+-- LensyPOS — Phase 6 gate: 020_version_gate_test.sql (pgTAP)
 -- ============================================================
 -- 020 exists because 018 and 019 forgot to record their own version, and the
 -- existing 017 gate could not notice: it asserted that schema_version() returns
@@ -155,7 +155,7 @@ select is(
 -- every migration is asserted where it changes.
 select ok(
   public.schema_version() >= 20,
-  'G-V6b schema_version() is at least the guard'\''s own version, so the drift check is live'
+  'G-V6b schema_version() is at least the guard''s own version, so the drift check is live'
 );
 
 rollback;
