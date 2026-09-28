@@ -666,15 +666,31 @@ can differ, and nothing will ever notice.
 > **Gate:** `npm run test:db` runs in CI ✅ · `SchemaBanner` warns only on an affirmative `behind`
 > ✅ · no money path can invent a value ✅ · schema drift fails CI once a baseline is recorded ✅
 
-> **The baseline is recorded, so the drift check is enforcing.** `web/supabase/schema.fingerprint`
-> holds the hash from run #70 (`3667e5c3…`). From the next push on, a migration that changes the
-> schema shape fails the build until someone updates the file deliberately. Two hardening details
-> went in with it, because a drift check that cries wolf gets switched off:
-> - `.gitattributes` marks it `-text`. `core.autocrlf=true` on Windows would otherwise rewrite the
->   line as CRLF, and `cat` would then yield `<hash>\r` — a mismatch against an unchanged schema.
-> - the comparison strips whitespace and validates that the baseline really is 64 hex characters, so
->   a truncated download, a saved zip, or an HTML error page fails with an explanation instead of
->   a permanent red build nobody can interpret.
+> **The baseline attempt failed, and the reason is the most valuable thing in this phase.**
+> Committing the hash from run #70 turned run #71 red — against a schema that had not changed by
+> a single byte. The diff between the two runs touches no migration at all.
+>
+> Cause: since 17.6 and its backports, `pg_dump` brackets its output in
+> `\restrict <random-token>` / `\unrestrict <random-token>` as a defence against psql
+> meta-command injection (CVE-2025-1094 / CVE-2026-18408). **The token is regenerated on every
+> invocation**, so hashing raw output yields a fresh digest for an identical schema. The check
+> would have failed on every push forever, and the obvious human response to a permanently red
+> build is to delete the check — which would have removed the drift detection this whole phase
+> exists to provide.
+>
+> Two fixes, and the second matters more than the first:
+> 1. the script now drops every backslash-prefixed line, so the token cannot reach the hash. The
+>    spelling has already changed across versions, so it matches the shape rather than the token;
+> 2. **the CI step now fingerprints twice and fails if the two disagree**, before it compares
+>    anything to the baseline. A non-deterministic fingerprint is a broken *check*, not a drifted
+>    *schema*, and the two demand opposite responses: one says "fix the script", the other says
+>    "update the baseline". Run #71 could not make that distinction, and it is exactly the
+>    distinction that stops the next person from overwriting a good baseline to make a red build
+>    go green.
+>
+> The stale baseline was deleted rather than replaced, so the step is back in bootstrap mode and
+> the next run reports a hash that is stable by construction. It must not be committed until a
+> green run has shown `(stable across 2 runs)`.
 
 ---
 

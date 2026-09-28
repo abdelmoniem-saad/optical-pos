@@ -118,15 +118,33 @@ jobs:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/lensy
         run: |
           set -o pipefail
-          actual="$(bash web/scripts/schema-fingerprint.sh)"
           baseline_file=web/supabase/schema.fingerprint
+
+          # Take the fingerprint TWICE and require the two to agree before
+          # comparing either to the baseline. A hash of a moving target is
+          # not a drift check, it is noise - and the failure mode is expensive
+          # because it invites someone to delete the file. Run #71 failed
+          # against a schema nobody had touched: pg_dump emits a fresh random
+          # \restrict token per invocation, so the raw digest changes every
+          # time. Proving stability here means a future non-determinism is
+          # reported as "the check itself is broken" rather than as fake drift.
+          first="$(bash web/scripts/schema-fingerprint.sh)"
+          second="$(bash web/scripts/schema-fingerprint.sh)"
+          actual="$first"
+
+          if [ "$first" != "$second" ]; then
+            echo "::error::schema-fingerprint.sh is NOT deterministic ($first vs $second) - the drift check cannot be trusted until that is fixed. Do NOT update the baseline in response to this."
+            echo "::error::The usual cause is content that varies per pg_dump run (a random \\restrict token)."
+            exit 1
+          fi
+
           {
             echo "### schema fingerprint"
             echo ""
             echo '```'
-            echo "actual:   $actual"
+            echo "actual:   $actual (stable across 2 runs)"
             if [ -f "$baseline_file" ]; then
-              echo "recorded: $(cat "$baseline_file")"
+              echo "recorded: $(tr -d '[:space:]' < "$baseline_file")"
             else
               echo "recorded: (none yet - this run records it)"
             fi

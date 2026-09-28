@@ -47,12 +47,25 @@ fi
 # --schema-only: no data, just the shape. --no-comments: see above.
 # Normalised whitespace (sed) so a re-indent or a trailing-space change in a
 # migration file is not reported as a schema change.
+#
+# The `grep -v '^\\'` is load-bearing, and it cost a red build to learn.
+# Since 17.6 (and the backports) pg_dump brackets its output with
+#   \restrict <random-token>
+#   ...
+#   \unrestrict <random-token>
+# as a psql meta-command injection defence (CVE-2025-1094 / CVE-2026-18408).
+# The token is freshly random on EVERY invocation, so hashing the raw output
+# produces a different digest for a byte-identical schema - the drift check
+# fires on every push and means nothing. Every backslash-prefixed line is
+# dropped instead of matching the token, because the exact spelling has
+# already changed once across versions and may again.
 pg_dump "$DB_URL" \
   --schema-only \
   --no-comments \
   --no-owner \
   --no-privileges \
   | sed -e 's/[[:space:]]\+/ /g' -e 's/^ //' -e 's/ $//' \
+  | grep -v '^\\' \
   | grep -v '^$' \
   | sha256sum \
   | cut -d' ' -f1
