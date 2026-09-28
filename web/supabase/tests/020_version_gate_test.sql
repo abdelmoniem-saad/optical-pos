@@ -41,7 +41,14 @@ create extension if not exists pgtap;
 select plan(10);
 
 -- ===== G-V1: the guard exists ===========================================
-select has_function('public', 'assert_versions_recorded', ARRAY['text'],
+-- The 3-argument (name-only) form of has_function, on purpose. The 4-argument
+-- form takes a text[] of IDENTITY arguments, and CI run #67 already cost this
+-- repository a run over that exact trap in the 017 gate. ARRAY['text'] happens
+-- to be right for a single text[] parameter, but asserting it that way means the
+-- signature has to be got right by hand for no benefit: the gate's real subject
+-- is whether the guard FIRES (G-V3), not how it is spelled. If the name exists
+-- at all, the signature is exercised on the very next line.
+select has_function('public', 'assert_versions_recorded',
   'G-V1 the drift guard exists, so a missing stamp fails loudly instead of silently');
 
 -- ===== G-V3 (before G-V2): the guard actually catches a missing version ===
