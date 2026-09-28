@@ -643,24 +643,34 @@ can differ, and nothing will ever notice.
 > fingerprint step are proven by CI only. The EDB installer is 403 behind this network, so a
 > local Postgres was not an option either.
 >
-> **CI run #67 caught a bug this phase shipped, and it is worth recording.** The 017 gate
-> called `has_function('public','schema_version','[]',...)`; pgTAP wants a real `text[]`, so psql
-> aborted at line 39 with `malformed array literal` and the whole file failed. A second, latent
-> version of the same trap sat in G-S10: `p_note` carries a DEFAULT, so the declared signature is
-> `(integer, text)` but the identity is `(integer)` — and `has_function_privilege` raises 42883 on
-> a mismatch instead of returning false, which would abort the file again. Both are now resolved by
-> looking the OID up in `pg_proc`, so there is no signature left to get wrong. **A gate that cannot
-> run locally is a gate that is only as good as its first CI run — write the edge cases, but expect
-> the first push to find something.**
+> **CI run #69: green, both jobs.** The gate, the fingerprint step and the web job all pass. Two
+> rounds of real failures came out of this phase first, and both are worth keeping in mind:
 >
-> That run also exposed a flaw in the CI reporting itself: the awk that folds pgTAP diagnostics
-> into annotations matched `^not ok`, so any TAP line merely *containing* the words was reported as
-> a failure. The real one-line error was buried under six phantom annotations. It is now anchored
-> to `^[[:space:]]*not ok`, and a separate `grep -nE 'ERROR|FATAL'` reports psql errors directly,
-> because a psql error produces no TAP output at all and the old awk would have emitted nothing.
+> - **#67** — `has_function(..., '[]')`: pgTAP wants a real `text[]`, and a string is not one, so
+>   psql aborted at line 39 before a single assertion ran. A latent twin sat in G-S10, where
+>   `p_note` has a DEFAULT: the declared signature is `(integer, text)` but the identity is
+>   `(integer)`, and `has_function_privilege` raises 42883 on a mismatch rather than returning
+>   false. Both now resolve by OID from `pg_proc`, so there is no signature left to get wrong.
+> - **#68** — G-S4 asserted an empty ledger, but 017 stamps version 17 as it *applies*, so the
+>   gate was checking 0 against 17. And pgTAP has no `is(bigint, integer, unknown)` overload, so
+>   `is(count(*), 1)` aborted the file at line 80. That trap is already documented in the 013
+>   gate, which makes the repeat a fair process failure rather than a bad break.
+>
+> The lesson, recorded because it cost three pushes: **a gate that cannot run locally is only as
+> good as its first CI run, and pgTAP's implicit typing punishes exactly the comparisons a
+> migration gate is made of.** Cast every `count(*)`/catalog value, and resolve functions by OID.
+>
+> The awk fix in the same series earned its place immediately — under #67 the real one-line error
+> sat below six phantom annotations; under #68 it was the first annotation.
 
 > **Gate:** `npm run test:db` runs in CI ✅ · `SchemaBanner` warns only on an affirmative `behind`
 > ✅ · no money path can invent a value ✅ · schema drift fails CI once a baseline is recorded ✅
+
+> **One thing left for a human, and it is small.** The fingerprint step passes in bootstrap mode: it
+> has no baseline to compare against, so it only reports. Download the `schema-fingerprint` artifact
+> from run #69 and commit its contents as `web/supabase/schema.fingerprint` — after that the step
+> enforces, and any future migration that changes the schema shape fails the build until the
+> baseline is consciously updated. Until then drift is reported, not blocked.
 
 ---
 
