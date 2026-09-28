@@ -107,6 +107,17 @@ on conflict (id) do nothing;
 -- function returns no row while the cross-store refusal never fires because the
 -- purchase is never found in the first place. CI run #77 proved it - four NULL
 -- balances, and a G-P6 that would have "passed" for entirely the wrong reason.
+-- TWO rows with the same id, and both are needed. `auth.users` is the Supabase
+-- Auth identity, and it is what `auth.uid()` resolves to and what
+-- `sale_payments.recorded_by` references. `public.users` is the staff record
+-- carrying store_id. The app creates them together (supabase/functions/
+-- create-user) and joins them by id, so a fixture that seeds only one half
+-- produces a login with no store - or a payment whose recorded_by points at
+-- nothing, which is the FK failure CI runs #78 and #79 both hit.
+insert into auth.users (id, email, username) values
+  ('ffffffff-ffff-4fff-8fff-000000000191', 'receiver@lensypos.local', 'receiver')
+on conflict (id) do nothing;
+
 insert into public.users (id, username, password_hash, store_id, is_active)
 values ('ffffffff-ffff-4fff-8fff-000000000191', 'receiver', '-', _rstore(), true)
 on conflict (id) do nothing;
