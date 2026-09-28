@@ -73,8 +73,11 @@ select 'ffffffff-ffff-4fff-8fff-000000000024', 'X0001', c.id,
  limit 1;
 
 -- Ledger: 1000 cash on R0001; 500 cash + 500 wallet - 400 refunded cash on R0002,
--- so the 011 sync trigger sets R0002.amount_paid to 600 - the fixture states
--- that explicitly rather than being overwritten silently., 'cash',   'payment', '2026-09-20 10:00:00+00', _rstore()),
+-- so the 011 sync trigger sets R0002.amount_paid to 600 - stated explicitly in
+-- the sales fixture above, rather than being overwritten silently.
+insert into public.sale_payments (sale_id, amount, method, kind, paid_at, store_id)
+values
+  ('ffffffff-ffff-4fff-8fff-000000000021', 1000, 'cash',   'payment', '2026-09-20 10:00:00+00', _rstore()),
   ('ffffffff-ffff-4fff-8fff-000000000022',  500, 'cash',   'payment', '2026-09-21 10:00:00+00', _rstore()),
   ('ffffffff-ffff-4fff-8fff-000000000022',  500, 'wallet', 'payment', '2026-09-21 10:00:00+00', _rstore()),
   ('ffffffff-ffff-4fff-8fff-000000000022', -400, 'cash',   'refund',  '2026-09-22 10:00:00+00', _rstore());
