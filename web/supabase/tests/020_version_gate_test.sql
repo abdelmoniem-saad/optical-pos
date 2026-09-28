@@ -48,20 +48,26 @@ select has_function('public', 'assert_versions_recorded', ARRAY['text'],
 -- Deliberately first. Asserting that a guard PASSES before asserting that it
 -- FAILS is how a guard that never fires gets mistaken for one that works - and
 -- that is exactly the confusion that let 018/019 through in the first place.
--- '012_anything.sql' stands in for a migration that forgot to record itself.
+--
+-- The missing version is 021, and deliberately NOT 018 or 019. My first draft of
+-- this gate used 018/019, and it FAILED - correctly. 020 backfills the ledger for
+-- both, so by the time this gate runs they are recorded, the guard has nothing to
+-- complain about, and the assertion was asserting the bug it was written to
+-- prevent. A guard test that names the very rows the migration repairs is not
+-- testing the guard. 021 has never been applied, so it is missing for real.
 select throws_ok(
-  $$select public.assert_versions_recorded(array['017_a.sql', '018_b.sql', '019_c.sql'])$$,
+  $$select public.assert_versions_recorded(array['017_a.sql', '018_b.sql', '019_c.sql', '020_d.sql', '021_e.sql'])$$,
   'P0001',
   null,
   'G-V3 the guard raises when a migration in the list has not recorded its version'
 );
 
--- G-V4. The message has to NAME the version, or an operator reading a failure
--- at 2am does not know which of twenty files is at fault.
+-- G-V4. The message has to NAME the version, or an operator reading a failure at
+-- 2am does not know which of twenty files is at fault.
 select throws_ok(
-  $$select public.assert_versions_recorded(array['017_a.sql', '018_b.sql', '019_c.sql'])$$,
+  $$select public.assert_versions_recorded(array['017_a.sql', '018_b.sql', '019_c.sql', '020_d.sql', '021_e.sql'])$$,
   'P0001',
-  'migration ledger is missing version\(s\) for: 019',
+  'migration ledger is missing version\(s\) for: 021',
   'G-V4 the message names the missing version, so it says which file is at fault'
 );
 

@@ -853,6 +853,17 @@ judgement, never a blanket default.
 > parse the rest as code). A syntax error in the error message is the worst possible place for
 > one, and nothing but running it would have found it.
 >
+> **And the gate for that guard failed its first CI run (#89), for a reason worth keeping.** G-V3/G-V4
+> prove the guard *fires* by naming 018/019 as the versions missing from the ledger — the exact
+> defect 020 repairs. But 020 backfills those two rows, so by the time the gate runs they are
+> recorded, the guard correctly has nothing to complain about, and `throws_ok` failed. The
+> database was right and the expectation was wrong, for the third time in this phase. A guard test
+> that names the very rows its own migration repairs is not testing the guard; it now names **021**,
+> which genuinely has never been applied. The lesson generalises past pgTAP: *an assertion written
+> alongside a fix tends to encode the pre-fix state it was mentally written against.* The gate also
+> could not be run locally — there is still no psql on this machine — so this cost a push, which is
+> exactly the cost the next section is about.
+>
 > **And the reason the SQL gates cost a push each: no local Postgres.** The EDB installer is 403
 > behind this network and `embedded-postgres` ships every contrib extension *except pgTAP*, so the
 > pgTAP suite cannot run here at all. Every failure above was readable in the existing gates Ã¢â‚¬â€ the
