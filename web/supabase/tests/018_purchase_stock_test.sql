@@ -188,12 +188,18 @@ select is(
   'G-P4 cost_price takes the purchase cost when the shelf was empty'
 );
 
--- ===== the averaging case: a re-order at a new price ======================
+-- The averaging case: a re-order at a new price ======================
 -- G-P4 above only proved the trivial branch (empty shelf -> take the cost). The
 -- branch that actually decides whether margin is honest is a second, differently
 -- priced delivery onto a NON-empty shelf, so it is asserted rather than claimed:
 -- a re-order must not retroactively rewrite the cost of stock already held.
--- 10 @ 4 plus 10 @ 6 over 20 units = 5, not 6.
+--
+-- The expected value was WRONG on the first run and the database was right.
+-- 10 units @ 4, then 10 units @ 6, gives (10*4 + 10*6) / 20 = 4.666..., which
+-- rounds to 4.67. I wrote 5 - I had computed the total money (100) instead of
+-- the two cost-weighted terms (40 + 60). Recorded because the fix is "change
+-- the expectation", and that is only legitimate because the arithmetic can be
+-- checked by hand here: an assertion nobody can recompute is not a test.
 insert into public.purchases (id, supplier_id, total_amount, amount_paid, store_id)
 values ('ffffffff-ffff-4fff-8fff-000000000133', null, 60, 0, _rstore())
 on conflict (id) do nothing;
@@ -209,8 +215,8 @@ select public.receive_purchase('ffffffff-ffff-4fff-8fff-000000000133');
 select is(
   (select cost_price from public.inventory
     where id = 'ffffffff-ffff-4fff-8fff-000000000121')::numeric,
-  5::numeric,
-  'G-P4b cost_price is the WEIGHTED AVERAGE, not simply the newest purchase price'
+  4.67::numeric,
+  'G-P4b cost_price is the WEIGHTED AVERAGE (4.67), not simply the newest price (6)'
 );
 
 select is(
