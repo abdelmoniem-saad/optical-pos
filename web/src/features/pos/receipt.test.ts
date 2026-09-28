@@ -108,4 +108,86 @@ describe('renderOrderUnitHTML', () => {
     expect(UNIT_CSS).toContain('direction:rtl')
     expect(UNIT_CSS).toContain('.rcpt-num{direction:ltr')
   })
+
+  // The unit is direction:rtl, so the FIRST <th> emitted is the one the eye reads
+  // first on the sheet. The source order is therefore the mirror of the printed
+  // one, and these two assertions are the only thing stopping a well-meaning
+  // "tidy up the column order" edit from silently printing AXIS CYL SPH again.
+  it('emits the eye columns mirrored so the SHEET prints SPH, CYL, AXIS', () => {
+    const html = renderOrderUnitHTML(
+      buildOrderDocument(
+        order({
+          examinations: [
+            {
+              ...emptyExam(),
+              sphere_od: '-1.25', cylinder_od: '-0.50', axis_od: '180',
+              sphere_os: '+2.00', cylinder_os: '-1.00', axis_os: '90',
+            },
+          ],
+        }),
+        shop,
+      ),
+      shop,
+    )
+
+    // Mirrored headers: the leftmost printed column is the LAST one emitted.
+    expect(html).toContain(
+      '<tr><th>AXIS</th><th>CYL</th><th>SPH</th><th>AXIS</th><th>CYL</th><th>SPH</th></tr>',
+    )
+    // And the values follow the same mirrored order, so no value drifts out from
+    // under its own label.
+    expect(html).toContain(
+      '<td class="rcpt-num">180</td>' +
+        '<td class="rcpt-num">-0.50</td>' +
+        '<td class="rcpt-num">-1.25</td>' +
+        '<td class="rcpt-num">90</td>' +
+        '<td class="rcpt-num">-1.00</td>' +
+        '<td class="rcpt-num">+2.00</td>',
+    )
+  })
+
+  it('gives the lab strip the shop identity and leaves the doctor off it', () => {
+    const html = renderOrderUnitHTML(buildOrderDocument(order(), shop), shop)
+    // The lab tier is the last element of the unit, so slice to it rather than
+    // asserting over the whole unit - the doctor legitimately stays on the
+    // customer and shop copies.
+    const lab = html.slice(html.indexOf('rcpt-lab'))
+
+    expect(lab).toContain('نسخة المعمل')
+    expect(lab).toContain('Lensy')
+    expect(lab).toContain('شارع 1')
+    expect(lab).toContain('0100')
+    expect(lab).not.toContain('الطبيب')
+    expect(lab).not.toContain('د. سامي')
+  })
+
+  it('keeps the doctor on the customer copy', () => {
+    const html = renderOrderUnitHTML(buildOrderDocument(order(), shop), shop)
+    expect(html).toContain('الطبيب')
+  })
+
+  it('keeps the prescription table OFF the customer copy but on the other two', () => {
+    const html = renderOrderUnitHTML(buildOrderDocument(order(), shop), shop)
+
+    // Slice by the structural markers rather than asserting over the whole unit,
+    // so this can only pass if the table is missing from the customer column
+    // SPECIFICALLY and not merely absent everywhere.
+    const customer = html.slice(
+      html.indexOf('rcpt-col-customer'),
+      html.indexOf('rcpt-col-shop'),
+    )
+    const shopCol = html.slice(html.indexOf('rcpt-col-shop'), html.indexOf('rcpt-lab'))
+    const lab = html.slice(html.indexOf('rcpt-lab'))
+
+    expect(customer).not.toContain('rcpt-rx')
+    expect(customer).not.toContain('AXIS')
+    // …but the copy is still a real receipt: who, which invoice, what is owed.
+    expect(customer).toContain('المطلوب')
+    expect(customer).toContain('المدفوع')
+    expect(customer).toContain('الباقي')
+    expect(customer).toContain('#000123')
+
+    expect(shopCol).toContain('rcpt-rx')
+    expect(lab).toContain('rcpt-rx')
+  })
 })

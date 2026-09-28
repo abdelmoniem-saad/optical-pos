@@ -10,9 +10,15 @@ export type Shop = { name: string; address: string; phone: string; currency: str
  *   • Lower tier (35% height) → lab strip, full width
  * Prescriptions are TABULATED with grouped split cells - each eye is a group
  * (RIGHT / LEFT) whose SPH / CYL / AXIS values sit in their own labeled
- * columns (like the shop's legacy paper receipt). Item lists (الأصناف) are
- * NOT printed. Frame status (جديد / عميل) is printed in the lab table.
- * Customer copy totals show ONLY المطلوب / المدفوع / الباقي (no gross/discount).
+ * columns (like the shop's legacy paper receipt). ON THE SHEET each group reads
+ * SPH then CYL then AXIS; because the unit is RTL the source order of those
+ * cells is the mirror of that, so read the table code against the printed page.
+ * Frame status (جديد / عميل) is printed in the lab table. The lab strip carries
+ * the shop's name, phone and address so a workshop slip can be traced back, and
+ * does NOT carry the doctor.
+ * Customer copy totals show ONLY المطلوب / المدفوع / الباقي (no gross/discount),
+ * and the customer copy carries NO prescription table at all - the patient takes
+ * home a receipt, while the prescription itself lives on the shop and lab copies.
  * Receipts are ALWAYS Arabic (RTL) with Latin digits.
  */
 
@@ -120,10 +126,13 @@ function metaTable(doc: OrderDoc): string {
 }
 
 /**
- * Prescription table with grouped split cells - columns are laid out
- * right-to-left as: الحالة | IPD | RIGHT(SPH CYL AXIS) | LEFT(SPH CYL AXIS) |
- * النوع (+# / العدسة / الإطار / اللون in the wide lab variant).
- * The status (جديد / عميل) replaced the old notes column.
+ * Prescription table with grouped split cells. Emitted (source) order is:
+ *   الحالة | IPD | LEFT(AXIS CYL SPH) | RIGHT(AXIS CYL SPH) | النوع
+ * (+# / العدسة / الإطار / اللون in the wide lab variant).
+ * The unit is RTL, so a browser lays the FIRST cell out on the RIGHT: the
+ * source order above is the mirror of the printed sheet, and within either eye
+ * group the sheet therefore reads SPH, then CYL, then AXIS. The status
+ * (جديد / عميل) replaced the old notes column.
  */
 function rxTable(doc: OrderDoc, wide: boolean): string {
   if (!doc.rows.length) return `<div class="rcpt-empty">لا توجد وصفات</div>`
@@ -137,7 +146,14 @@ function rxTable(doc: OrderDoc, wide: boolean): string {
     `<th colspan="3" class="grp">LEFT</th><th colspan="3" class="grp">RIGHT</th>` +
     `<th rowspan="2">النوع</th>` +
     (wide ? `<th rowspan="2">#</th>` : '')
-  const head2 = '<th>SPH</th><th>CYL</th><th>AXIS</th><th>SPH</th><th>CYL</th><th>AXIS</th>'
+  // Printed order is SPH then CYL then AXIS, but the SOURCE order below is its
+  // mirror image, and that is deliberate. The whole unit is `direction:rtl`, so
+  // the FIRST <th> a browser lays out is the one the eye reads FIRST - on the
+  // RIGHT. Emitting SPH first therefore printed "AXIS CYL SPH" on the paper, which
+  // is the order the shop's legacy receipt uses reversed. Read every trip through
+  // the cells below against what the SHEET shows, not against what the string
+  // says: for these two lines, the leftmost <th> is the first thing printed.
+  const head2 = '<th>AXIS</th><th>CYL</th><th>SPH</th><th>AXIS</th><th>CYL</th><th>SPH</th>'
 
   const body = doc.rows
     .map((r) => {
@@ -145,12 +161,13 @@ function rxTable(doc: OrderDoc, wide: boolean): string {
         `<td>${esc(r.status)}</td>`,
         wide ? `<td>${esc(r.color)}</td><td>${esc(r.frame)}</td><td>${esc(r.lens)}</td>` : '',
         `<td class="rcpt-num">${esc(r.ipd)}</td>`,
-        `<td class="rcpt-num">${esc(r.sphOd)}</td>`,
-        `<td class="rcpt-num">${esc(r.cylOd)}</td>`,
+        // Mirror image of head2 - see the note above it.
         `<td class="rcpt-num">${esc(r.axOd)}</td>`,
-        `<td class="rcpt-num">${esc(r.sphOs)}</td>`,
-        `<td class="rcpt-num">${esc(r.cylOs)}</td>`,
+        `<td class="rcpt-num">${esc(r.cylOd)}</td>`,
+        `<td class="rcpt-num">${esc(r.sphOd)}</td>`,
         `<td class="rcpt-num">${esc(r.axOs)}</td>`,
+        `<td class="rcpt-num">${esc(r.cylOs)}</td>`,
+        `<td class="rcpt-num">${esc(r.sphOs)}</td>`,
         `<td>${esc(r.type)}</td>`,
         wide ? `<td class="rcpt-num">${r.index}</td>` : '',
       ]
@@ -209,6 +226,11 @@ export function renderOrderUnitHTML(doc: OrderDoc, shop: Shop): string {
               ? ' rcpt-d2'
               : ''
 
+  // The customer copy deliberately carries NO prescription table. It is the slip
+  // the patient takes home, and the numbers on it are a record they cannot act
+  // on and that the lab/workshop copy is the authoritative home for. What stays
+  // is what settles the visit: who it was for, which invoice, when it is due,
+  // and what is still owed.
   const customerCol = `
     <div class="rcpt-col rcpt-col-customer">
       <div class="rcpt-head">${esc(shop.name)}</div>
@@ -216,7 +238,6 @@ export function renderOrderUnitHTML(doc: OrderDoc, shop: Shop): string {
       <div class="rcpt-tag">نسخة العميل</div>
       <div class="rcpt-body">
         ${metaTable(doc)}
-        ${rxTable(doc, false)}
       </div>
       <div class="rcpt-foot">
         ${totalsTable(doc, cur, 'customer')}
@@ -237,9 +258,18 @@ export function renderOrderUnitHTML(doc: OrderDoc, shop: Shop): string {
         <div class="rcpt-sign">التوقيع ............................</div>
       </div>
     </div>`
+  // The lab strip travels: it comes off this unit and goes to the workshop, and a
+  // slip with nothing on it but an invoice number cannot be traced back to the
+  // shop it belongs to. It therefore carries the shop's own identity - name,
+  // phone and address - and NOT the doctor, who is not the party the workshop
+  // needs to call and whose name belongs on the customer's copy.
+  const labIdentity = shop.address || shop.phone
+    ? `<div class="rcpt-sub">${shop.address ? esc(shop.address) : ''}${shop.address && shop.phone ? ' · ' : ''}${shop.phone ? `<span class="rcpt-num">${esc(shop.phone)}</span>` : ''}</div>`
+    : ''
   const labTier = `
     <div class="rcpt-lab">
-      <div class="rcpt-head rcpt-head-lab">نسخة المعمل - فاتورة <span class="rcpt-num">#${esc(doc.invoiceNo)}</span> · التسليم <span class="rcpt-num">${esc(doc.deliveryDate)}</span>${doc.doctorName ? ` · الطبيب ${esc(doc.doctorName)}` : ''}</div>
+      <div class="rcpt-head rcpt-head-lab">${esc(shop.name)} - نسخة المعمل - فاتورة <span class="rcpt-num">#${esc(doc.invoiceNo)}</span> · التسليم <span class="rcpt-num">${esc(doc.deliveryDate)}</span></div>
+      ${labIdentity}
       ${rxTable(doc, true)}
     </div>`
 
@@ -263,6 +293,10 @@ export const UNIT_CSS = `
    space falls BELOW the totals instead of pooling between table and totals. */
 .rcpt-body{flex:0 1 auto;min-height:0;overflow:hidden}
 .rcpt-foot{padding-top:1mm}
+/* The customer copy has no prescription table, so its body is short and would
+   otherwise leave a void above the money. Pushing the foot down keeps the
+   totals at the bottom of the column, as they are on the other two copies. */
+.rcpt-col-customer .rcpt-foot{margin-top:auto}
 .rcpt-col-customer{border-inline-start:1.5pt solid #000}
 .rcpt-lab{flex:0 0 auto;border-top:2pt solid #000;padding:1.5mm 2mm;box-sizing:border-box;overflow:hidden}
 .rcpt-head{font-size:10.5pt;font-weight:800;border-bottom:0.75pt solid #000;padding-bottom:0.8mm;margin-bottom:1mm}
