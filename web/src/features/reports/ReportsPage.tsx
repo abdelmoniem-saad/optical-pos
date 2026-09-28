@@ -1,7 +1,8 @@
+import { useQuery } from '@tanstack/react-query'
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { computeReport, type Period } from './computeReport'
-import { useSalesSummary } from '../../data/sales'
+import { useSalesSummary, fetchReportTotals, fetchTopCustomers, fetchVoidSummary } from '../../data/sales'
 import { useCustomers } from '../../data/customers'
 import { useInventory } from '../../data/inventory'
 import { useI18n } from '../../i18n/LanguageContext'
@@ -49,19 +50,67 @@ export function ReportsPage() {
   const inv = useInventory()
   const [period, setPeriod] = useState<Period>('all')
 
-  const r = useMemo(
-    () => computeReport(sales.data?.sales ?? [], customers.data ?? [], inv.data ?? [], period),
-    [sales.data, customers.data, inv.data, period],
+  // Period bounds, computed once and shared by the ledger and the report.
+  const todayIso = useMemo(() => {
+    const d = new Date()
+    const p = (n: number) => String(n).padStart(2, '0')
+    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`
+  }, [])
+  // The SAME day the bounds use, so the report and the cash-up panel cannot
+  // describe different days (and so the value is stable across renders).
+  const now = useMemo(() => new Date(todayIso + 'T00:00:00'), [todayIso])
+  const monthStart = todayIso.slice(0, 8) + '01'
+  const from = period === 'today' ? todayIso : period === 'month' ? monthStart : null
+  const to = period === 'today' ? todayIso : null
+
+  // Preferred path (migration 016): the database does the arithmetic, so the
+  // void exclusion is enforced by the schema rather than by this file. Falls
+  // back to the client computation while 016 is unapplied, which is the
+  // computeReport path above - and which now also excludes voids.
+  const server = useQuery({
+    queryKey: ['report-totals', from, to],
+    queryFn: async () => {
+      const [totals, tops, voids] = await Promise.all([
+        fetchReportTotals(from, to),
+        fetchTopCustomers(from, to, 5),
+        fetchVoidSummary(from, to),
+      ])
+      if (!totals) return null
+      return { totals, tops: tops ?? [], voids: voids ?? { voidedCount: 0, voidedNet: 0 } }
+    },
+  })
+
+  const client = useMemo(
+    () => computeReport(sales.data?.sales ?? [], customers.data ?? [], inv.data ?? [], period, now),
+    [sales.data, customers.data, inv.data, period, now],
   )
+
+  const s = server.data
+  const r = s
+    ? {
+        totalRevenue: s.totals.revenue,
+        totalPaid: s.totals.paid,
+        balanceDue: s.totals.balanceDue,
+        orderCount: s.totals.orderCount,
+        pendingLab: s.totals.pendingLab,
+        readyLab: s.totals.readyLab,
+        lowStock: client.lowStock,
+        topCustomers: s.tops,
+        voidedCount: s.voids.voidedCount,
+        voidedNet: s.voids.voidedNet,
+        todayRevenue: client.todayRevenue,
+        todayOrders: client.todayOrders,
+        monthRevenue: client.monthRevenue,
+        monthOrders: client.monthOrders,
+      }
+    : client
 
   const m = (n: number) => n.toFixed(0)
 
-  // Same period bounds computeReport uses, but for the LEDGER: money actually
-  // RECEIVED (by paid_at), split per tender - the cash-drawer view (011).
-  const todayIso = new Date().toISOString().slice(0, 10)
-  const monthStart = todayIso.slice(0, 8) + '01'
-  const payFrom = period === 'today' ? todayIso : period === 'month' ? monthStart : null
-  const pays = usePaymentsRange(payFrom, period === 'today' ? todayIso : null)
+  // Cash-up: money RECEIVED in the period, by paid_at, from the ledger. The
+  // same `from`/`to` bounds the report uses, so the two panels cannot disagree
+  // about which day they are describing.
+  const pays = usePaymentsRange(from, to)
   const byMethod = useMemo(() => sumByMethod(pays.data ?? []), [pays.data])
 
   return (
@@ -125,7 +174,7 @@ export function ReportsPage() {
             <p className="text-sm text-faint">{t('No customer data.')}</p>
           ) : (
             <ol className="space-y-1 text-sm">
-              {r.topCustomers.map((c, i) => (
+              {r.topCustomers.map((c: { name: string; total: number }, i: number) => (
                 <li key={i} className="flex justify-between">
                   <span>
                     {i + 1}. {c.name}

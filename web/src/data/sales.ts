@@ -72,6 +72,112 @@ function isInvoiceNoConflict(
  * The count of voided rows is returned alongside, so the screen can say
  * "3 invoices voided" instead of quietly dropping them.
  */
+/**
+ * Reporting, Phase 4.
+ *
+ * Before 016 these totals were computed in the browser from a download of every
+ * sale header in the store. Two problems: the payload grew without bound, and
+ * the arithmetic could forget a rule - which it did, when voiding started
+ * working in Phase 2 and `voided_at` was never filtered, so every void made the
+ * shop look richer.
+ *
+ * The database now does the arithmetic (migration 016), which makes the void
+ * exclusion something the schema enforces rather than something a view has to
+ * remember. These hooks call the RPCs and fall back to the client path when the
+ * migration is not applied yet, so a store can be behind without breaking.
+ */
+export interface ReportTotals {
+  revenue: number
+  paid: number
+  balanceDue: number
+  orderCount: number
+  pendingLab: number
+  readyLab: number
+}
+
+export interface TopCustomer {
+  name: string
+  total: number
+}
+
+export interface VoidSummary {
+  voidedCount: number
+  voidedNet: number
+}
+
+const n = (v: unknown): number => Number(v ?? 0) || 0
+
+/**
+ * supabase.rpc() returns a thenable builder, not a Promise, so the callback is
+ * typed as "awaitable" rather than as a Promise - the builder is missing
+ * catch/finally and is not assignable to one. The awaited shape is then stated
+ * explicitly.
+ */
+async function callReport<T>(
+  fn: () => PromiseLike<{ data: T | null; error: unknown }>,
+): Promise<T | null> {
+  const res = (await fn()) as { data: T | null; error: unknown }
+  if (res.error) {
+    if (isMissingRpc('report_', res.error as RpcErrorLike)) return null
+    throw res.error
+  }
+  return res.data ?? null
+}
+
+/** True when 016 is installed. Set once per session by the first call. */
+let reportingInDatabase = true
+export function isReportingInDatabase(): boolean {
+  return reportingInDatabase
+}
+
+export async function fetchReportTotals(
+  from: string | null,
+  to: string | null,
+): Promise<ReportTotals | null> {
+  const row = await callReport<Record<string, unknown>>(() =>
+    supabase.rpc('report_sales_window', { p_from: from, p_to: to }),
+  )
+  if (!row) {
+    reportingInDatabase = false
+    return null
+  }
+  return {
+    revenue: n(row.revenue),
+    paid: n(row.paid),
+    balanceDue: n(row.balance_due),
+    orderCount: n(row.order_count),
+    pendingLab: n(row.pending_lab),
+    readyLab: n(row.ready_lab),
+  }
+}
+
+export async function fetchTopCustomers(
+  from: string | null,
+  to: string | null,
+  limit = 5,
+): Promise<TopCustomer[] | null> {
+  const rows = await callReport<Record<string, unknown>[]>(() =>
+    supabase.rpc('report_top_customers', { p_from: from, p_to: to, p_limit: limit }),
+  )
+  if (!rows) {
+    reportingInDatabase = false
+    return null
+  }
+  return rows.map((r) => ({ name: String(r.full_name ?? '-'), total: n(r.revenue) }))
+}
+
+export async function fetchVoidSummary(from: string | null, to: string | null): Promise<VoidSummary | null> {
+  const row = await callReport<Record<string, unknown>>(() =>
+    supabase.rpc('report_voided_count', { p_from: from, p_to: to }),
+  )
+  if (!row) {
+    reportingInDatabase = false
+    return null
+  }
+  return { voidedCount: n(row.voided_count), voidedNet: n(row.voided_net) }
+}
+
+
 export interface SalesSummary {
   sales: Sale[]
   voided: Sale[]
