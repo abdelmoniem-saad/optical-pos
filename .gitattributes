@@ -9,3 +9,10 @@ web/supabase/baseline/*.sql -text
 # comparison fails against a schema that has not changed at all. Same reasoning
 # as the baseline dump above, so -text rather than eol=lf.
 web/supabase/schema.fingerprint -text
+
+# Shell scripts must be LF in the repository, always. core.autocrlf=true on
+# Windows would otherwise check them out with CRLF, and `bash script.sh` then
+# fails on a shebang carrying a stray CR. The stamp check is now a gate that runs
+# on every `npm run test:db`, so a checkout difference that breaks it on exactly
+# one developer's machine is a trap rather than an inconvenience.
+*.sh text eol=lf
