@@ -62,20 +62,35 @@ function isInvoiceNoConflict(
  * Lean sales feed for aggregate screens (Reports): header columns ONLY -
  * deliberately WITHOUT sale_items, which dominate the payload as data grows.
  * Years of orders stay a few hundred KB this way.
+ *
+ * `voided_at` is fetched AND filtered in the database. It has to be: a voided
+ * sale keeps its money columns (so the audit trail reads true), so a report
+ * that sums `net_amount` without this filter counts a void as REVENUE - the
+ * shop looks richer by exactly the amount it gave back. The partial index
+ * `sales_live_idx ... where voided_at is null` makes the filter free.
+ *
+ * The count of voided rows is returned alongside, so the screen can say
+ * "3 invoices voided" instead of quietly dropping them.
  */
+export interface SalesSummary {
+  sales: Sale[]
+  voided: Sale[]
+}
+
 export function useSalesSummary() {
   return useQuery({
     queryKey: KEY,
-    queryFn: async (): Promise<Sale[]> => {
+    queryFn: async (): Promise<SalesSummary> => {
+      const columns =
+        'id, invoice_no, customer_id, total_amount, discount, net_amount, amount_paid, order_date, delivery_date, lab_status, voided_at, void_reason'
       const { data, error } = await supabase
         .from('sales')
-        .select(
-          'id, invoice_no, customer_id, total_amount, discount, net_amount, amount_paid, order_date, delivery_date, lab_status',
-        )
+        .select(columns)
         .order('order_date', { ascending: false })
         .returns<Sale[]>()
       if (error) throw error
-      return data ?? []
+      const rows = data ?? []
+      return { sales: rows.filter((s) => !s.voided_at), voided: rows.filter((s) => !!s.voided_at) }
     },
   })
 }

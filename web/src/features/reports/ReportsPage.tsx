@@ -1,67 +1,12 @@
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { computeReport, type Period } from './computeReport'
 import { useSalesSummary } from '../../data/sales'
 import { useCustomers } from '../../data/customers'
 import { useInventory } from '../../data/inventory'
 import { useI18n } from '../../i18n/LanguageContext'
 import { usePaymentsRange } from '../../data/salesPayments'
 import { methodLabelKey, sumByMethod } from '../../lib/payments'
-import type { Customer, Product, Sale } from '../../lib/database.types'
-
-type Period = 'today' | 'month' | 'all'
-
-function computeReport(
-  allSales: Sale[],
-  customers: Customer[],
-  products: Product[],
-  period: Period,
-) {
-  const todayIso = new Date().toISOString().slice(0, 10)
-  const monthStart = todayIso.slice(0, 8) + '01'
-
-  let sales = allSales
-  if (period === 'today') sales = sales.filter((s) => (s.order_date ?? '').startsWith(todayIso))
-  else if (period === 'month') sales = sales.filter((s) => (s.order_date ?? '') >= monthStart)
-
-  const sum = (arr: Sale[], k: 'net_amount' | 'amount_paid') =>
-    arr.reduce((t, s) => t + Number(s[k] ?? 0), 0)
-
-  const totalRevenue = sum(sales, 'net_amount')
-  const totalPaid = sum(sales, 'amount_paid')
-
-  const todaySales = sales.filter((s) => (s.order_date ?? '').startsWith(todayIso))
-  const monthSales = sales.filter((s) => (s.order_date ?? '') >= monthStart)
-
-  const lab = sales.filter((s) => s.lab_status)
-  const pendingLab = lab.filter((s) => ['Not Started', 'In Lab', 'In Progress'].includes(s.lab_status ?? '')).length
-  const readyLab = lab.filter((s) => s.lab_status === 'Ready').length
-
-  const lowStock = products.filter((p) => (p.stock_qty ?? 0) < 5)
-
-  const totals = new Map<string, number>()
-  for (const s of sales) {
-    if (s.customer_id) totals.set(s.customer_id, (totals.get(s.customer_id) ?? 0) + Number(s.net_amount ?? 0))
-  }
-  const topCustomers = [...totals.entries()]
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 5)
-    .map(([id, total]) => ({ name: customers.find((c) => c.id === id)?.name ?? '-', total }))
-
-  return {
-    totalRevenue,
-    totalPaid,
-    balanceDue: totalRevenue - totalPaid,
-    orderCount: sales.length,
-    todayRevenue: sum(todaySales, 'net_amount'),
-    todayOrders: todaySales.length,
-    monthRevenue: sum(monthSales, 'net_amount'),
-    monthOrders: monthSales.length,
-    pendingLab,
-    readyLab,
-    lowStock,
-    topCustomers,
-  }
-}
 
 function Kpi({
   label,
@@ -105,7 +50,7 @@ export function ReportsPage() {
   const [period, setPeriod] = useState<Period>('all')
 
   const r = useMemo(
-    () => computeReport(sales.data ?? [], customers.data ?? [], inv.data ?? [], period),
+    () => computeReport(sales.data?.sales ?? [], customers.data ?? [], inv.data ?? [], period),
     [sales.data, customers.data, inv.data, period],
   )
 
@@ -144,6 +89,18 @@ export function ReportsPage() {
         <Kpi label={t('Pending Lab')} value={String(r.pendingLab)} color="#f57c00" to="/lab" />
         <Kpi label={t('Ready for Pickup')} value={String(r.readyLab)} color="#388e3c" to="/lab" />
       </div>
+
+      {/* A void is excluded from every number above - correctly, since its
+          money did not happen. It is shown here so a mistaken void cannot hide
+          as a quiet day. */}
+      {r.voidedCount > 0 && (
+        <div className="mb-4 rounded-xl border border-line bg-white p-4">
+          <p className="text-sm text-faint">
+            {t('Excluded from these totals')}: {r.voidedCount} {t('voided invoice')}{' '}
+            ({r.voidedNet.toFixed(2)})
+          </p>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div className="rounded-xl border border-warning/30 bg-warning-bg/40 p-4">

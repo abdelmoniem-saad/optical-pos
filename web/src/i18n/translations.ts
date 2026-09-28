@@ -184,6 +184,9 @@ export const ar: Record<string, string> = {
     'سجل الدفعات غير موجود - نفّذ ملف web/supabase/011_sale_payments.sql في محرر SQL بـ Supabase.',
   'By payment method': 'حسب طريقة الدفع',
   'No payments in this period.': 'لا توجد دفعات في هذه الفترة.',
+  // Phase 4 — a void is excluded from revenue but must stay visible
+  'Excluded from these totals': 'مستثناة من هذه الإجماليات',
+  'voided invoice': 'فاتورة ملغاة',
   // Migration 013 — voiding
   'Void': 'إلغاء',
   'Voided': 'ملغاة',
