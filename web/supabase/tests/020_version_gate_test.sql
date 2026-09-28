@@ -69,13 +69,29 @@ select throws_ok(
   'G-V3 the guard raises when a migration in the list has not recorded its version'
 );
 
--- G-V4. The message has to NAME the version, or an operator reading a failure at
+-- G-V4. The message has to NAME the file, or an operator reading a failure at
 -- 2am does not know which of twenty files is at fault.
+--
+-- throws_ok compares the message by EXACT equality - not as a regex, not as a
+-- LIKE pattern - so this is the whole message rather than the
+-- `version(s) for: 021` fragment a pattern match would have accepted. CI run #92
+-- cost a build to exactly that assumption: the fragment was written escaped for
+-- a pattern, pgTAP read it as literal text (backslashes included), and the
+-- assertion failed against a guard that was working perfectly. pgTAP spells
+-- pattern matching separately (throws_like/throws_matching); this repo stays on
+-- the exact form because every patterned form is one more call shape to get
+-- wrong, and G-P6 in the 018 gate has already proved the exact form goes green.
+--
+-- 020 builds the message as
+--   'migration ledger is missing version(s) for: %  (highest migration applied is %)'
+-- with v_missing = the absent filenames (only 021_e.sql by now: 017-020 are in
+-- the ledger) and v_expected = 21. The two spaces after the first % are in that
+-- format string, so they are in this expectation too.
 select throws_ok(
   $$select public.assert_versions_recorded(array['017_a.sql', '018_b.sql', '019_c.sql', '020_d.sql', '021_e.sql'])$$,
   'P0001',
-  'migration ledger is missing version\(s\) for: 021',
-  'G-V4 the message names the missing version, so it says which file is at fault'
+  'migration ledger is missing version(s) for: 021_e.sql  (highest migration applied is 21)',
+  'G-V4 the message names the missing file, so it says which file is at fault'
 );
 
 -- ===== G-V2: and it stays quiet when everything IS recorded =============
