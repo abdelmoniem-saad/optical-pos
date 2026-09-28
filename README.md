@@ -26,7 +26,11 @@ only UI (see [History](#history)).
   contact lens), history and reuse, prescription image attachments
 - **Inventory** — product catalog, stock movements (sale, purchase,
   adjustment…), optical metadata (lens/frame types, colors) with drag-sort
-- **Customers** — CRM with order history, balances and examination history
+- **Customers** — CRM with order history, examination history, and per-customer
+  balances (what they owe) since migration `018_purchase_stock.sql` — the balance
+  was listed here before it existed
+- **Suppliers** — shipments, a payment ledger, and receiving a delivery into stock
+  (also `018`; before it, a recorded purchase never moved stock)
 - **Lab** — order status pipeline (Not Started → In Lab → Ready → Received)
   with lab-copy printing
 - **Sales history** — search/filter invoices, record extra payments, reprint
@@ -118,6 +122,10 @@ Migrations run in numeric order in the Supabase SQL editor:
 | 012 | `012_integrity.sql` | Server-side checkout pricing + stock guard, atomic invoice counter, checkout idempotency, `stock_qty` read model |
 | 013 | `013_void_refunds.sql` | Voiding (an event, never a delete), refunds in the payment ledger, atomic re-checkout, direct `DELETE` revoked on the seven money tables, line-level discounts |
 | 014 | `014_server_rbac.sql` | `resolve_can` / `require_perm` in SQL, the three RBAC tables under tenant policies, store resolution without the email-username fallback, `audit_log` |
+| 015 | `015_link_staff_ids.sql` | Repairs a staff row whose id disagrees with its login, in both directions; refuses anything ambiguous |
+| 016 | `016_reporting.sql` | Server-side reports, one store-timezone definition of "today", indexed substring search |
+| 017 | `017_schema_version.sql` | The database records which migrations it absorbed, so the app can say when it is behind |
+| 018 | `018_purchase_stock.sql` | Receiving a delivery into stock (idempotent, weighted-average cost), and per-customer balances / debtor list |
 
 > **Note on 000:** it is the original bootstrap the app shipped with. The live
 > project has drifted from it (e.g. Supabase Auth now owns passwords, not the

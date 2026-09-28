@@ -330,6 +330,73 @@ await supabase.functions.invoke('create-user', {
 
 Expect `insufficient permission: staff.create` (403) and
 `no store for the signed-in user` where applicable.
+## Step 13 - `018_purchase_stock.sql` (receiving stock, and customer balances)
+
+Two things the app was doing wrong without saying so.
+
+**Receiving a shipment does not add stock.** The Suppliers screen recorded a
+purchase as a total, with no products attached to it, so there was nothing for
+the database to receive and the inventory number never moved. The money left,
+the invoice is in the ledger, and the stock count at closing disagrees with the
+delivery note. 018 adds a *Receive* action that writes the stock movements in the
+same transaction as the receipt:
+
+```sql
+select public.receive_purchase('<purchase-id>');   -- returns lines received
+```
+
+Run it once per shipment. Running it twice is safe — lines already received are
+skipped, so a retry or a double-tap cannot count your stock twice. A purchase
+with lines still unreceived is stock you have paid for and not counted, and the
+Suppliers screen now shows that.
+
+Prices come along too: an item's cost becomes a **weighted average** when it
+arrives, so re-ordering at a new price does not change the margin on stock you
+already hold.
+
+**Customer balances.** "What does this customer owe?" had no answer — the
+payment ledger existed but nothing totalled it per customer. Now:
+
+```sql
+select * from public.customer_balance('<customer-id>');   -- balance_due, lifetime
+select * from public.customer_debtors(null, null, 50);     -- who owes, largest first
+```
+
+`balance_due` is the live debt. Voided invoices are **excluded** — cancelling
+an invoice clears what is owed rather than leaving the customer in debt forever.
+Refunds are counted, so returning 200 EGP reduces what they owe by 200.
+
+**The app is safe if you skip this.** Nothing in the app requires these
+functions; the Suppliers screen simply keeps the old behaviour of recording a
+total without touching stock, and the customer screen shows no balance.
+
+Its gate is [`tests/018_purchase_stock_test.sql`](./tests/018_purchase_stock_test.sql)
+(17 assertions), also run by `npm run test:db` and CI.
+
+## Step 14 - Offline checkout queue (no SQL)
+
+There is no migration for this one. Before it, the app told staff *"Changes will
+sync when you reconnect"* and nothing implemented it: a sale rung up while
+offline was **lost**, while the banner said it was safe. That promise is now
+removed — the banner says a new sale cannot be saved while offline, which is
+what actually happens.
+
+Checkout is now genuinely queued: complete a sale offline and it is held on the
+device, then sent when the connection returns. It cannot be lost or duplicated,
+because every checkout already carries an idempotency key (migration 012), so a
+resend returns the original sale instead of creating a second one. Until the
+replay lands, the screen says *"Saved on this device. It will sync to the shop
+when you reconnect."*
+
+Only **checkout** is queued. Voiding a sale, deleting a shipment or adding staff
+still fail loudly while offline, on purpose: those are decisions made against
+what you could see, and replaying them minutes later would apply them to a shop
+that has moved on.
+
+**Check it worked:** open the app, put the tablet in airplane mode, complete a
+checkout, and reload. The sale should still be listed as pending, and appear
+normally once you go back online.
+
 ## Schema baseline (recommended, ~2 minutes)
 
 The hardening roadmap (Phase 0) wants a `pg_dump` of the **live** `public`

@@ -715,16 +715,55 @@ can differ, and nothing will ever notice.
 Nothing here is possible *safely* today, which is why it sits last. Once Phase 1–2 land, each
 item is a small RPC plus a screen.
 
-| Capability | What it needs from earlier phases |
-|---|---|
-| **Offline queue + replay** | Phase 1 idempotency + server re-pricing. `lib/queryClient.ts:19-20` already admits "full offline-write support (queue + sync) is Phase 7" while `OfflineBanner` promises syncing — today a sale made while the browser is offline is simply lost or duplicated. |
-| **Customer ledger & statements** | `sale_payments` already exists; needs `customer_balance(p_customer)` + a statement screen and a part-payment reminder list. Today there is no way to answer "what does this customer owe?". |
-| **Day / shift close (Z report)** | `paid_at` as `timestamptz` + voids (Phase 2) + server aggregation (Phase 4). |
-| **Purchase receiving → stock** | Link `purchase_items` receipt to `stock_movements` with cost, so `sale_price`/cost margin becomes real and supplier balances are computable. |
-| **Lab as line items** | Lab cost per lens into margin, plus `lab_status_changed_at` so "Ready 3 days ago" is measurable. `LAB_STATUSES` (`web/src/data/sales.ts:647-659`) is already the single vocabulary to hang that on. |
-| **Audit log** | Trigger-fed `audit_log (who, table, row, action, when)` — build it *before* adding more permissions, so Phase 3's changes are reviewable. |
-| **Receipt share / thermal print** | `features/pos/receipt.ts` already has tested formatting; add share-to-WhatsApp and a 80 mm print stylesheet. |
-| **Consolidated multi-store reporting** | Platform-admin view across tenants, now that store scoping is trustworthy. |
+> **Re-scoped after reading the code, not just this table.** Three of the seven items were
+> mis-filed: two were **defects wearing a feature's clothes**, and one was **already shipped**.
+> The original order put new screens in front of a data-loss bug, so the order below is by
+> risk, not by appeal.
+>
+> - [x] **Audit log** — **already done, in Phase 3.** `014_server_rbac.sql` has `audit_log` with
+>   a trigger, RLS, three indexes and a gate assertion. The row was stale; deleting it rather
+>   than re-implementing it.
+> - [x] 🔴 **The offline banner was a false promise** — *not a capability, a defect*.
+>   `OfflineBanner` told staff "Changes will sync when you reconnect" and there was **no write
+>   queue anywhere** (zero matches for `setMutationDefaults` / `networkMode`). A sale rung up on
+>   wifi was silently lost while the banner said it was safe — the same category as the
+>   `Date.now()` invoice number Phase 5 removed. The copy now states the truth, and checkout is
+>   genuinely queued (`lib/offlineMutations.ts`, `queryClient.ts:26`).
+> - [x] 🔴 **Receiving a purchase did not add stock** — *not a capability, a data-loss bug, and
+>   worse than recorded*. `useAddPurchase` wrote a `purchases` row and nothing else, and
+>   `purchase_items` was **never written by the app at all** — a shipment was a bare total with
+>   no products, so there was no line to receive and `stock_qty` never moved. Now
+>   `receive_purchase()` (`018`), idempotent and row-locked, plus `received_at` so an
+>   unreceived shipment is visible rather than merely unpaid.
+> - [x] 🟠 **Customer ledger & statements** — `sale_payments` existed since 011 and nothing
+>   aggregated it; the README claimed balances that did not exist. `customer_balance()` /
+>   `customer_debtors()` (`018`), tenant-scoped as functions rather than views, because a report
+>   nobody can scope eventually leaks.
+> - [ ] **Day / shift close (Z report)** — now cheap: `paid_at` is a `timestamptz` (013), voids
+>   net correctly (016), and 018's `customer_debtors` demonstrates the windowed aggregate.
+> - [ ] **Lab as line items** — `useSetLabStatus` (`data/sales.ts:880`) writes a bare string and
+>   there is no `lab_status_changed_at`, so "Ready 3 days ago" is unmeasurable. `LAB_STATUSES`
+>   (`data/sales.ts:918`) is already the one vocabulary to hang it on.
+> - [ ] **History cursor paging** — still offset-based (`data/sales.ts:333`), deferred from
+>   Phase 4. Only bites once two registers write concurrently.
+> - [ ] **Receipt share / thermal print** — `features/pos/receipt.ts` has tested formatting;
+>   share-to-WhatsApp and an 80 mm stylesheet are additive.
+> - [ ] **Consolidated multi-store reporting** — platform-admin view, now that store scoping
+>   is trustworthy.
+
+**Deliberately deferred:** true offline-first (conflict-merged) data model — queue-and-replay
+covers the real need at 1/10 the cost; realtime two-register sync; Playwright end-to-end.
+
+**Scope note on the queue.** Checkout is the *only* queued mutation, and that is a decision
+rather than a default. Voiding, deleting a purchase and creating a user are choices made against
+a view of the world that has since moved on; replaying them minutes later would apply them to a
+state that no longer exists. Those keep failing loudly. Extending the queue is a per-mutation
+judgement, never a blanket default.
+
+> **Not verified here:** the 018 gate (17 assertions) is proven by CI only — no Docker or
+> Postgres on the dev machine, and the EDB installer is 403 behind this network. The
+> offline→reconnect cycle needs a live project and a network toggle, so `SETUP.md` step 14
+> carries the manual probe.
 
 ---
 
@@ -871,6 +910,7 @@ map of what each file is responsible for, so a review can tell which phase owns 
 | `supabase/config.toml` *(repo root)* | CLI project root; `verify_jwt = true` for `create-user` | Split from the SQL in `web/supabase/` — adopting the CLI migrations is deferred to a separate PR |
 | `017_schema_version.sql` | `schema_version()` + the `lensy_schema_versions` ledger (RLS on, no direct read) | Implemented — gate: `tests/017_schema_version_test.sql` (14 assertions) |
 | `web/scripts/schema-fingerprint.sh` | `pg_dump --schema-only` hash of the public schema, compared in CI | Phase 5 drift check — replaces `supabase gen types`, which cannot run without a live project or the Supabase container stack |
+| `018_purchase_stock.sql` | `receive_purchase()` (idempotent, row-locked, weighted-average cost) + `customer_balance()` / `customer_debtors()`, and `purchase_items.received_at` | Phase 6 — fixes a recorded purchase never moving stock, and the missing answer to "what does this customer owe?" |
 | `supabase/functions/create-user/index.ts` | Creates an Auth user + mirrors it into `public.users` using the service-role key | JWT-only gate, caller-supplied `role_id`/`store_id` — Phase 3 |
 | `web/supabase/tests/_shim.sql`, `tests/012_integrity_test.sql` | Plain-Postgres shims (roles, `auth/`, `storage/`, pgTAP) + the Phase 1 gate (26 assertions) | Run by `npm run test:db` and CI job `db` — no live project touched |
 | `web/supabase/baseline/schema_after_012.sql` | Live `pg_dump --schema-only` of `public`, captured in CI | The **after-012** reference snapshot (012 was already applied when captured) — the diff base for `013`+. Supersedes the drifting `000_base_schema.sql`; Phase 5 turns the drift check into a job |
