@@ -149,6 +149,82 @@ export function useAddPurchase() {
   })
 }
 
+/** One line of a purchase: which product, how many, at what cost. */
+export type PurchaseItem = {
+  product_id: string
+  qty: number
+  unit_cost: number
+  total_cost: number
+}
+
+export type PurchaseItemInsert = PurchaseItem & { purchase_id: string }
+
+/** Receive a shipment into stock (migration 018).
+ *
+ *  Until this existed the app recorded a purchase as a bare TOTAL and never
+ *  wrote a single `purchase_items` row, so there was no line for the database
+ *  to receive and `stock_qty` never moved: the shop paid for frames, the money
+ *  left, and the inventory screen disagreed with the delivery note. Returns how
+ *  many lines were received so the UI can say "10 items" rather than implying
+ *  the whole shipment was received. */
+export function useReceivePurchase() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (purchaseId: string): Promise<number> => {
+      const { data, error } = await supabase.rpc('receive_purchase', { p_purchase: purchaseId })
+      if (error) {
+        // A pre-018 database has no such function. Say so by name rather than
+        // surfacing a raw "does not exist" — the operator needs to know which
+        // file to paste.
+        if (isMissingRpc('receive_purchase', error)) {
+          throw new Error('Receiving stock needs migration 018_purchase_stock.sql.')
+        }
+        throw error
+      }
+      return typeof data === 'number' ? data : 0
+    },
+    onSuccess: () => {
+      // Stock moved and costs may have been re-averaged, so every inventory
+      // view is now stale. Both keys, not just purchases.
+      qc.invalidateQueries({ queryKey: PURCHASES_KEY })
+      qc.invalidateQueries({ queryKey: ['inventory'] })
+    },
+  })
+}
+
+/** Add the line items for a purchase, then receive them in one action.
+ *
+ *  Inserting the lines and receiving are two calls, so a failure between them
+ *  would leave a shipment recorded but not on the shelf. That is recoverable —
+ * `receive_purchase` skips lines already stamped, so pressing Receive again
+ * picks up exactly what is outstanding — and the UI shows the difference. Doing
+ * it in one mutation keeps the shop from counting frames twice. */
+export function useAddPurchaseWithItems() {
+  const qc = useQueryClient()
+  const addPurchase = useAddPurchase()
+  const receive = useReceivePurchase()
+  return useMutation({
+    mutationFn: async (input: {
+      purchase: PurchaseInsert
+      items: PurchaseItem[]
+    }): Promise<{ purchase: Purchase; received: number }> => {
+      const purchase = await addPurchase.mutateAsync(input.purchase)
+      if (!input.items.length) return { purchase, received: 0 }
+
+      const rows: PurchaseItemInsert[] = input.items.map((i) => ({
+        ...i,
+        purchase_id: purchase.id,
+      }))
+      const { error } = await supabase.from('purchase_items').insert(rows)
+      if (error) throw error
+
+      const received = await receive.mutateAsync(purchase.id)
+      return { purchase, received }
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: PURCHASES_KEY }),
+  })
+}
+
 // ---- payment ledger (migration 003) ----
 
 /** Every recorded payment - powers the per-supplier outstanding badges. */
