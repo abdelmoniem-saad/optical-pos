@@ -28,13 +28,19 @@ order: **push every rule into Postgres, then let the app trust it.**
 
 | Layer | What exists | Notes |
 |---|---|---|
-| Schema | `web/supabase/000…011_*.sql` — 12 migrations, flat files | applied by pasting into the Supabase SQL Editor (`SETUP.md`) |
+| Schema | `web/supabase/000…022_*.sql` — 23 migrations, flat files | applied by pasting into the Supabase SQL Editor (`SETUP.md`) |
 | Tenancy & licensing | `008`, `009` + `lib/licensing.ts` | `store_id` on every table, `auth_store_id()`, read/write license gates via RLS |
 | Checkout | `data/sales.ts`, RPC `002`→`011`, `features/pos/*` | atomic RPC **with a non-atomic client fallback** |
 | Payments | `011`, `data/salesPayments.ts`, `lib/payments.ts` | ledger + sync trigger + split tenders — solid foundation |
 | Screens | POS wizard, History, Lab, Inventory, Purchasing, Reports, Customers, Staff/RBAC, Notes, Platform, Mobile upload, Settings | all functional |
-| Tests | 9 Vitest files, **pure functions only** | `pricing`, `payments`, `receipt`, `posDraft`, `enterNav`, `types`, `permissions`, `sales`, `translations` |
-| CI | **none** — there is no `.github` directory | nothing runs `tsc`, `oxlint`, or `vitest` automatically |
+| Tests | **16 Vitest files, 163 tests, pure functions** — plus **11 pgTAP gates, 240 assertions**, which do touch Postgres | Vitest: `pricing`, `payments`, `receipt`, `posDraft`, `enterNav`, `types`, `permissions`, `sales`, `translations`, `schemaVersion`, `reportRpc`, `createUserAuthz`, `offlineMutations`. pgTAP: `012`–`022` |
+| CI | `.github/workflows/ci.yml` — two jobs, green on every push | `web` runs `tsc -b`, `oxlint`, `vitest`, `build`; `db` applies 000–022 to a throwaway Postgres, runs `check-migrations-stamp.sh`, the pgTAP suite, and the schema-fingerprint drift check |
+
+> **This table is an audit snapshot taken before any of the work below, and it is
+> kept as written rather than quietly updated** — except where a row was so wrong it
+> would mislead (CI, Tests, Schema). Phases 0–5 are all implemented; the ✅/❌ marks
+> and the "none" entries above are the state *before* the roadmap was executed, which
+> is what an audit is for. The current state is §11 and the phase notes.
 
 ### What is genuinely good (keep it)
 
@@ -973,6 +979,93 @@ judgement, never a blanket default.
 > still reporting zero mojibake. The naive version would have passed the obvious check and
 > destroyed the document. Verified instead by byte-comparing 1014 of 1078 roadmap lines against
 > the last known-good historical revision.
+>
+> **Phase 6 · 022 — the last open Phase-4 money item turned out not to be about money, and
+> reading the code was cheaper than fixing it.** The audit filed "standalone prescriptions
+> create zero-total sales" as 🟠 under Phase 4. It is not a money defect at all: 016's
+> `report_sales_window` sums `net_amount`, so a zero-total row contributes 0 to revenue, and
+> the `PRESC-` invoice namespace it referenced was already gone in Phase 1. What was actually
+> wrong is narrower and duller — `order_count` was `count(*)`, so "Orders today: 12" counted
+> prescriptions nobody paid for, and each one consumed an invoice number from the shared
+> counter, leaving gaps that read like lost business.
+>
+> **Over-scoping this would have been the expensive mistake.** The obvious fix — exclude the
+> row everywhere it appears — would have understated the lab queue, because a prescription is a
+> genuine job waiting to be made. 022 excludes it from exactly one number, and the gate proves
+> both halves: the prescription is gone from `order_count` (G-K8) and still counted as pending
+> lab (G-K9), with revenue and paid unmoved (G-K10). Those three assertions are the fix; the
+> other fourteen are about not breaking the other nine gates.
+>
+> **`kind` is whitelisted in SQL rather than trusted, and the second half matters more than the
+> first.** `create_sale_order` exists because it does not trust the browser — it re-prices the
+> cart and re-totals the header — and `jsonb_populate_record` would have copied a client-sent
+> `kind` of anything. So the RPC re-derives it. Validating only against a whitelist would still
+> have been exploitable in the direction that matters: claim `prescription` on a *real* order and
+> it drops out of the count, hiding a sale. Requiring a cart worth *nothing* is what closes
+> that (G-K7), and a check constraint means the property survives a future edit to the function
+> (G-K11) — a security property living only in application code is one refactor from gone.
+>
+> **Runs #104–#106, and the middle one is the most valuable thing in this section — because it
+> was not a mistake in the new code. It was a mistake in how the new code was written.**
+>
+> - **#104 — `syntax error at end of input`.** The migration had been assembled with three
+>   `insert_line` edits whose line numbers went stale as earlier inserts grew the file, so the
+>   chunks interleaved and the report function landed inside the checkout function's body. My
+>   pre-commit check was *"are the quote counts balanced"* — and they were. **The file was
+>   structurally wrong while every count matched.** Rebuilt by appending strictly at EOF.
+> - **#105 — an old gate caught a regression in code the new gate does not test.**
+>   `013`'s gate went red: `G7b the line discount is stored on the item | have 0.00 | want 100`.
+>   022 had redefined `create_sale_order` from **012's** body — but 013 redefined it onto the
+>   shared `price_cart()` core to add line-level discounts, refund tenders and a per-line
+>   `paid_at`. So 022 silently reverted a shipped Phase 2 feature.
+>
+>   The 022 gate was green on the very rows that were mispriced, because it does not test line
+>   discounts. **This is the entire argument for running every gate on every change**, and it is
+>   the one thing a new gate can never do for itself.
+>
+>   The cause was a check that was right against the wrong file. I diffed the new function
+>   against 012 and reported "only the four intended differences" — true, and irrelevant, because
+>   **013 is the live definition**. Redone against 013, the diff is exactly `v_kind`, the
+>   whitelist block, and `kind` in the header insert. *When re-declaring a function that later
+>   migrations have already redefined, diff against the last migration that touched it, not the
+>   one you remember.* Two migrations redefine `create_sale_order` (012 and 013); I read the
+>   wrong one.
+>
+> - **#105 also — the same interleaving hit the gate**: assertions out of order, no
+>   `finish()`/`rollback()` at the end, and a literal written `'''sale''::text` where six quote
+>   characters were needed — a *syntax* error rather than a failed assertion, so it aborted the
+>   file outright. Now `quote_literal()`, so the escaping is the database's problem.
+>
+> **What I would do differently, having made this mistake twice in one sitting:** verify
+> *structure*, not totals. Both failures passed a count check — quote parity, then "the diff is
+> only my four lines". The checks that would have caught them are cheap: section markers in
+> ascending order, `plan(n)` re-derived from the assertions rather than remembered, `finish()`
+> before `rollback()`, and a diff against the file that *currently* defines the function.
+>
+> - **#106–#110 — the same lesson four more times, and then a fixture bug that was mine.**
+>   #106 `control reached end of function without RETURN` (the splice ate `return v_sale;`);
+>   #107 an unclosed `$$` body in the gate plus a stray `end $$;` after `rollback;`;
+>   #108 `is(information_schema.character_data, …) does not exist` — the Phase 5 trap again, a
+>   domain compared without a cast, reported as though an extension were missing; #109 G-K2
+>   comparing information_schema's *rendering* of the default (`'sale'::text`, cast suffix and
+>   all) against a hand-built string. Five failures in a row, every one of them a **shape the
+>   expectation takes rather than a shape the thing under test has.** Not one assertion was
+>   wrong about the migration.
+>   #109 also exposed a fixture bug worth keeping: switching the gate to its **own** store
+>   meant creating one, which meant **licensing** it — `create_sale_order` is SECURITY INVOKER,
+>   so its `sales` insert goes through RLS and 008:452 gates that on `license_write_ok()`.
+>   Unlicensed, every checkout would have been refused and G-K4 would have been asserting that a
+>   refusal is a success. That is run #76's failure mode wearing new clothes, and the only
+>   reason I caught it is that I checked the policy instead of assuming a report function's
+>   licence-blindness carried over to the write path.
+>
+> **CI run #110: all 11 gates green** — 022's 18 assertions, and 012–021's 231 unchanged. The
+> only failure was the schema fingerprint, which is the drift check doing precisely its job:
+> 022 really did add a column, a constraint and two function bodies. Baseline re-recorded from
+> the **step summary** after reviewing that the diff was exactly those four objects and nothing
+> else — the value was not taken from the artifact, per the rule that stale artifacts are
+> indistinguishable from fresh ones.
+
 
 ---
 
@@ -996,20 +1089,24 @@ Deferred on purpose, with the trigger that should bring each one back:
 
 ## 11. Testing strategy (the actual deliverable of every phase)
 
-The repo has **9 Vitest files, all pure functions**:
-`data/permissions.test.ts`, `data/sales.test.ts`, `features/pos/enterNav.test.ts`,
-`features/pos/pricing.test.ts`, `features/pos/receipt.test.ts`, `features/pos/types.test.ts`,
-`i18n/translations.test.ts`, `lib/payments.test.ts`, `lib/posDraft.test.ts`.
-They are good tests of arithmetic and string building. **None of them touches Postgres**, so
-nothing in the database has ever been tested — which is exactly where the money defects live.
+**This section as originally written said the repository had 9 Vitest files, all pure functions,
+and that "none of them touches Postgres, so nothing in the database has ever been tested."** That
+was true in the audit and stopped being true in Phase 1. The sentence survives as the reason the
+pgTAP suite exists; what it must not do is imply the gap is still open. The database is now
+covered by 11 gates and 240 assertions — and it is the layer where every money defect in this
+document lived, which is the whole argument of the roadmap.
+
+The audit's original inventory: `data/permissions`, `data/sales`, `features/pos/{enterNav,
+pricing,receipt,types}`, `i18n/translations`, `lib/{payments,posDraft}`. Added since:
+`lib/schemaVersion`, `data/reportRpc`, `lib/createUserAuthz`, `lib/offlineMutations`.
 
 | Layer | Tool | Covers | Status |
 |---|---|---|---|
-| Pure logic | Vitest (`npm run test`) | pricing, receipt text, payment split maths, draft shape | ✅ exists |
-| **Database** | **pgTAP** (`npm run test:db`) | re-priced totals, stock guard, invoice uniqueness, idempotency, constraints | ✅ Phase 1 (26 assertions, CI `db` job) |
-| **Authorisation** | pgTAP + REST probe with a cashier JWT + one `create-user` invocation | RLS matrix per role × table, denied deletes, denied cross-store reads, denied admin minting | ❌ Phase 2/3 |
-| Migration safety | `supabase db push` on a preview project + `pg_dump` diff | drift between live and repo | ❌ Phase 5 |
-| Query cost | `EXPLAIN (ANALYZE)` assertions in pgTAP | no seq scans on the hot paths | ❌ Phase 4 |
+| Pure logic | Vitest (`npm run test`) | pricing, receipt text, payment split maths, draft shape, report-RPC shape | ✅ 16 files, 163 tests |
+| **Database** | **pgTAP** (`npm run test:db`) | re-priced totals, stock guard, invoice uniqueness, idempotency, constraints, voids, refunds, RBAC, receiving, customer balances, lab dwell, the version ledger, `sales.kind` | ✅ 11 gates, 240 assertions, CI `db` job |
+| **Authorisation** | pgTAP, impersonating a real cashier JWT via `set role` + `set_config` | RLS matrix per role × table, denied deletes, denied cross-store reads, denied admin minting, denied reads of another store's closes | ✅ Phase 2/3 — `013` (54), `014` (33), `015` (13) |
+| Migration safety | `scripts/check-migrations-stamp.sh` (files) + `assert_versions_recorded()` (ledger) + a `pg_dump` fingerprint in CI | an unstamped migration is a red build; a schema that drifts from the repo fails the build | ✅ Phase 5/6 — the fingerprint baseline is recorded and enforcing |
+| Query cost | structural assertions (the partial index exists, its predicate is the void filter) | no seq scans on the hot paths | ◐ Phase 4 — asserted structurally, **not** measured against a 50k-row dataset |
 | UI smoke | Vitest + testing-library | checkout wizard renders, void dialog | optional |
 
 **Rules for this roadmap:**
@@ -1065,7 +1162,7 @@ Every row is a finding from the audit with its evidence. Phase column = where it
 | POS · Checkout | Order-editor patch can rewrite `net_amount` / `amount_paid`, bypassing the ledger | `data/sales.ts:662-700` (`:691`) | 2 |
 | POS · Checkout | No line-level discount (order-level only) | `sale_items` columns | 2 |
 | POS · Checkout | Payment timestamp is a `date`, not a `timestamptz` | `sale_payments` DDL in `011` | 2 |
-| POS · Checkout | Standalone prescriptions create zero-total sales with a `PRESC-<epoch36>` invoice | `data/sales.ts:704-734`, `:717` | 4 |
+| POS · Checkout | ~~Standalone prescriptions create zero-total sales with a `PRESC-<epoch36>` invoice~~ **Phase 6 / 022** — the invoice namespace is gone (012), and `sales.kind` now marks the row so it is not counted as a billable order. *Corrected on review: revenue was never wrong* (016 sums `net_amount`, so a zero row adds 0). The real damage was `order_count` being `count(*)` — "orders today" counted prescriptions nobody paid for — and an invoice number consumed by non-sales | `data/sales.ts:1159` (`useAddStandalonePrescription`); gate: `tests/022_sales_kind_test.sql` (17 assertions) | 4→6 |
 | History | Paging is correct (server-filtered, 50/page) but offset-based, so concurrent inserts can shift rows between pages | `data/sales.ts:103-119` | 4 |
 | History | Range filter sends naive `${localDate()}T00:00:00` strings | `data/sales.ts:118-119` | 4 |
 | Inventory | Stock is a browser-side sum of **all** movement rows | `data/inventory.ts:15-37` | 1 |
@@ -1122,6 +1219,7 @@ map of what each file is responsible for, so a review can tell which phase owns 
 | `018_purchase_stock.sql` | `receive_purchase()` (idempotent, row-locked, weighted-average cost) + `customer_balance()` / `customer_debtors()`, and `purchase_items.received_at` | Phase 6 — fixes a recorded purchase never moving stock, and the missing answer to "what does this customer owe?" |
 | `019_lab_dwell.sql` | `lab_status_changed_at` / `lab_started_at` / `lab_ready_at` (trigger-maintained; the last two written ONCE) + `lab_queue()` | Phase 6 - makes "how long has this job been waiting?" answerable at all |
 | `020_version_gate.sql` | Backfills the ledger for 018/019, adds `assert_versions_recorded()` (raises, not returns false), and `scripts/check-migrations-stamp.sh` makes an unstamped migration a red build | Phase 6 - the drift check was the blind spot: 018/019 shipped without recording themselves, so a fully-migrated shop was indistinguishable from a shop stuck at 017 |
+| `022_sales_kind.sql` | `sales.kind` ('sale' \| 'prescription', NOT NULL defaulting to 'sale', constrained) + a re-derivation of the kind inside `create_sale_order`, and `order_count` narrowed to `kind = 'sale'` | Phase 6 — the last open Phase-4 item, and **not** the money bug the audit recorded: revenue was always right, because a zero-total row adds 0. `order_count` was `count(*)` |
 | `supabase/functions/create-user/index.ts` | Creates an Auth user + mirrors it into `public.users` using the service-role key | JWT-only gate, caller-supplied `role_id`/`store_id` — Phase 3 |
 | `web/supabase/tests/_shim.sql`, `tests/012_integrity_test.sql` | Plain-Postgres shims (roles, `auth/`, `storage/`, pgTAP) + the Phase 1 gate (26 assertions) | Run by `npm run test:db` and CI job `db` — no live project touched |
 | `web/supabase/baseline/schema_after_012.sql` | Live `pg_dump --schema-only` of `public`, captured in CI | The **after-012** reference snapshot (012 was already applied when captured) — the diff base for `013`+. Supersedes the drifting `000_base_schema.sql`; Phase 5 turns the drift check into a job |
