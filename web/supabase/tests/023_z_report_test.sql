@@ -318,7 +318,11 @@ select throws_ok(
 -- direct read for a client, so asking as authenticated would report an empty
 -- ledger and pass for the wrong reason.
 reset role;
-select is((select max(version) from public.lensy_schema_versions), 23::int,
+-- 'at least', NOT 'equals' - written that way from the start because CI run
+-- #112 proved the cost of getting it wrong, in 022's gate, on the very run that
+-- introduced this migration. `= 23` would expire the moment 024 is written, and
+-- the cost would be a red build for a schema nobody had broken.
+select ok((select max(version) from public.lensy_schema_versions) >= 23,
   'G-Z14 023 recorded its own version, so the drift banner can fire');
 
 select * from finish();

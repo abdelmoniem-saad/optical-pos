@@ -294,7 +294,14 @@ select is((select pending_lab from public.report_sales_window(null, null)), 4::b
 -- on and no direct read for a client, so asking as `authenticated` would report
 -- an empty ledger and pass for the wrong reason.
 reset role;
-select is((select max(version) from public.lensy_schema_versions), 22::int,
+-- 'at least', NOT 'equals'. This gate was written as `= 22` and CI run #112
+-- failed it the moment 023 was added: asserting that 022 is the NEWEST
+-- migration makes the gate expire on the next one, which is precisely the trap
+-- 020's own G-V6b had already been relaxed out of for the same reason. What is
+-- worth asserting here is that 022 RECORDED ITSELF. '022 is the newest' is a
+-- true fact about today that is false the moment anyone writes 024, and that
+-- half lives in schemaVersion.test.ts, where EXPECTED_SCHEMA_VERSION is pinned.
+select ok((select max(version) from public.lensy_schema_versions) >= 22,
   'G-K13 022 recorded its own version, so the drift banner can fire');
 
 select * from finish();
