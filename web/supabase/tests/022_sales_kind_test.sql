@@ -55,20 +55,32 @@ create extension if not exists pgtap;
 select plan(18);
 
 -- ===== fixtures ==============================================================
--- A second store, for the isolation assertion.
---
--- It is deliberately NOT licensed, and an earlier draft of this file claimed it
--- had to be - on the theory that an unlicensed store would make the assertion
--- pass for the wrong reason, as run #76 did over license_write_ok. That is wrong
--- here: report_sales_window scopes by auth_store_id() alone and never consults
--- the licence, so a licence on this row would change nothing. The isolation is
--- proved by the store_id match and nothing else.
+-- Two stores, both created here: the one under test and a rival. Nothing is
+-- seeded into either, so every number below is attributable to the rows this gate
+-- writes - which is the assumption 016 also makes, and the reason it uses its own
+-- store rather than the seeded one.
 insert into public.stores (id, name) values
+  ('cccccccc-cccc-4ccc-8ccc-000000000011', 'kind store'),
   ('cccccccc-cccc-4ccc-8ccc-000000000022', 'other store')
   on conflict (id) do nothing;
 
+-- A fixed uuid rather than "the first store by created_at": the gate's subject is
+-- a COUNT, and a count is only attributable if the store it counts is named.
 create function k_store() returns uuid
-  language sql stable as $$ select id from public.stores order by created_at limit 1 $$;
+  language sql stable as $$
+  select 'cccccccc-cccc-4ccc-8ccc-000000000011'::uuid $$;
+
+-- BOTH stores are licensed, and the rival is licensed for the same reason 018
+-- licensed its rival (run #76): create_sale_order is SECURITY INVOKER, so its
+-- insert into sales goes through RLS, and 008:452 gates that on
+-- license_write_ok(). An unlicensed store would have every checkout refused -
+-- and then G-K4 "a real checkout is stored as sale" would have been asserting
+-- that a refusal is a success. Licensing the rival as well keeps G-K12 proving
+-- tenancy rather than licensing.
+insert into public.store_licenses (store_id, license_key, plan, expires_at)
+values (k_store(), 'STORE-KIND', 'pro', null),
+       ('cccccccc-cccc-4ccc-8ccc-000000000022', 'STORE-RIVAL', 'pro', null)
+on conflict (store_id) do nothing;
 
 -- A cashier for the seeded store, and one lens to sell.
 insert into auth.users (id, email, username) values
@@ -128,19 +140,28 @@ select has_column('public', 'sales', 'kind',
 -- and any row the OLD client writes are both a sale, which is the right reading
 -- of "nobody claimed otherwise".
 --
--- quote_literal() rather than a hand-doubled quote string, and an explicit ::text
--- cast. Two separate pgTAP traps on one line, both of which this repository has
--- already paid for:
---   * the first version wrote five quote characters where six were needed, which
---     is a syntax error rather than a failed assertion;
---   * column_default is information_schema.sql_identifier, and pgTAP's is() has
---     no overload for a domain - it reports "function is(character_data, text,
---     unknown) does not exist", which reads like a missing extension and is
---     really a missing cast. The rule from Phase 5: cast every catalog value.
-select is((select column_default::text from information_schema.columns
-            where table_schema = 'public' and table_name = 'sales' and column_name = 'kind'),
-         quote_literal('sale'),
-  'G-K2 the default is sale, so absent means sale and no legacy row needs backfilling');
+-- Asserted BEHAVIOURALLY rather than by reading column_default. The first version
+-- compared information_schema's rendering of the default against a hand-built
+-- string, and it failed on a detail that has nothing to do with the contract:
+-- PostgreSQL renders it as `'sale'::text`, cast suffix and all. Asserting on the
+-- rendering would have kept that detail in the test forever, and it would break
+-- on any PostgreSQL version that formats it differently.
+--
+-- Two pgTAP traps were on that one line, both of which this repository has paid
+-- for before: five quote characters where six were needed (a syntax error, not a
+-- failed assertion), and column_default being sql_identifier - a domain pgTAP's
+-- is() has no overload for, which reports "function is(character_data, text,
+-- unknown) does not exist" and reads like a missing extension rather than a
+-- missing cast. The rule from Phase 5: cast every catalog value.
+--
+-- The row is deleted again so the counts in G-K8 onwards stay attributable to
+-- k1..k4 one-for-one.
+insert into public.sales (invoice_no, store_id, total_amount, discount, net_amount,
+                          amount_paid, order_date, lab_status)
+values ('KDEFAULT', k_store(), 0, 0, 0, 0, now(), null);
+select is((select kind from public.sales where invoice_no = 'KDEFAULT'), 'sale',
+  'G-K2 a row that says nothing about its kind is stored as a sale');
+delete from public.sales where invoice_no = 'KDEFAULT';
 
 -- `not valid` would have let the migration through with a constraint that nothing
 -- enforces, so this asserts the VALIDATION happened rather than trusting the
