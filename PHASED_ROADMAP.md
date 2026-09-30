@@ -898,6 +898,81 @@ judgement, never a blanket default.
 > — they were the only reason progress was visible, given that none of this can run on this
 > machine. The remaining cost is the push-per-failure loop, and its fix is still a local Postgres
 > with pgTAP.
+> ---
+>
+> **Phase 6 · 021 — the first platform admin could not be created at all.** A real account was
+> lost to a lost password, and repairing it exposed a locked table with no key. `platform_admins`
+> is the one table whose contents bypass every other policy, so locking it was right — but 008
+> seeded it *during migration time*, a few lines above the statement that enables RLS, and that
+> window closed the moment the migration finished. Afterwards the SQL Editor, the Table Editor and
+> `CREATE POLICY` each refused, and the only route that worked was holding the service-role key:
+> a master key, for a routine administrative task.
+>
+> `bootstrap_platform_admin(email)` (021) opens that door **once**. It refuses while any platform
+> admin exists, so a leaked handle is worth nothing after setup, and `execute` is revoked from
+> `anon`/`authenticated` entirely. Ten assertions; the security half is proving the refusal.
+>
+> **Runs #99–#102 cost four failures, and every one of them was mine — the database was right
+> each time.** They are recorded because two of them are new failure shapes this repository had
+> not seen before:
+> - **#99, the gate that never made the call it was testing.** The 021 gate checked
+>   `platform_admins` *after* the argument checks and assumed the happy path had happened, so
+>   G4–G9 all failed against a function that worked perfectly. A gate that never runs its subject
+>   is not a weak gate; it is a wrong one, and no amount of green-then-red would have caught it.
+> - **#99, a sentinel that stopped being a sentinel.** 020's guard test named `021_e.sql` as "a
+>   version never applied" — and then 021 was applied, in this same phase. The guard correctly
+>   declined to raise about a migration that had recorded itself. That gate has now been wrong
+>   here **twice** the same way (018/019 before it), and the fix is not "pick a higher number":
+>   the sentinel is `099`, far outside any range a POS will reach, because a guard test naming a
+>   version the project might plausibly ship is a test with an expiry date.
+> - **#100, `psql exited 3` with no failing assertion.** G-V6b read `'guard'\''s'` — a backslash
+>   before a quote, which closes the string early and leaves a syntax error. It came from an
+>   editor call that **timed out mid-write**, and I committed the result without re-reading the
+>   line. A tool that fails halfway is not a tool that failed; it is a tool that needs re-reading.
+> - **#99, the `NOT NULL` trap, again.** `008` makes `users.store_id` `NOT NULL`, so a vendor —
+>   who belongs to no shop — cannot be given a staff row *at all* (23502). The 021 function was
+>   written assuming it could. Same trap as run #75 over `purchase_items.store_id`: check the
+>   DDL, not the file that is easiest to read.
+>
+> **A dead path, found while fixing the login, and it is worse than a smell.**
+> `ensureStaffRecord` (`auth.tsx:119`) inserts a `public.users` row from the browser on first
+> sign-in. That insert is refused twice over — RLS requires a store or platform admin, *and*
+> `store_id` is `NOT NULL` — and a bare `catch {}` hides it. **No account has ever been created
+> that way.** Add Staff works because it goes through the service-role Edge Function. The
+> function's own comment claims it creates a row; it cannot.
+>
+> **A race, and the worst kind: intermittent, sticky, and it locked a real admin out of the
+> till.** `useMyLicense` / `useStoreId` / `useIsPlatformAdmin` fire on mount, and React runs hooks
+> *before* `AppShell`'s `if (loading)` early return — so the request raced the async session
+> restore and sometimes went out as `anon`. `auth_store_id()` is NULL for anon, so
+> `my_license_state()` returned **zero rows**, which the app read as a confident "this account is
+> not linked to a store". Two of the three use `staleTime: Infinity`, so a wrong anon answer was
+> **persisted to localStorage for 24 hours** and survived every reload until sign-out. The
+> database was perfect throughout; the client asked on behalf of nobody and believed the answer.
+> Fixed by gating all three on a real session (`licensing.ts`), and `/platform` no longer renders
+> "Platform access only" while the answer is still in flight — absence of an answer is not a
+> verdict, which is the same conflation the licence screen was making.
+>
+> **Two consequences worth carrying.** The `superadmin` username bypass (`permissions.tsx:52`,
+> `014:155`) is **unreachable**: it reads `public.users.username`, and by the `NOT NULL` above no
+> vendor can have a staff row. It is vestigial, not a second door — `is_platform_admin()` already
+> grants the same bypass in `resolve_can`. Removing it properly means a new migration, because
+> 014 is applied and this document forbids editing an applied file. And `021` forces two
+> knock-ons: `EXPECTED_SCHEMA_VERSION` 20 → 21, and 020's G-V6b relaxed from `equals 20` to
+> `at least 20` — a hardcoded version inside a migration gate goes stale on every migration, so
+> the half of that invariant that *moves* is pinned in `schemaVersion.test.ts`, where it belongs.
+>
+> **CI run #102: green. 10 gates, 223 assertions, both jobs, fingerprint baseline matched.**
+>
+> **The two documents were silently destroyed, and nobody noticed for five phases.** Both
+> `PHASED_ROADMAP.md` (6827 characters) and `README.md` were damaged by PowerShell read/write
+> round-trips, and README ended up containing a **NUL byte** — which is why git rendered it as
+> `Bin` and no one could review a diff on it. Repaired with `ftfy`. Recorded here because the
+> obvious fix is the dangerous one: "iterate cp1252 until there is no mojibake" converges on
+> **deletion**, not correctness — it turns an em-dash into `U+FFFD` and then removes it, while
+> still reporting zero mojibake. The naive version would have passed the obvious check and
+> destroyed the document. Verified instead by byte-comparing 1014 of 1078 roadmap lines against
+> the last known-good historical revision.
 
 ---
 
