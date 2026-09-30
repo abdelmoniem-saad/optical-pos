@@ -117,6 +117,7 @@ begin
   perform set_config('request.jwt.claim.sub', 'cccccccc-cccc-4ccc-8ccc-0000000000a1', false);
   perform set_config('request.jwt.claims',
                      '{"sub":"cccccccc-cccc-4ccc-8ccc-0000000000a1"}', false);
+end $$;
 
 -- ===== G-K1 / G-K2 / G-K2b / G-K3: the shape ================================
 -- Structural first, while still running as the migration's own role.
@@ -273,5 +274,3 @@ select is((select max(version) from public.lensy_schema_versions), 22::int,
 
 select * from finish();
 rollback;
-
-end $$;
