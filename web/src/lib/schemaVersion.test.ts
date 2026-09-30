@@ -96,6 +96,6 @@ describe('schema version', () => {
     // which is why the half of this invariant that MOVES is asserted here.
     // 022 (sales.kind) is the second such bump, and the mechanism held: this
     // test is what noticed, not the banner.
-    expect(EXPECTED_SCHEMA_VERSION).toBe(22)
+    expect(EXPECTED_SCHEMA_VERSION).toBe(23)
   })
 })
