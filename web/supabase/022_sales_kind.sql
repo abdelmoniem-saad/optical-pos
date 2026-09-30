@@ -250,6 +250,8 @@ begin
          coalesce(r.recorded_by, auth.uid())
     from jsonb_populate_recordset(null::public.sale_payments, p_payments) r
    where r.amount is not null and r.amount <> 0;
+
+  return v_sale;
 end $$;
 
 -- ============================================================
