@@ -1103,6 +1103,31 @@ judgement, never a blanket default.
 > inserts anyway. 013 made the same argument when it chose to perform deletes
 > rather than assert `has_table_privilege`.
 >
+> **And the smoke test I handed the operator was wrong, in the exact way this
+> repository has been bitten before.** After 023 went green I offered a read-only
+> one-liner to see what should be in the real drawer. It returned all zeros, and
+> the shop had sold something half an hour earlier.
+>
+> The cause is the trap from run #77, restated: `report_window()` takes its store
+> from `auth_store_id()`, so **with no JWT it returns NULL, `store_id = NULL`
+> matches nothing, and every tenant-scoped report reads as empty.** That is not
+> "this database has no sales" - it is "this query cannot see any store". The
+> operator was right and the test was wrong.
+>
+> I had already told them this exact trap, verbatim, several messages earlier,
+> including the instruction to *inspect the tables directly instead* - and then
+> handed them a query that does the one thing I said not to do. Recorded for the
+> reason Phase 5 recorded the #71 fingerprint: **the failures that cost the most
+> are the ones already in this document**, because recognition is what fails, not
+> knowledge.
+>
+> The fix in practice is a three-line impersonation block - `set role
+> authenticated` plus `set_config` on both claim keys - which every gate here
+> already carries for exactly this reason. The rule that follows: any query
+> offered to an operator as a *manual verification step* must be checked against
+> the no-JWT case first, because the SQL Editor is the one place where it will
+> always be in that state.
+>
 > **#112 — the version-gate trap, for the third time, and I walked into it with
 > the roadmap's own warning in view.** 023's gate passed all 21 assertions on its
 > first run; the only failure was 022's G-K13, `have: 23, want: 22`, because it
