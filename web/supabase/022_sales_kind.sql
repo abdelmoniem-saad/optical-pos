@@ -106,31 +106,22 @@ language plpgsql
 security invoker
 as $$
 declare
-  v_in        public.sales := jsonb_populate_record(null::public.sales, p_sale);
-  v_sale      public.sales;
-  v_store     uuid;
-  v_inv       text;
-  v_allow     boolean;
-  v_net       numeric;
-  v_total     numeric;
-  v_discount  numeric;
-  v_items     numeric := 0;
-  v_paid_hdr  numeric;
-  v_paid_led  numeric;
-  v_prices    jsonb := '{}'::jsonb;
-  v_kind      text := 'sale';
-  v_line      record;
-  v_cat       numeric;
-  v_cat_name  text;
-  v_stock     integer;
+  v_in       public.sales := jsonb_populate_record(null::public.sales, p_sale);
+  v_sale     public.sales;
+  v_store    uuid;
+  v_inv      text;
+  v_allow    boolean;
+  v_paid_hdr numeric;
+  v_paid_led numeric;
+  v_kind     text := 'sale';
+  t          record;
 begin
   v_store := public.auth_store_id();
   if v_store is null then
     raise exception 'no store for the signed-in user';
   end if;
 
-  -- 0) Idempotency: a replayed checkout returns the sale it already created
-  --    (double-tap, retry after a lost response, offline replay in Phase 6).
+  -- Idempotency: a replayed checkout returns the sale it already created.
   if p_idempotency_key is not null then
     select * into v_sale
       from public.sales
@@ -148,67 +139,12 @@ begin
     v_allow := true;
   end if;
 
-  -- 1) Lock every product in the cart (sorted, so two registers never
-  --    deadlock) and collect the catalog prices the DB will actually charge.
-  for v_line in
-    select r.product_id, sum(r.qty)::integer as qty
-      from jsonb_populate_recordset(null::public.sale_items, p_items) r
-     group by r.product_id
-     order by r.product_id
-  loop
-    select i.name, i.sale_price, i.stock_qty
-      into v_cat_name, v_cat, v_stock
-      from public.inventory i
-     where i.id = v_line.product_id
-       for update of i;
-    if not found then
-      raise exception 'unknown product in cart';
-    end if;
+  select * into t
+    from public.price_cart(p_items, coalesce(v_in.net_amount,
+                                             coalesce(v_in.total_amount, 0) - coalesce(v_in.discount, 0)),
+                           v_allow);
 
-    if not v_allow and coalesce(v_stock, 0) < v_line.qty then
-      raise exception 'insufficient stock: %', coalesce(v_cat_name, 'unknown product');
-    end if;
-
-    v_prices := v_prices || jsonb_build_object(v_line.product_id::text, coalesce(v_cat, 0));
-  end loop;
-
-  -- 2) Validate every line against the catalog (T1): a stale cart is refused
-  --    instead of re-priced, and quantities must be positive.
-  for v_line in
-    select r.product_id, r.qty, r.unit_price
-      from jsonb_populate_recordset(null::public.sale_items, p_items) r
-  loop
-    if coalesce(v_line.qty, 0) <= 0 then
-      raise exception 'invalid line quantity';
-    end if;
-    v_cat := (v_prices ->> v_line.product_id::text)::numeric;
-    if abs(coalesce(v_line.unit_price, 0) - v_cat) > 0.01 then
-      select i.name into v_cat_name from public.inventory i where i.id = v_line.product_id;
-      raise exception 'price changed: %', coalesce(v_cat_name, 'unknown product');
-    end if;
-    v_items := v_items + v_line.qty * v_cat;
-  end loop;
-
-  -- 3) Recompute the header from the ONE money input that survives: the
-  --    client's net. Below the catalog sum the gap becomes an explicit
-  --    discount; above it (round-up) the declared total stands.
-  v_net := coalesce(v_in.net_amount,
-                    coalesce(v_in.total_amount, 0) - coalesce(v_in.discount, 0));
-  if v_net < -0.01 then
-    raise exception 'negative net amount';
-  end if;
-  v_net := round(v_net, 2);
-
-  if v_net <= v_items + 0.01 then
-    v_total    := v_items;
-    v_discount := round(greatest(0, v_items - v_net), 2);
-    v_net      := v_total - v_discount;
-  else
-    v_total    := v_net;
-    v_discount := 0;
-  end if;
-
-  -- 4) Money in can never exceed money out (header AND ledger).
+  -- money in can never exceed money out
   v_paid_hdr := coalesce(v_in.amount_paid, 0);
   if v_paid_hdr < -0.01 then
     raise exception 'negative payment amount';
@@ -216,15 +152,24 @@ begin
   select coalesce(sum(r.amount), 0) into v_paid_led
     from jsonb_populate_recordset(null::public.sale_payments, p_payments) r
    where r.amount is not null and r.amount > 0;
-  if v_paid_hdr > v_net + 0.01 or v_paid_led > v_net + 0.01 then
+  if v_paid_hdr > t.net_amount + 0.01 or v_paid_led > t.net_amount + 0.01 then
     raise exception 'payment exceeds net amount';
   end if;
 
-  -- 4b) NEW IN 022. The kind, decided here rather than believed. A prescription
-  --     is a sale with no lines and no money; anything else is a sale, whatever
-  --     the client asked for. v_items is the catalog sum and is already final.
+  -- NEW IN 022. The kind, decided here rather than believed.
+  --
+  -- create_sale_order exists because it does not trust the browser, and
+  -- jsonb_populate_record would happily copy a client-sent `kind` of anything at
+  -- all - including a value the check constraint does not even accept. So it is
+  -- whitelisted here, and a prescription is defined by the CART rather than by
+  -- the claim: nothing worth charging, and no money in. That second condition is
+  -- what closes the tamper that matters. A whitelist alone would let a client
+  -- claim `prescription` on a real order and drop it out of order_count, hiding a
+  -- sale. t.total_amount is the gross the catalog says the cart is worth, so a
+  -- real order - even one discounted 100% to zero net - is still gross > 0 and
+  -- stays a sale.
   if v_in.kind = 'prescription'
-     and v_items = 0
+     and t.total_amount = 0
      and not exists (
        select 1 from jsonb_populate_recordset(null::public.sale_payments, p_payments) r
         where r.amount is not null and r.amount <> 0)
@@ -232,8 +177,7 @@ begin
     v_kind := 'prescription';
   end if;
 
-  -- 5) Invoice number: the wizard's reservation when it is still free,
-  --    otherwise the next number from the atomic counter.
+  -- invoice number: the wizard's reservation when still free, else the counter
   v_inv := nullif(trim(v_in.invoice_no), '');
   if v_inv is not null and exists (select 1 from public.sales where invoice_no = v_inv) then
     v_inv := null;
@@ -242,9 +186,6 @@ begin
     v_inv := public.next_invoice_no();
   end if;
 
-  -- 6) Header first: this also CLAIMS the idempotency key. A concurrent
-  --    replay blocks on the unique index, then finds the winner's row here;
-  --    an invoice_no collision re-raises for the client's retry loop.
   begin
     insert into public.sales
       (invoice_no, store_id, idempotency_key, customer_id, user_id,
@@ -253,7 +194,8 @@ begin
        rx_image_path, frame_image_path, kind)
     values
       (v_inv, v_store, p_idempotency_key, v_in.customer_id, v_in.user_id,
-       v_total, v_discount, v_net, v_paid_hdr, coalesce(v_in.payment_method, 'Cash'),
+       t.total_amount, t.discount, t.net_amount, v_paid_hdr,
+       coalesce(v_in.payment_method, 'Cash'),
        coalesce(v_in.order_date, now()), v_in.delivery_date, v_in.doctor_name,
        v_in.lab_status, v_in.rx_image_path, v_in.frame_image_path, v_kind)
     returning * into v_sale;
@@ -270,25 +212,22 @@ begin
     raise;
   end;
 
-
-  -- 7) Line items, written at CATALOG prices (client totals are ignored).
+  -- lines at CATALOG prices, with the line discount kept alongside
   insert into public.sale_items
-    (sale_id, store_id, product_id, qty, unit_price, total_price, name)
+    (sale_id, store_id, product_id, qty, unit_price, total_price, name,
+     discount, discount_reason)
   select v_sale.id, v_store, r.product_id, r.qty,
-         (v_prices ->> r.product_id::text)::numeric,
-         r.qty * (v_prices ->> r.product_id::text)::numeric,
-         r.name
+         (t.prices ->> r.product_id::text)::numeric,
+         r.qty * (t.prices ->> r.product_id::text)::numeric,
+         r.name, coalesce(r.discount, 0), r.discount_reason
     from jsonb_populate_recordset(null::public.sale_items, p_items) r;
 
-  -- one negative stock movement per line (the sync trigger above updates the
-  -- stock_qty read model in the same transaction)
   insert into public.stock_movements
     (product_id, store_id, qty, type, ref_no, note, created_at)
   select r.product_id, v_store, -r.qty, 'sale', v_sale.invoice_no,
          'POS Sale: ' || coalesce(v_sale.invoice_no, ''), now()
     from jsonb_populate_recordset(null::public.sale_items, p_items) r;
 
-  -- examinations
   insert into public.order_examinations
     (sale_id, store_id, exam_type, sphere_od, cylinder_od, axis_od,
      sphere_os, cylinder_os, axis_os, ipd, lens_info, frame_info,
@@ -299,21 +238,18 @@ begin
          coalesce(r.doctor_name, v_in.doctor_name), r.image_path
     from jsonb_populate_recordset(null::public.order_examinations, p_exams) r;
 
-  -- payment lines; the sale_payments_sync trigger (011) recomputes
-  -- sales.amount_paid from these rows, so header and ledger cannot disagree.
   insert into public.sale_payments
-    (sale_id, amount, method, note, paid_at, store_id, recorded_by)
+    (sale_id, amount, method, kind, note, paid_at, store_id, recorded_by)
   select v_sale.id,
          r.amount,
          coalesce(lower(trim(r.method)), 'cash'),
+         coalesce(nullif(lower(trim(r.kind)), ''), 'payment'),
          r.note,
-         coalesce(r.paid_at, current_date),
+         coalesce(r.paid_at, now()),
          v_store,
          coalesce(r.recorded_by, auth.uid())
     from jsonb_populate_recordset(null::public.sale_payments, p_payments) r
-   where r.amount is not null and r.amount > 0;
-
-  return v_sale;
+   where r.amount is not null and r.amount <> 0;
 end $$;
 
 -- ============================================================
