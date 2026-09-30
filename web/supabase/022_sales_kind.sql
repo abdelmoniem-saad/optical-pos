@@ -7,8 +7,8 @@
 --
 -- The revenue numbers are NOT wrong, and this migration does not "fix" them,
 -- because they were never broken: 016's report_sales_window sums net_amount and
--- amount_paid, so a zero-total row contributes 0 to both. The old `PRESC-` invoice
--- namespace that the roadmap worried about really is gone. So the damage is
+-- amount_paid, so a zero-total row contributes 0 to both. The old `PRESC-`
+-- invoice namespace the roadmap worried about really is gone. So the damage is
 -- narrower, and naming it is the point:
 --
 --   * order_count was `count(*)`, so "Orders today: 12" counted prescriptions
@@ -24,9 +24,6 @@
 -- balance_due and the two lab counters all still count the row, because a
 -- prescription genuinely IS a job in the lab. Excluding it from those would be
 -- over-correcting, and the gate asserts they were left alone.
---
--- The check constraint is what stops a client from inventing a third kind, and
--- the whitelist inside the RPC is what stops it sending a plausible one.
 --
 -- HOW TO RUN: Supabase Dashboard -> SQL Editor -> paste -> Run.
 --
@@ -72,6 +69,11 @@ update public.sales s
    and not exists (select 1 from public.sale_items i where i.sale_id = s.id)
    and not exists (select 1 from public.sale_payments p where p.sale_id = s.id);
 
+-- Nothing above can produce a value outside the whitelist, so this passes; it is
+-- here so a future edit that widens the backfill cannot leave the constraint
+-- `not valid` forever.
+alter table public.sales validate constraint sales_kind_check;
+
 -- ============================================================
 -- 4) the checkout RPC, re-declared to carry kind
 -- ============================================================
@@ -90,9 +92,9 @@ update public.sales s
 --
 -- The body below is 012's function unchanged apart from (a) the `kind` column in
 -- the header insert and (b) step 4b. It is repeated rather than wrapped because
--- PostgreSQL has no "alter one statement inside a function" and the alternative
--- - a second entry point - would leave the untampered path in place, which is
--- the thing that has to stop being reachable.
+-- PostgreSQL has no "alter one statement inside a function", and the alternative —
+-- a second entry point — would leave the untampered path reachable, which is the
+-- thing that has to stop being reachable.
 create or replace function public.create_sale_order(
   p_sale            jsonb,
   p_items           jsonb default '[]'::jsonb,
@@ -137,6 +139,13 @@ begin
     if found then
       return v_sale;
     end if;
+  end if;
+
+  select s.allow_negative_stock into v_allow
+    from public.stores s
+   where s.id = v_store;
+  if v_allow is null then
+    v_allow := true;
   end if;
 
   -- 1) Lock every product in the cart (sorted, so two registers never
@@ -248,6 +257,19 @@ begin
        coalesce(v_in.order_date, now()), v_in.delivery_date, v_in.doctor_name,
        v_in.lab_status, v_in.rx_image_path, v_in.frame_image_path, v_kind)
     returning * into v_sale;
+  exception when unique_violation then
+    if p_idempotency_key is not null then
+      select * into v_sale
+        from public.sales
+       where store_id = v_store
+         and idempotency_key = p_idempotency_key;
+      if found then
+        return v_sale;
+      end if;
+    end if;
+    raise;
+  end;
+
 
   -- 7) Line items, written at CATALOG prices (client totals are ignored).
   insert into public.sale_items
@@ -301,10 +323,14 @@ end $$;
 -- change is count(*) -> count(*) filter (where kind = 'sale') for order_count.
 --
 -- The lab counters keep counting every live row on purpose. A prescription is a
--- genuine job waiting in the lab, and excluding it would understate the queue -
+-- genuine job waiting in the lab, and excluding it would understate the queue —
 -- the same over-correction 016's own history warns about, when voided rows
 -- inflated revenue and the fix nearly went in the wrong column. The gate asserts
 -- both counters still include the prescription.
+--
+-- No `grant execute` here on purpose: `create or replace` keeps the privileges
+-- 016 granted, so re-granting would be noise that hides a real mistake if the
+-- signature ever did move.
 create or replace function public.report_sales_window(p_from timestamptz, p_to timestamptz)
 returns table (
   revenue      numeric,
@@ -353,29 +379,4 @@ $$;
 -- and 020's assert_versions_recorded() raises during the paste.
 select public.record_schema_version(22, 'sales.kind, and an order count that excludes prescriptions');
 
-  exception when unique_violation then
-    if p_idempotency_key is not null then
-      select * into v_sale
-        from public.sales
-       where store_id = v_store
-         and idempotency_key = p_idempotency_key;
-      if found then
-        return v_sale;
-      end if;
-    end if;
-    raise;
-  end;
 
-
-  select s.allow_negative_stock into v_allow
-    from public.stores s
-   where s.id = v_store;
-  if v_allow is null then
-    v_allow := true;
-  end if;
-
-
--- Nothing above can produce a value outside the whitelist, so this passes; it is
--- here so a future edit that widens the backfill cannot leave the constraint
--- `not valid` forever.
-alter table public.sales validate constraint sales_kind_check;
