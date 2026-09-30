@@ -128,12 +128,16 @@ select has_column('public', 'sales', 'kind',
 -- and any row the OLD client writes are both a sale, which is the right reading
 -- of "nobody claimed otherwise".
 --
--- quote_literal() rather than a hand-doubled quote string. column_default
--- returns the default AS PostgreSQL renders it, so the expected value contains
--- quote characters - and the first version of this line wrote five of them where
--- six were needed, which is a syntax error rather than a failed assertion. The
--- escaping is now the database's problem.
-select is((select column_default from information_schema.columns
+-- quote_literal() rather than a hand-doubled quote string, and an explicit ::text
+-- cast. Two separate pgTAP traps on one line, both of which this repository has
+-- already paid for:
+--   * the first version wrote five quote characters where six were needed, which
+--     is a syntax error rather than a failed assertion;
+--   * column_default is information_schema.sql_identifier, and pgTAP's is() has
+--     no overload for a domain - it reports "function is(character_data, text,
+--     unknown) does not exist", which reads like a missing extension and is
+--     really a missing cast. The rule from Phase 5: cast every catalog value.
+select is((select column_default::text from information_schema.columns
             where table_schema = 'public' and table_name = 'sales' and column_name = 'kind'),
          quote_literal('sale'),
   'G-K2 the default is sale, so absent means sale and no legacy row needs backfilling');
