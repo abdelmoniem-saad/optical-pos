@@ -543,6 +543,13 @@ export type CreateSaleInput = {
   // (double-tap, retry after a lost response) returns the SAME sale instead
   // of creating a second one. Minted by the POS wizard and kept with the draft.
   idempotencyKey?: string | null
+  /** Migration 022: what this sale IS. Absent means 'sale', so every ordinary
+   *  checkout is unchanged; only a standalone prescription claims 'prescription',
+   *  which keeps it out of `order_count` while leaving it in History and in the
+   *  lab queue - it is a real job, just not a billable order. The database
+   *  re-derives this from the cart rather than trusting it, so claiming the wrong
+   *  value here is harmless. */
+  kind?: 'sale' | 'prescription'
 }
 
 /**
@@ -611,6 +618,14 @@ export function useCreateSale() {
             lab_status: input.examinations?.length ? 'Not Started' : null,
             rx_image_path: input.rxImagePath ?? null,
             frame_image_path: input.frameImagePath ?? null,
+            // Migration 022. Absent means 'sale', so an ordinary checkout sends
+            // nothing and needs no change; only useAddStandalonePrescription
+            // claims 'prescription', so "orders today" stops counting work that
+            // nobody paid for. The RPC does not BELIEVE this - it re-derives the
+            // kind from the cart and stores 'sale' unless there are no lines and
+            // no payments, because create_sale_order's whole job is not trusting
+            // the browser.
+            kind: input.kind ?? 'sale',
           }
           const items = input.items.map((i) => ({
             product_id: i.product_id,
@@ -667,17 +682,45 @@ export function useCreateSale() {
               'leave an incomplete sale.',
             { hasItems: items.length > 0, hasExams: exams.length > 0, hasPayments: pay.length > 0 },
           )
-          const { data: sale, error: saleErr } = await supabase
+          // `kind` arrived in 022, and this branch exists precisely for a
+          // database that has NOT run it. A 42703 here must not refuse the sale:
+          // the fallback's job is to take the money, and a missing column is not
+          // a reason to stop - the same reasoning the image_path retry below
+          // already follows. Without this, a shop 21+ migrations behind would
+          // find the fallback broken by a migration that has nothing to do with
+          // checkout. Degradation is honest: without the column there is no
+          // marker, which is exactly the pre-022 state.
+          let { data: sale, error: saleErr } = await supabase
             .from('sales')
             .insert(salePayload)
             .select()
             .single<Sale>()
+          if (saleErr && saleErr.code === '42703') {
+            const { kind: _dropped, ...withoutKind } = salePayload
+            const retry = await supabase
+              .from('sales')
+              .insert(withoutKind)
+              .select()
+              .single<Sale>()
+            sale = retry.data
+            saleErr = retry.error
+          }
           if (saleErr) {
             if (isInvoiceNoConflict(saleErr)) {
               lastError = saleErr
               continue
             }
             throw saleErr
+          }
+          // `.single()` answering with neither a row nor an error is not a state
+          // PostgREST should ever produce, but the retry above made `sale`
+          // mutable and a mutable value is not narrowed by the throw above. Say
+          // it out rather than asserting: an unexplained missing sale should
+          // read as an error, not as a half-finished checkout.
+          if (!sale) {
+            throw new Error(
+              'the sale insert returned no row and no error - the order was NOT saved',
+            )
           }
 
           if (items.length) {
@@ -1155,7 +1198,14 @@ export function useVoidSale() {
  *  Creates a zero-total sale and attaches the exam. Since migration 012 the
  *  invoice number comes from the DB counter like every other sale - the old
  *  `PRESC-<epoch>` namespace (which polluted Reports and broke the numeric
- *  invoice scan) is gone for new rows. */
+ *  invoice scan) is gone for new rows.
+ *
+ *  Migration 022: it now also says what it is. This is the ONLY caller that
+ *  claims `kind: 'prescription'`, which keeps the row out of the report's
+ *  `order_count` - "orders today" should not count work nobody paid for. It is
+ *  NOT hidden from History or from the lab queue, because it genuinely is an
+ *  order and a genuine job; it just isn't a billable one. The RPC re-derives the
+ *  kind from the (empty) cart, so this is a claim rather than a stored truth. */
 export function useAddStandalonePrescription() {
   const qc = useQueryClient()
   const create = useCreateSale()
@@ -1176,6 +1226,7 @@ export function useAddStandalonePrescription() {
         examinations: [exam],
         totals: { total_amount: 0, discount: 0, net_amount: 0, amount_paid: 0 },
         doctorName: doctorName ?? '',
+        kind: 'prescription',
       })
     },
     onSuccess: () => {

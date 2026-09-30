@@ -94,6 +94,8 @@ describe('schema version', () => {
     // SQL gate's own "equals 20" assertion had to be relaxed at the same time -
     // a hardcoded version inside a migration gate goes stale on every migration,
     // which is why the half of this invariant that MOVES is asserted here.
-    expect(EXPECTED_SCHEMA_VERSION).toBe(21)
+    // 022 (sales.kind) is the second such bump, and the mechanism held: this
+    // test is what noticed, not the banner.
+    expect(EXPECTED_SCHEMA_VERSION).toBe(22)
   })
 })

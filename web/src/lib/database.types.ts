@@ -108,6 +108,12 @@ export interface Sale {
   // glasses frame picture. Paths in the public 'prescriptions' bucket.
   rx_image_path: string | null
   frame_image_path: string | null
+  /** Migration 022. What this sale IS. 'prescription' marks a standalone
+   *  prescription - a real order with a real exam that nobody was charged for, so
+   *  the report's `order_count` skips it while History and the lab queue keep it.
+   *  Absent on rows written before 022, which is why it is nullable here even
+   *  though the column itself is NOT NULL with a default. */
+  kind?: 'sale' | 'prescription' | null
   // Present when selected with `*, sale_items(*)`.
   sale_items?: SaleItem[]
   // Present when selected with `*, order_examinations(*)`.
