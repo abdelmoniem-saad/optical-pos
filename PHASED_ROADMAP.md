@@ -1065,6 +1065,62 @@ judgement, never a blanket default.
 > the **step summary** after reviewing that the diff was exactly those four objects and nothing
 > else — the value was not taken from the artifact, per the rule that stale artifacts are
 > indistinguishable from fresh ones.
+>
+> **Phase 6 · 023 — the day/shift close, and the property the whole thing rests on.**
+> A shop's daily question is not "what did I sell"; Reports answers that. It is
+> "how much should be in the drawer, and is it". `z_report()` answers the first
+> half live, and `close_shift()` records the second as an append-only row in
+> `shift_closes` — so "was the drawer right last Tuesday?" is answerable months
+> later, which is the only reason to keep the table.
+>
+> **The one design decision worth reading twice: a void is NOT filtered out of the
+> cash figures, and must not be.** `void_sale` writes a compensating *negative*
+> payment on the same tender, so the money cancels itself inside the sum. That is
+> the right shape for a drawer — a voided invoice leaves the drawer exactly as
+> empty as the sale left it full — and it is why `z_report` has no `voided_at is
+> null` filter where 016's revenue function has one. G-Z3 pins it, and the
+> comment on that assertion says the useful thing: a future edit that "fixed" a
+> wrong number by excluding voided sales **would still pass G-Z3** while quietly
+> swapping the mechanism underneath. The filter would be a different, and wrong,
+> answer to the same number.
+>
+> **`expected_cash` is stored, not recomputed.** A later re-price must not rewrite
+> what the drawer was supposed to hold on Tuesday. That single choice is the
+> difference between an audit trail and a live query, and it is why `shift_closes`
+> keeps the figures as they stood rather than joining back to the ledger.
+>
+> **Permission: `reports.edit`, deliberately an existing code.** Reading the live
+> report needs no permission beyond tenancy, because Phase 3 decided that
+> `resolve_can` is not wired into ordinary reads — gating them on the permission
+> matrix locks a shop out of their own numbers over one mistyped grant. *Closing*
+> is a privileged write and calls `require_perm`. Inventing a `reports.close`
+> would have shipped a permission **no role holds**, and the feature would be dead
+> until somebody granted it by hand: 021's trap, reached from a new direction.
+>
+> Gate: 21 assertions. **G-Z12b is the one that matters most** — it asserts the
+> refusal wrote *no row*, because a gate that proves only that a refusal
+> *happened* passes just as happily against a function that raises and then
+> inserts anyway. 013 made the same argument when it chose to perform deletes
+> rather than assert `has_table_privilege`.
+>
+> **#112 — the version-gate trap, for the third time, and I walked into it with
+> the roadmap's own warning in view.** 023's gate passed all 21 assertions on its
+> first run; the only failure was 022's G-K13, `have: 23, want: 22`, because it
+> asserted 022 was the **newest** migration. 020's G-V6b had already been relaxed
+> from `= 20` to `>= 20` for precisely this, and §9 says in as many words that *a
+> hardcoded version inside a migration gate goes stale on every migration*. Read
+> it, then wrote `= 22`.
+>
+>   Both gates now assert **at least**, which is the half that survives: that the
+>   migration recorded *itself*. "022 is the newest" is true today and false the
+>   moment anyone writes 024, and it is already pinned in
+>   `schemaVersion.test.ts` — which is where a value that moves belongs, once,
+>   rather than in every gate that happens to be reading it.
+>
+> **#113: green, 12 gates.** The fingerprint was re-baselined after reviewing the
+> diff: one table, one index, one policy, two functions, and three grant
+> statements — exactly what 023 declares.
+
 
 
 ---
