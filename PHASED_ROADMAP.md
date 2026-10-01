@@ -1142,6 +1142,42 @@ judgement, never a blanket default.
 >   `schemaVersion.test.ts` — which is where a value that moves belongs, once,
 >   rather than in every gate that happens to be reading it.
 >
+> **Phase 6 · 024 — closing the till stopped borrowing Reports' permission, and
+> the seed became a function because migration-time seeding cannot be gated.**
+>
+> 023 gated `close_shift` on `reports.edit`. That couples two decisions a shop
+> wants to make separately: a manager who reviews the numbers, and a cashier who
+> counts the drawer at closing time. Granting a cashier the ability to close
+> would hand them Reports as a side effect — and the plan here is for Reports to
+> be manager-only. A cashier counting money and recording a variance is normal; a
+> cashier reading the shop's revenue is a decision. So 024 adds `closing.view` and
+> `closing.edit`, and `close_shift` requires the latter.
+>
+> **The seed is a function, and that is the part worth keeping.** The first draft
+> ran bare INSERTs at migration time, and the gate could not see them: **a gate
+> builds a fresh database and creates its own fixtures *after* the migrations
+> have run**, so migration-time seeding has nothing to act on. That is 019's wall
+> with the lab-dwell backfill, recorded in this document as *"The backfill itself
+> is not gated, and cannot be."* Declaring it would have given up a check worth
+> having, and 024 was not yet applied anywhere, so the fix was free:
+> `seed_closing_permissions()` is called once by the file and is callable again by
+> hand. A shop that adds a "shift supervisor" role next year runs it and gets the
+> same grants 024 gave the roles that existed on the day it was pasted.
+>
+> **#118–#120: three runs, and the failures split cleanly.** #118's four red
+> assertions were the design flaw above. #119's were the gate's own fault, and
+> one is worth keeping: G-P7 failed with *"this window has already been closed"* —
+> a true statement about the system and the wrong thing to be testing, because
+> every `_close()` call used the same window and a close is an event. That is
+> 023's G-Z8 asserting itself from inside 024's gate. G-P10 then expected a
+> second seed run to create nothing and got two, because G-P6 had stripped a
+> role's grants to prove the old permission is insufficient — so the re-run
+> faithfully restored them. That is the "a role appeared later" case in miniature,
+> which is the entire argument for a callable seed.
+>
+> **#120: green, 13 gates.** The fingerprint re-baselined after reviewing that the
+> diff was two permission rows, one new function and one redefined function.
+
 > **#113: green, 12 gates.** The fingerprint was re-baselined after reviewing the
 > diff: one table, one index, one policy, two functions, and three grant
 > statements — exactly what 023 declares.
