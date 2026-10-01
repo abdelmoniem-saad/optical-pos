@@ -95,7 +95,7 @@ on conflict (role_id, permission_id) do nothing;
 -- A person whose reports.edit is granted DIRECTLY rather than through a role.
 -- 024 seeds user_permissions as well, or this person would silently lose the
 -- capability they had the moment the shop pasted it.
-insert into public.auth.users (id, email, username) values
+insert into auth.users (id, email, username) values
   ('eeeeeeee-eeee-4eee-8eee-000000000061', 'pdirect@lensypos.local', 'pdirect')
 on conflict (id) do nothing;
 
@@ -113,7 +113,7 @@ on conflict (user_id, permission_id) do nothing;
 -- The three callers, for the authorisation half. pd_both is seeded with the
 -- closing codes by the migration itself; pd_plain is given closing.edit BY HAND,
 -- with no reports permission at all - that is the whole use case.
-insert into public.auth.users (id, email, username) values
+insert into auth.users (id, email, username) values
   ('eeeeeeee-eeee-4eee-8eee-000000000062', 'pboth@lensypos.local',  'pboth'),
   ('eeeeeeee-eeee-4eee-8eee-000000000063', 'pplain@lensypos.local', 'pplain'),
   ('eeeeeeee-eeee-4eee-8eee-000000000064', 'pnone@lensypos.local',  'pnone')

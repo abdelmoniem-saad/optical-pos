@@ -101,9 +101,13 @@ insert into public.permissions (code, name)
 values ('reports.edit', 'Edit reports')
 on conflict (code) do nothing;
 
+-- Migration 024 moved the privilege from reports.edit to closing.edit, so the
+-- manager needs BOTH here. Granting only the old code is exactly the mistake
+-- 024 exists to fix, and it shows up in this gate as six closes refused for a
+-- reason that has nothing to do with 023.
 insert into public.user_permissions (user_id, permission_id, allow)
 select 'eeeeeeee-eeee-4eee-8eee-000000000041', p.id, true
-  from public.permissions p where p.code = 'reports.edit'
+  from public.permissions p where p.code in ('reports.edit', 'closing.edit')
 on conflict (user_id, permission_id) do nothing;
 
 -- The day's money. 1000 cash on Z1, then 500 cash + 500 wallet on Z2, then a
