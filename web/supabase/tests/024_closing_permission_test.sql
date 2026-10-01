@@ -26,7 +26,8 @@
 --         whole use case, and the row is really there
 --   G-P8  a caller with neither is refused
 --   G-P9  closing.view does not confer closing.edit
---   G-P10 the seed is idempotent - a second run creates nothing
+--   G-P10 the seed is re-runnable: a second call re-grants exactly what G-P6
+--         removed, and nothing else - the 'a shop added a role later' case
 --   G-P11 024 stamped itself
 --
 -- ORDER MATTERS, and it is the whole design of this gate. The fixtures are
@@ -137,13 +138,18 @@ on conflict (user_id, permission_id) do nothing;
 create table _cap (k text primary key, close_id uuid, err text);
 grant all on _cap to authenticated;
 
-create function _close(p_k text) returns void
+-- p_day offsets the window so each close in this gate uses a DIFFERENT one.
+-- A close is an event and a window may be closed once, so reusing one window
+-- here would make the second call fail as a duplicate - which is a true fact
+-- about the system, and not what any assertion below is trying to say.
+create function _close(p_k text, p_day int default 0) returns void
 language plpgsql as $$
 declare v_id uuid;
 begin
-  v_id := (public.close_shift('2026-09-20 00:00:00+00'::timestamptz,
-                              '2026-09-21 00:00:00+00'::timestamptz,
-                              0, 'gate')).id;
+  v_id := (public.close_shift(
+              ('2026-09-20 00:00:00+00'::timestamptz + make_interval(days => p_day)),
+              ('2026-09-21 00:00:00+00'::timestamptz + make_interval(days => p_day)),
+              0, 'gate')).id;
   insert into _cap (k, close_id) values (p_k, v_id);
 exception when others then
   insert into _cap (k, err) values (p_k, sqlerrm);
@@ -201,7 +207,7 @@ select ok(_user_has('eeeeeeee-eeee-4eee-8eee-000000000062', 'closing.edit'),
 -- ===== G-P5: both permissions, the seeded path ==============================
 set role authenticated;
 select _imp('eeeeeeee-eeee-4eee-8eee-000000000061');   -- pboth
-select _close('both');
+select _close('both', 0);
 select is((select err from _cap where k = 'both'), null,
   'G-P5 a caller holding BOTH reports.edit and the seeded closing.edit can close');
 
@@ -215,7 +221,7 @@ delete from public.role_permissions rp
    and r.id = 'eeeeeeee-eeee-4eee-8eee-000000000051'
    and p.code in ('closing.view', 'closing.edit');
 set role authenticated;
-select _close('reports_only');
+select _close('reports_only', 1);
 select is((select err from _cap where k = 'reports_only') is not null, true,
   'G-P6 reports.edit alone is REFUSED - closing the till is a separate decision');
 select is((select count(*)::int from public.shift_closes), 1,
@@ -225,7 +231,7 @@ select is((select count(*)::int from public.shift_closes), 1,
 reset role;
 set role authenticated;
 select _imp('eeeeeeee-eeee-4eee-8eee-000000000063');   -- pplain
-select _close('plain');
+select _close('plain', 2);
 select is((select err from _cap where k = 'plain'), null,
   'G-P7 a cashier with closing.edit and NO reports permission can close the till');
 select is((select count(*)::int from public.shift_closes), 2,
@@ -235,7 +241,7 @@ select is((select count(*)::int from public.shift_closes), 2,
 reset role;
 set role authenticated;
 select _imp('eeeeeeee-eeee-4eee-8eee-000000000064');   -- pnone, view only
-select _close('none');
+select _close('none', 3);
 select is((select err from _cap where k = 'none') is not null, true,
   'G-P8 a caller with only closing.view is refused - seeing is not committing');
 
@@ -247,8 +253,15 @@ select ok(not _user_has('eeeeeeee-eeee-4eee-8eee-000000000064', 'closing.edit'),
 -- ===== G-P10: the seed is idempotent ========================================
 -- A shop that adds a "shift supervisor" role next year runs this by hand, so
 -- running it twice must be a no-op rather than an error.
-select is(public.seed_closing_permissions(), 0,
-  'G-P10 a second run creates nothing, so re-pasting or re-seeding is safe');
+-- Two, not zero - and that is the point. G-P6 stripped p_both's closing grants
+-- to prove reports.edit alone is not enough, so the second run puts those
+-- exact two back. That is the 'a shop added a role later' case in miniature,
+-- and it is why the seed is a callable function instead of a statement buried
+-- in a migration where nobody could ever run it again. Re-running it against
+-- an untouched system still creates nothing, because both inserts are
+-- `on conflict do nothing`.
+select is(public.seed_closing_permissions(), 2,
+  'G-P10 a second run re-grants exactly the two grants G-P6 removed, and nothing else - so re-seeding is safe and useful');
 
 -- ===== G-P11: 024 stamped itself ============================================
 select is((select max(version) from public.lensy_schema_versions) >= 24, true,
