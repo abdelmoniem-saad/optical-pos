@@ -14,8 +14,8 @@
 --
 -- So granting a cashier the ability to close the till would hand them Reports
 -- as a side effect. That is not a permission model; it is a coincidence
--- someone noticed later. A cashier being able to count money and record a
--- variance is normal. A cashier reading the shop's revenue is a decision.
+-- someone noticed later. A cashier counting money and recording a variance is
+-- normal. A cashier reading the shop's revenue is a decision.
 --
 -- THE FIX
 -- -------
@@ -23,39 +23,44 @@
 -- `closing.edit` (may record a close) — and `close_shift` now requires
 -- `closing.edit`.
 --
--- THE SEED, WHICH IS THE PART THAT MATTERS
--- ----------------------------------------
--- A new permission code with no role holding it is a feature that is dead on
--- arrival: the shop pastes this, the button is greyed out, and nothing says why.
--- That is exactly the trap 021 walked into, where the first platform admin had
--- no supported way to be created.
+-- THE SEED, AND WHY IT IS A FUNCTION
+-- ---------------------------------
+-- A new permission code that no role holds is a feature that is dead on
+-- arrival: the shop pastes this, the button is greyed out, and nothing says
+-- why. That is exactly the trap 021 walked into, where the first platform admin
+-- had no supported way to be created. So the codes are seeded to every role and
+-- every person that already holds `reports.edit`, and to nothing else.
 --
--- So the codes are seeded to every role that already holds `reports.edit`, and
--- `closing.edit` to every role that holds `reports.view` but not `reports.edit`
--- would be wrong (a viewer must not close), so the mapping is exact:
+-- The first draft of this migration did that seeding as bare INSERTs at
+-- migration time, and its gate could not test it — **a gate builds a fresh
+-- database and creates its own fixtures AFTER the migrations have run**, so
+-- migration-time seeding has nothing to act on. 019 hit the identical wall with
+-- its lab-dwell backfill, and the roadmap records it: *"The backfill itself is
+-- not gated, and cannot be."*
 --
---     reports.edit  ->  closing.view + closing.edit
---
--- Anything else is left alone, which is the point: a shop that removes
--- Reports from its cashiers now has Close Shift available to grant
--- independently, and one that never touches the matrix gets today's behaviour
--- on both screens.
+-- Declaring that here would have been giving up on a check worth having. So the
+-- seed is a FUNCTION, called once by this file and callable again by hand — a
+-- shop that adds a new "manager" role later can run it and get the same grants
+-- 024 gave the roles that existed on the day it was pasted. That turns an
+-- untestable migration statement into a testable, re-runnable operation, and it
+-- is the whole reason this file is shaped this way.
 --
 -- `role_permissions.value` is deliberately not consulted. The app reads
 -- `select permissions(code) from role_permissions` and treats every row as a
--- grant (permissions.tsx:91-98), so a row is the grant and nothing else. This
+-- grant (permissions.tsx:91-98), so a row IS the grant and nothing else. This
 -- matches how every other role grant in the system is written.
 --
--- Idempotent: both inserts are `on conflict do nothing`, the function is
--- `create or replace` on an unchanged signature, and re-pasting changes no
--- existing grant.
+-- Idempotent throughout: both inserts are `on conflict do nothing`, the
+-- function is `create or replace`, and re-pasting changes no existing grant.
 --
--- HOW TO RUN: Supabase Dashboard -> SQL Editor -> paste -> Run.
+-- HOW TO RUN: Supabase Dashboard -> SQL Editor -> paste -> Run. Safe to re-paste;
+-- to grant a role created later, call the seed by hand:
+--     select public.seed_closing_permissions();
 
 -- ============================================================
 -- 1) the codes
 -- ============================================================
--- `name` is what the Access Control matrix shows next to the tick box, so it is
+-- `name` is what the Access Control matrix shows beside the tick box, so it is
 -- written for whoever is looking at the matrix, not for a developer.
 insert into public.permissions (code, name, description)
 values
@@ -66,35 +71,52 @@ values
 on conflict (code) do nothing;
 
 -- ============================================================
--- 2) seed the grants from reports.edit
+-- 2) the seed, as a callable function
 -- ============================================================
--- Cross join the two new codes against every role_permissions row that grants
--- reports.edit. `on conflict (role_id, permission_id) do nothing` keeps a
--- deliberate DENY (if a shop expresses one that way) rather than overwriting
--- it, and makes a re-paste a no-op.
-insert into public.role_permissions (role_id, permission_id)
-select rp.role_id, np.id
-  from public.role_permissions rp
-  join public.permissions granted on granted.id = rp.permission_id
-  join public.permissions np on np.code in ('closing.view', 'closing.edit')
- where granted.code = 'reports.edit'
-on conflict (role_id, permission_id) do nothing;
+-- Returns how many grants it created, so a caller can tell "nothing to do" from
+-- "ran and did nothing" by reading a number rather than parsing a NOTICE.
+create or replace function public.seed_closing_permissions()
+returns integer
+language sql security definer set search_path = public as $$
+  with created as (
+    -- Roles that may edit reports get BOTH closing codes.
+    insert into public.role_permissions (role_id, permission_id)
+    select rp.role_id, np.id
+      from public.role_permissions rp
+      join public.permissions granted on granted.id = rp.permission_id
+      join public.permissions np on np.code in ('closing.view', 'closing.edit')
+     where granted.code = 'reports.edit'
+    on conflict (role_id, permission_id) do nothing
+    returning 1
+  ), created_users as (
+    -- Same for grants made to a PERSON rather than through a role.
+    insert into public.user_permissions (user_id, permission_id, allow)
+    select up.user_id, np.id, up.allow
+      from public.user_permissions up
+      join public.permissions granted on granted.id = up.permission_id
+      join public.permissions np on np.code in ('closing.view', 'closing.edit')
+     where granted.code = 'reports.edit'
+    on conflict (user_id, permission_id) do nothing
+    returning 1
+  )
+  select (select count(*)::int from created)
+       + (select count(*)::int from created_users) $$;
 
--- Per-user overrides, for the same reason. A person granted reports.edit
--- directly (not through a role) keeps the capability they had.
-insert into public.user_permissions (user_id, permission_id, allow)
-select up.user_id, np.id, up.allow
-  from public.user_permissions up
-  join public.permissions granted on granted.id = up.permission_id
-  join public.permissions np on np.code in ('closing.view', 'closing.edit')
- where granted.code = 'reports.edit'
-on conflict (user_id, permission_id) do nothing;
+-- Executable by the migration runner and by a superuser running it by hand. It
+-- only ever ADDS grants, and only to code that grants reports.edit, so it cannot
+-- widen anybody's access beyond what they already had.
+revoke execute on function public.seed_closing_permissions() from public, anon, authenticated;
 
 -- ============================================================
--- 3) close_shift now requires closing.edit
+-- 3) run it
+-- ============================================================
+select public.seed_closing_permissions();
+
+-- ============================================================
+-- 4) close_shift now requires closing.edit
 -- ============================================================
 -- Redefined, not edited: 023 is applied to a live database, and this repository
--- forbids editing an applied migration so that an old install and a fresh one
+-- forbids editing an applied migration so an old install and a fresh one
 -- converge on the same schema.
 create or replace function public.close_shift(
   p_from         timestamptz,
@@ -163,7 +185,7 @@ grant execute on function public.close_shift(timestamptz, timestamptz, numeric, 
   to authenticated;
 
 -- ============================================================
--- 4) record this migration's own number
+-- 5) record this migration's own number
 -- ============================================================
 -- Required: check-migrations-stamp.sh makes an unstamped migration a RED BUILD,
 -- and 020's assert_versions_recorded() raises during the paste.
