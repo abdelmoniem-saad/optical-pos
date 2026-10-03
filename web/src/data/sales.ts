@@ -114,7 +114,7 @@ const n = (v: unknown): number => Number(v ?? 0) || 0
  * catch/finally and is not assignable to one. The awaited shape is then stated
  * explicitly.
  */
-async function callReport<T>(
+export async function callReport<T>(
   name: string,
   fn: () => PromiseLike<{ data: T | null; error: unknown }>,
 ): Promise<T | null> {
@@ -149,7 +149,7 @@ export function isReportingInDatabase(): boolean {
  * two apart - `Record<string, unknown>` fits both - so the distinction is made
  * here, once, and pinned by reportRpc.test.ts.
  */
-async function callReportRow<T>(
+export async function callReportRow<T>(
   name: string,
   fn: () => PromiseLike<{ data: T[] | null; error: unknown }>,
 ): Promise<T | null> {

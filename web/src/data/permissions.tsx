@@ -22,6 +22,9 @@ export const RESOURCES = [
   { key: 'lab', label: 'Lab' },
   { key: 'history', label: 'History' },
   { key: 'reports', label: 'Reports' },
+  // 024: closing the till is its own resource so it can be granted to a
+  // cashier without handing them Reports. Seeding copies it from reports.edit.
+  { key: 'closing', label: 'Close the shift' },
   { key: 'suppliers', label: 'Suppliers' },
   { key: 'notes', label: 'Notes' },
   { key: 'staff', label: 'Staff' },

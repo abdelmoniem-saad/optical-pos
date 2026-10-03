@@ -20,6 +20,14 @@ const InventoryPage = named(() => import('../features/inventory/InventoryPage'),
 const LabPage = named(() => import('../features/lab/LabPage'), 'LabPage')
 const HistoryPage = named(() => import('../features/history/HistoryPage'), 'HistoryPage')
 const ReportsPage = named(() => import('../features/reports/ReportsPage'), 'ReportsPage')
+// Migration 023/024: closing the till. Gated on `closing.view` rather than
+// `reports.view` on purpose - a cashier who counts the drawer at 7pm should not
+// need the shop's revenue to do it. The button inside is gated again on
+// `closing.edit`, matching what close_shift() requires in SQL.
+const CloseShiftPage = named(
+  () => import('../features/closing/CloseShiftPage'),
+  'CloseShiftPage',
+)
 const SuppliersPage = named(() => import('../features/suppliers/SuppliersPage'), 'SuppliersPage')
 const NotesPage = named(() => import('../features/notes/NotesPage'), 'NotesPage')
 const StaffPage = named(() => import('../features/staff/StaffPage'), 'StaffPage')
@@ -120,6 +128,13 @@ const router = createBrowserRouter([
         element: (
           <RequirePermission resource="reports">
             <ReportsPage />
+          </RequirePermission>
+        ),
+      },      {
+        path: 'close-shift',
+        element: (
+          <RequirePermission resource="closing">
+            <CloseShiftPage />
           </RequirePermission>
         ),
       },
