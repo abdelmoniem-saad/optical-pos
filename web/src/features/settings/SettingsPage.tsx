@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useSettings, useSetSetting } from '../../data/settings'
 import { useI18n } from '../../i18n/LanguageContext'
-import { OpticalSettings } from './OpticalSettings'
 import { usePermissions } from '../../data/permissions'
 
 const FIELDS: { key: string; label: string; multiline?: boolean }[] = [
@@ -75,9 +74,6 @@ export function SettingsPage() {
         </div>
       </div>
 
-      <div className="mt-8">
-        <OpticalSettings />
-      </div>
     </div>
   )
 }

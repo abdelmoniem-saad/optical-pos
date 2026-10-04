@@ -517,4 +517,5 @@ export const ar: Record<string, string> = {
   'Run 023_z_report.sql and 024_closing_permission.sql in the SQL Editor, then reload.': 'شغّل 023_z_report.sql و 024_closing_permission.sql في محرّر SQL ثم أعد التحميل.',
   'You can see these figures but not record a close. Ask a manager for permission.': 'يمكن رؤية هذه الأرقام لكن لا تستطيع تسجيل إقفال. اطلب الإذن من المدير.',
   'Money is counted net of refunds, so a void leaves the drawer as empty as the sale left it full.': 'تُحسب الموال صافياً من المسترجعات، لذلك يترك الإلغاء الخزنة فارغة كما تركتها ممتلئة.',
+  'Lens types and colors used in prescriptions. Ask a manager to change these.': 'انوانع العدسات العدسةةات المستخدمةة في الوصفات. اطلب المدير لتغييرها.',
 }

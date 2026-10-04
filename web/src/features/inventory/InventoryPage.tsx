@@ -9,6 +9,8 @@ import {
 import { useI18n } from '../../i18n/LanguageContext'
 import { usePermissions } from '../../data/permissions'
 import type { Product } from '../../lib/database.types'
+import { OpticalSettings } from './OpticalSettings'
+import { INVENTORY_TABS, resolveTab, type InventoryTab } from './tabs'
 
 const CATEGORIES = ['Frame', 'Sunglasses', 'ContactLens', 'Lens', 'Accessory', 'Other']
 
@@ -131,7 +133,10 @@ function ProductModal({
   )
 }
 
-export function InventoryPage() {
+/** The stock list itself. Split out of InventoryPage when the screen gained
+ *  tabs, so the tab shell above owns the heading and this keeps every hook it
+ *  already had - including the ?q search term, which stays scoped to this tab. */
+function ProductsTab() {
   const { t } = useI18n()
   const perms = usePermissions()
   const [params] = useSearchParams()
@@ -160,9 +165,8 @@ export function InventoryPage() {
   }
 
   return (
-    <div className="mx-auto max-w-5xl p-6">
-      <div className="mb-4 flex items-center justify-between">
-        <h1 className="text-2xl font-semibold text-brand-dark">{t('Inventory')}</h1>
+    <div>
+      <div className="mb-4 flex items-center justify-end">
         {perms.can('inventory.create' as never) && (
           <button
             onClick={() => setModal({ open: true, editing: null })}
@@ -245,6 +249,46 @@ export function InventoryPage() {
       {modal.open && (
         <ProductModal editing={modal.editing} onClose={() => setModal({ open: false, editing: null })} />
       )}
+    </div>
+  )
+}
+
+export function InventoryPage() {
+  const { t } = useI18n()
+  const [params, setParams] = useSearchParams()
+  const tab = resolveTab(params.get('tab'))
+
+  // Rewriting the query rather than pushing a route, so Back still works and
+  // the `?q=` search term already in the URL is preserved across tab changes.
+  function select(next: InventoryTab) {
+    const q = new URLSearchParams(params)
+    q.set('tab', next)
+    setParams(q, { replace: true })
+  }
+
+  const tabCls = (active: boolean) =>
+    `px-4 py-2 text-sm font-semibold transition ${
+      active ? 'bg-brand text-white' : 'text-muted hover:bg-surface'
+    }`
+
+  return (
+    <div className="mx-auto max-w-5xl p-6">
+      <h1 className="mb-4 text-2xl font-semibold text-brand-dark">{t('Inventory')}</h1>
+
+      <div className="mb-4 inline-flex overflow-hidden rounded-lg border border-line">
+        {INVENTORY_TABS.map((item) => (
+          <button
+            key={item.key}
+            type="button"
+            onClick={() => select(item.key)}
+            className={tabCls(tab === item.key)}
+          >
+            {t(item.label)}
+          </button>
+        ))}
+      </div>
+
+      {tab === 'optical' ? <OpticalSettings /> : <ProductsTab />}
     </div>
   )
 }

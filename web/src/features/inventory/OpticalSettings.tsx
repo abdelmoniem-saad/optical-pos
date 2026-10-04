@@ -1,5 +1,6 @@
-﻿import { useMemo, useRef, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { useI18n } from '../../i18n/LanguageContext'
+import { usePermissions } from '../../data/permissions'
 import {
   useAddMetadata,
   useDeleteMetadata,
@@ -9,6 +10,10 @@ import {
   type NamedRow,
 } from '../../data/metadata'
 
+/** Frame Types are absent on purpose: nothing in the app reads that table
+ *  anymore - 000_base_schema.sql creates and seeds it, but the POS screens
+ *  stopped using it. Leaving it out of the UI is what stops it looking like a
+ *  list somebody forgot to wire up. */
 /** Best-effort swatch for common color names (unknown names get no dot). */
 const COLOR_SWATCHES: Record<string, string> = {
   black: '#1a1a1a',
@@ -43,12 +48,15 @@ function MetaList({
   table,
   rows,
   colored = false,
+  canEdit,
 }: {
   title: string
   icon: string
   table: string
   rows: NamedRow[]
   colored?: boolean
+  /** Reading the vocabulary and changing it are different acts. */
+  canEdit: boolean
 }) {
   const { t } = useI18n()
   const add = useAddMetadata(table)
@@ -138,10 +146,10 @@ function MetaList({
           return (
             <div
               key={r.id}
-              draggable={view === 'custom'}
-              onDragStart={() => (dragId.current = r.id)}
-              onDragOver={(e) => view === 'custom' && e.preventDefault()}
-              onDrop={() => view === 'custom' && dropOn(r.id)}
+              draggable={view === 'custom' && canEdit}
+              onDragStart={() => canEdit && (dragId.current = r.id)}
+              onDragOver={(e) => view === 'custom' && canEdit && e.preventDefault()}
+              onDrop={() => view === 'custom' && canEdit && dropOn(r.id)}
               className={`flex items-center gap-2 px-3 py-1.5 text-sm transition hover:bg-surface/60 ${
                 view === 'custom' ? 'cursor-grab active:cursor-grabbing' : ''
               }`}
@@ -201,22 +209,33 @@ function MetaList({
 
 export function OpticalSettings() {
   const { t } = useI18n()
+  const perms = usePermissions()
   const lens = useLensTypes()
   const colors = useFrameColors()
+  const canEdit = perms.isAdmin || perms.can('inventory.edit' as never)
 
   return (
     <div>
-      <h2 className="mb-1 text-lg font-semibold text-brand-dark">{t('Optical Settings')}</h2>
-      {/* Frame Types removed: nothing in the app reads that list anymore. */}
-      <p className="mb-4 text-sm text-muted">{t('Lens types and colors used in prescriptions.')}</p>
+      <p className="mb-4 text-sm text-muted">
+        {canEdit
+          ? t('Lens types and colors used in prescriptions.')
+          : t('Lens types and colors used in prescriptions. Ask a manager to change these.')}
+      </p>
       <div className="grid grid-cols-1 gap-4">
-        <MetaList title={t('Lens Types')} icon="👓" table="lens_types" rows={lens.data ?? []} />
+        <MetaList
+          title={t('Lens Types')}
+          icon="👓"
+          table="lens_types"
+          rows={lens.data ?? []}
+          canEdit={canEdit}
+        />
         <MetaList
           title={t('Frame Colors')}
           icon="🎨"
           table="frame_colors"
           rows={colors.data ?? []}
           colored
+          canEdit={canEdit}
         />
       </div>
     </div>
