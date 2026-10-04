@@ -131,7 +131,10 @@ export function SearchableSelect({
           setQuery(value)
           setOpen(true)
         }}
-        onBlur={commit}
+        // Leaving the field commits what is in the box. Must wrap in a
+        // closure: passing `commit` directly hands it a FocusEvent, not the
+        // text, and would write the event object into the value.
+        onBlur={() => commit(query)}
         onKeyDown={onKeyDown}
         className={inputClassName}
       />
