@@ -24,8 +24,9 @@ const field =
 // than three different columns. Widths here are in rem, and the app is scaled
 // by html{font-size:18px} * zoom:1.25, so 1rem is 22.5px on screen - every
 // 1rem saved is what keeps the whole prescription on ONE line beside the
-// sidebar. Widths are budgeted against ~61rem of content width (a 1600px
-// screen); at 1920 there is comfortable slack.
+// sidebar. The row now needs about 54rem, which fits a 1440-wide screen
+// beside the w-38 sidebar with very little to spare. It does NOT fit 1366.
+// Anything added here should come out of the budget below, not on top of it.
 const numField =
   'rounded-md border border-line bg-white px-1 py-1.5 text-center text-sm outline-none focus:border-brand'
 
@@ -75,14 +76,14 @@ function ExamRow({ index }: { index: number }) {
 
   return (
     <div dir="ltr" className="rounded-xl border border-brand-faint bg-brand-bg/40 p-3">
-      <div className="flex flex-wrap items-end gap-1.5">
+      <div className="flex flex-wrap items-end gap-1">
         <label className="flex flex-col">
           <span className="mb-0.5 text-[10px] font-semibold text-faint">{t('Exam Type')}</span>
           <select
             data-rxr={index}
             data-rxc={0}
             onKeyDown={rxArrowNav}
-            className={`${small} w-24`}
+            className={`${small} w-20`}
             value={String(exam.exam_type ?? 'Distance')}
             onChange={(e) => upd({ exam_type: e.target.value })}
           >
@@ -92,12 +93,12 @@ function ExamRow({ index }: { index: number }) {
           </select>
         </label>
 
-        <div className="flex items-end gap-0.5 rounded-md bg-white/50 p-0.5">
+        <div className="flex items-end rounded-md bg-white/50 p-0.5">
           {numCol('R.SPH', 'sphere_od', 1)}
           {numCol('R.CYL', 'cylinder_od', 2)}
           {numCol('R.AX', 'axis_od', 3)}
         </div>
-        <div className="flex items-end gap-0.5 rounded-md bg-white/50 p-0.5">
+        <div className="flex items-end rounded-md bg-white/50 p-0.5">
           {numCol('L.SPH', 'sphere_os', 4)}
           {numCol('L.CYL', 'cylinder_os', 5)}
           {numCol('L.AX', 'axis_os', 6)}
@@ -110,7 +111,7 @@ function ExamRow({ index }: { index: number }) {
             value={String(exam.lens_info ?? '')}
             onChange={(v) => upd({ lens_info: v })}
             options={lensTypes.data ?? []}
-            inputClassName={`${small} w-32`}
+            inputClassName={`${small} w-36`}
             inputProps={{ 'data-rxr': index, 'data-rxc': 8 }}
             onPassthroughKey={rxArrowNav}
           />
@@ -122,12 +123,12 @@ function ExamRow({ index }: { index: number }) {
             value={String(exam.frame_info ?? '')}
             onChange={(v) => upd({ frame_info: v })}
             options={frames.data ?? []}
-            inputClassName={`${small} w-32`}
+            inputClassName={`${small} w-30`}
             inputProps={{ 'data-rxr': index, 'data-rxc': 9 }}
             onPassthroughKey={rxArrowNav}
           />
           {warnZeroQty && (
-            <span className="max-w-32 text-[10px] font-semibold leading-tight text-warning">
+            <span className="max-w-30 text-[10px] font-semibold leading-tight text-warning">
               {matchedFrame
                 ? t('This frame quantity is 0 or below - you can still sell it.')
                 : t('Frame not found in inventory - it will be recorded with 0 quantity.')}
@@ -141,7 +142,7 @@ function ExamRow({ index }: { index: number }) {
             value={String(exam.frame_color ?? '')}
             onChange={(v) => upd({ frame_color: v })}
             options={frameColors.data ?? []}
-            inputClassName={`${small} w-18`}
+            inputClassName={`${small} w-15`}
             inputProps={{ 'data-rxr': index, 'data-rxc': 10 }}
             onPassthroughKey={rxArrowNav}
           />
@@ -153,7 +154,7 @@ function ExamRow({ index }: { index: number }) {
             data-rxr={index}
             data-rxc={11}
             onKeyDown={rxArrowNav}
-            className={`${small} w-20`}
+            className={`${small} w-15`}
             value={String(exam.frame_status ?? 'New')}
             onChange={(e) => upd({ frame_status: e.target.value })}
           >
@@ -168,7 +169,7 @@ function ExamRow({ index }: { index: number }) {
           className="rounded-md px-2 py-1.5 text-sm text-danger hover:bg-danger/10 disabled:opacity-30"
           title={t('Remove')}
         >
-          ✕
+          âœ•
         </button>
       </div>
     </div>
@@ -206,7 +207,7 @@ function PastPrescriptions({ customerId }: { customerId: string }) {
         onClick={() => setOpen((o) => !o)}
         className="rounded-lg bg-brand-faint px-3 py-2 text-sm font-semibold text-brand-dark"
       >
-        {t('Previous Prescriptions')} ({count}) {open ? '▲' : '▼'}
+        {t('Previous Prescriptions')} ({count}) {open ? 'â–²' : 'â–¼'}
       </button>
       {open && (
         // One prescription PER ROW (compact list) so long histories don't eat
@@ -221,7 +222,7 @@ function PastPrescriptions({ customerId }: { customerId: string }) {
                 <div className="min-w-32 text-sm font-semibold text-brand-dark">
                   {(p.sale.order_date ?? '').slice(0, 10) || 'N/A'}
                   {p.sale.invoice_no ? (
-                    <span className="text-brand"> · #{p.sale.invoice_no}</span>
+                    <span className="text-brand"> Â· #{p.sale.invoice_no}</span>
                   ) : null}
                 </div>
                 <div dir="ltr" className="flex flex-wrap gap-x-4 font-mono text-xs text-muted">
@@ -306,7 +307,7 @@ export function ExamSection() {
             onClick={() => setQrOpen(true)}
             className="rounded-md border border-line px-2 py-1.5 text-xs text-brand hover:bg-surface"
           >
-            📱 {t('Attach from mobile')}
+            ðŸ“± {t('Attach from mobile')}
           </button>
         </div>
       </div>
@@ -358,7 +359,7 @@ function OrderImageSlot({ slot, label }: { slot: 'rx' | 'frame'; label: string }
       } hover:bg-surface ${replaceLocked ? 'opacity-50' : ''}`}
       title={replaceLocked ? t('Replace requires admin') : label}
     >
-      {busy ? '…' : path ? `✓ ${label}` : `📎 ${label}`}
+      {busy ? 'â€¦' : path ? `âœ“ ${label}` : `ðŸ“Ž ${label}`}
       <input
         type="file"
         accept="image/*"
