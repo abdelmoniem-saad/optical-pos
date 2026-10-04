@@ -222,10 +222,17 @@ select matches((select indexdef from pg_indexes
 -- The store is Africa/Cairo, which is EEST = UTC+3 all year (Egypt moved to a
 -- permanent UTC+3 in 2023 - a detail worth stating, because assuming +2 here
 -- is wrong and the test fails for the right reason). R0004 at 23:30 UTC on the
-select is((select from_at::text from public.store_day_range('2026-09-22'::date)),
-  '2026-09-21 21:00:00+00', 'G-T1 the Cairo day starts at 21:00 UTC the day before');
-select is((select to_at::text from public.store_day_range('2026-09-22'::date)),
-  '2026-09-22 21:00:00+00', 'G-T1b ...and ends 24 hours later, exclusive');
+-- The bounds are compared as TIMESTAMPTZ, not as text. Comparing
+-- from_at::text asserts how Postgres RENDERS an instant in the session's
+-- timezone, which is a property of the machine running the gate, not of
+-- store_day_range: the same assertion read '2026-09-21 21:00:00+00' on a UTC
+-- runner and '2026-09-22 00:00:00+03' on a Cairo one - the same moment, two
+-- spellings, and a gate that only passes in one timezone. Comparing the values
+-- compares the instants, which is what the test actually means.
+select is((select from_at from public.store_day_range('2026-09-22'::date)),
+  '2026-09-21 21:00:00+00'::timestamptz, 'G-T1 the Cairo day starts at 21:00 UTC the day before');
+select is((select to_at from public.store_day_range('2026-09-22'::date)),
+  '2026-09-22 21:00:00+00'::timestamptz, 'G-T1b ...and ends 24 hours later, exclusive');
 select is((select revenue::bigint
              from public.report_sales_window(
                (select from_at from public.store_day_range('2026-09-21'::date)),

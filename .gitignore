@@ -56,3 +56,7 @@ desktop.ini
 # Tunnels
 ngrok.exe
 cloudflared*.exe
+
+# Local throwaway Postgres for running the pgTAP suite (web/scripts/local-db-setup.ps1)
+web/.local-db/
+

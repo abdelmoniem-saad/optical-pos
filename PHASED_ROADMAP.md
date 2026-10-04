@@ -878,6 +878,50 @@ judgement, never a blanket default.
 > sub-select that cannot contain an UPDATE — and a local database would have caught all of them on
 > the first attempt. **Solving that is the highest-value infrastructure left.**
 >
+> **SOLVED — the gates run on this machine now, and it took one afternoon rather
+> than the rewrite it looked like.** The two blockers above are real but both are
+> narrower than they read:
+>
+> - **`embedded-postgres` does omit pgTAP** — confirmed rather than assumed: it
+>   ships 61 extensions and pgTAP is not among them. But **pgTAP is pure
+>   SQL/PLpgSQL**, so it needs no compiler. `pgtap.control` plus one version file
+>   in `share/extension` is the whole installation, and `pgtap.sql.in` turned out
+>   to contain no `@var@` placeholders despite the extension, so it installs
+>   verbatim. GitHub is reachable even though the EDB installer is not.
+> - **No `psql` client** ships with those binaries either (only initdb, pg_ctl,
+>   postgres), and `test-db.sh` shells out to `psql`. `scripts/psql-shim.js`
+>   fills the gap over the node `pg` driver, implementing exactly the six flags
+>   `test-db.sh` uses and failing loudly on an unrecognised one.
+>
+> Two Windows facts cost the most time and are recorded in
+> `scripts/local-db-setup.ps1` so they need not be rediscovered: at the default
+> `shared_buffers` the postmaster **cannot fork a backend** (error 487), so every
+> connection hangs and looks like a dead server — 16MB fixes it; and `pg_ctl -w
+> start` hangs rather than returning.
+>
+> **The first suite run immediately found a real defect, which is the entire
+> argument for having done this.** Two assertions in `016` failed on this machine
+> and pass in CI — not because the product is wrong, but because they compared
+> `from_at::text`, and the *rendering* of an instant depends on the session
+> timezone. `2026-09-21 21:00:00+00` (a UTC runner) and `2026-09-22 00:00:00+03`
+> (a Cairo one) are the same moment, and the gate only passed in one of them.
+> **No gate pinned the session timezone**, so the whole suite silently depended
+> on the machine it ran on; CI runs UTC, which is why it was invisible. Fixed by
+> comparing the `timestamptz` values, which compares instants.
+>
+> A shim is only trustworthy if it can still fail, so both paths were checked
+> against it: a failing assertion emits `not ok` on stdout, and a syntax error
+> exits non-zero. Full local result: **13 gates, 276 assertions, green** — from a
+> fresh `initdb`, all 25 migrations applied, in a non-UTC timezone.
+>
+> One latent trap in the shim is worth naming, because it would have bitten 025
+> specifically: PostgreSQL runs a **multi-statement** query inside one implicit
+> transaction, and `DROP DATABASE`, `CREATE DATABASE` and **`CREATE INDEX
+> CONCURRENTLY`** are all illegal there. The shim therefore splits a file and
+> sends one statement per round trip, as `psql` does — dollar-quoted function
+> bodies make that a real parser rather than a `split(';')`.
+>
+>
 > Git Bash *is* available at `C:\Program Files\Git\bin\bash.exe`, which is enough to run the
 > shell-level checks locally. Worth remembering before concluding that nothing here can execute
 > shell code — I assumed otherwise for several phases before looking properly.
