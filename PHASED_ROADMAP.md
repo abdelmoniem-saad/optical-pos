@@ -33,7 +33,7 @@ order: **push every rule into Postgres, then let the app trust it.**
 | Checkout | `data/sales.ts`, RPC `002`→`011`, `features/pos/*` | atomic RPC **with a non-atomic client fallback** |
 | Payments | `011`, `data/salesPayments.ts`, `lib/payments.ts` | ledger + sync trigger + split tenders — solid foundation |
 | Screens | POS wizard, History, Lab, Inventory, Purchasing, Reports, Customers, Staff/RBAC, Notes, Platform, Mobile upload, Settings | all functional |
-| Tests | **16 Vitest files, 163 tests, pure functions** — plus **11 pgTAP gates, 240 assertions**, which do touch Postgres | Vitest: `pricing`, `payments`, `receipt`, `posDraft`, `enterNav`, `types`, `permissions`, `sales`, `translations`, `schemaVersion`, `reportRpc`, `createUserAuthz`, `offlineMutations`. pgTAP: `012`–`022` |
+| Tests | **20 Vitest files, 211 tests, pure functions** — plus **13 pgTAP gates, ~263 assertions**, which do touch Postgres | Vitest: `pricing`, `payments`, `receipt`, `posDraft`, `enterNav`, `types`, `permissions`, `sales`, `translations`, `schemaVersion`, `reportRpc`, `createUserAuthz`, `offlineMutations`, `suggest`, `SearchableSelect`. pgTAP: `012`–`024` |
 | CI | `.github/workflows/ci.yml` — two jobs, green on every push | `web` runs `tsc -b`, `oxlint`, `vitest`, `build`; `db` applies 000–022 to a throwaway Postgres, runs `check-migrations-stamp.sh`, the pgTAP suite, and the schema-fingerprint drift check |
 
 > **This table is an audit snapshot taken before any of the work below, and it is
@@ -745,8 +745,9 @@ item is a small RPC plus a screen.
 >   aggregated it; the README claimed balances that did not exist. `customer_balance()` /
 >   `customer_debtors()` (`018`), tenant-scoped as functions rather than views, because a report
 >   nobody can scope eventually leaks.
-> - [ ] **Day / shift close (Z report)** — now cheap: `paid_at` is a `timestamptz` (013), voids
->   net correctly (016), and 018's `customer_debtors` demonstrates the windowed aggregate.
+> - [x] **Day / shift close (Z report)** — the row was stale: shipped as `023` and hardened
+> by `024`. It was cheap when first filed because `paid_at` is a `timestamptz` (013), voids
+> net correctly (016), and 018's `customer_debtors` demonstrates the windowed aggregate.
 > - [x] **Lab dwell time is measurable** — `019_lab_dwell.sql`. `lab_status` was a bare string
 >   with no timestamp, so the Lab screen could colour a badge by status and could not say
 >   which job was stuck. `lab_status_changed_at` / `lab_started_at` / `lab_ready_at`, all
@@ -1175,6 +1176,29 @@ judgement, never a blanket default.
 > faithfully restored them. That is the "a role appeared later" case in miniature,
 > which is the entire argument for a callable seed.
 >
+> **A documentation debt that ran four migrations deep, found by asking "what is
+> next" rather than by reading the code.** `web/supabase/SETUP.md` — which is
+> where this document says the operational steps live (§11 rule 4), and which is
+> the *only* route to a migration, since the flow is paste-into-the-SQL-Editor —
+> ended at **Step 16, `020`**. Migrations 021, 022, 023 and 024 had **zero**
+> mentions in it, while `EXPECTED_SCHEMA_VERSION` was already 24. An operator had
+> no documented path to the version the app was asking for, and the banner built
+> to say "your database is behind" would have read "behind" forever.
+>
+> 021 is the sharpest of the four, because it is the one function whose correct
+> behaviour looks like a bug: `bootstrap_platform_admin` **refuses while any
+> platform admin exists** — the property that makes a leaked handle worthless
+> after setup. Documented, that is a safety feature. Undocumented, run it twice
+> and it does nothing, on the exact afternoon you are trying to recover a lost
+> admin login. Same failure class as the Z-report probe above: a correct system
+> whose answer cannot be obtained through the only channel available.
+>
+> Fixed in Steps 17–21, which also record the one decision this roadmap has been
+> deferring rather than forgetting: **`allow_negative_stock` is still `true` on
+> every store**, so Phase 1's oversell guard — the highest-value work in this
+> document — ships inert. Nothing is broken; the protection was simply never
+> switched on, and switching it on means agreeing to *refuse* a sale.
+
 > **#120: green, 13 gates.** The fingerprint re-baselined after reviewing that the
 > diff was two permission rows, one new function and one redefined function.
 
@@ -1210,7 +1234,7 @@ Deferred on purpose, with the trigger that should bring each one back:
 and that "none of them touches Postgres, so nothing in the database has ever been tested."** That
 was true in the audit and stopped being true in Phase 1. The sentence survives as the reason the
 pgTAP suite exists; what it must not do is imply the gap is still open. The database is now
-covered by 11 gates and 240 assertions — and it is the layer where every money defect in this
+covered by 13 gates and ~263 assertions — and it is the layer where every money defect in this
 document lived, which is the whole argument of the roadmap.
 
 The audit's original inventory: `data/permissions`, `data/sales`, `features/pos/{enterNav,
@@ -1219,8 +1243,8 @@ pricing,receipt,types}`, `i18n/translations`, `lib/{payments,posDraft}`. Added s
 
 | Layer | Tool | Covers | Status |
 |---|---|---|---|
-| Pure logic | Vitest (`npm run test`) | pricing, receipt text, payment split maths, draft shape, report-RPC shape | ✅ 16 files, 163 tests |
-| **Database** | **pgTAP** (`npm run test:db`) | re-priced totals, stock guard, invoice uniqueness, idempotency, constraints, voids, refunds, RBAC, receiving, customer balances, lab dwell, the version ledger, `sales.kind` | ✅ 11 gates, 240 assertions, CI `db` job |
+| Pure logic | Vitest (`npm run test`) | pricing, receipt text, payment split maths, draft shape, report-RPC shape, suggest filtering, combo-box keyboard/commit paths | ✅ 20 files, 211 tests |
+| **Database** | **pgTAP** (`npm run test:db`) | re-priced totals, stock guard, invoice uniqueness, idempotency, constraints, voids, refunds, RBAC, receiving, customer balances, lab dwell, the version ledger, `sales.kind`, Z report, closing permissions | ✅ 13 gates, ~263 assertions, CI `db` job |
 | **Authorisation** | pgTAP, impersonating a real cashier JWT via `set role` + `set_config` | RLS matrix per role × table, denied deletes, denied cross-store reads, denied admin minting, denied reads of another store's closes | ✅ Phase 2/3 — `013` (54), `014` (33), `015` (13) |
 | Migration safety | `scripts/check-migrations-stamp.sh` (files) + `assert_versions_recorded()` (ledger) + a `pg_dump` fingerprint in CI | an unstamped migration is a red build; a schema that drifts from the repo fails the build | ✅ Phase 5/6 — the fingerprint baseline is recorded and enforcing |
 | Query cost | structural assertions (the partial index exists, its predicate is the void filter) | no seq scans on the hot paths | ◐ Phase 4 — asserted structurally, **not** measured against a 50k-row dataset |

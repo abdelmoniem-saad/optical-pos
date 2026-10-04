@@ -473,6 +473,143 @@ mismatch warning keeps working later.
 Its gate is [`tests/020_version_gate_test.sql`](./tests/020_version_gate_test.sql)
 (10 assertions), also run by `npm run test:db` and CI.
 
+## Step 17 — `021_bootstrap_platform_admin.sql` (only if you are locked out)
+
+`platform_admins` is the one table whose contents bypass every other policy, so
+it is locked by design — the SQL Editor, the Table Editor and `CREATE POLICY`
+all refuse it. If the only platform-admin login is gone, this is the one
+sanctioned way back in, and it works exactly **once**.
+
+1. Create the Supabase Auth login first (**Authentication → Users → Add user**),
+   with the email you will pass below. Auto-confirm it.
+2. Paste [`021_bootstrap_platform_admin.sql`](./021_bootstrap_platform_admin.sql).
+3. Run this **in the same editor session**, before pasting anything else:
+
+   ```sql
+   select * from public.bootstrap_platform_admin('admin@lensypos.local');
+   ```
+
+It returns the `auth_uid` and `username` it promoted.
+
+**It refuses while any platform admin already exists.** That is deliberate — a
+handle that leaks after setup is worth nothing. So if it raises
+`a platform admin already exists`, you are *not* locked out; you are already in,
+and the fix is to reset that account's password from the Auth dashboard. Do not
+keep re-running it.
+
+`execute` is revoked from `anon` and `authenticated`, so nobody can call this
+over the API — only someone holding the SQL Editor can, which is the point.
+
+Gate: [`tests/021_bootstrap_platform_admin_test.sql`](./tests/021_bootstrap_platform_admin_test.sql)
+(10 assertions).
+
+## Step 18 — `022_sales_kind.sql` (a prescription is not a billable order)
+
+Adds `sales.kind` (`'sale'` | `'prescription'`, default `'sale'`, constrained)
+and re-derives it inside `create_sale_order`. "Orders today" now counts orders
+rather than every row, so standalone prescriptions stop inflating it.
+
+The kind is **re-derived in SQL, not trusted from the browser**, and claiming
+`'prescription'` on a real order is refused unless the cart is worth nothing —
+so it cannot be used to hide a sale from the count.
+
+Paste [`022_sales_kind.sql`](./022_sales_kind.sql), then confirm:
+
+```sql
+select conname, convalidated from pg_constraint where conname = 'sales_kind_check';
+```
+
+`t` under `convalidated` means the constraint is live *and* already checked
+your existing rows — the migration validates rather than assumes.
+
+Gate: [`tests/022_sales_kind_test.sql`](./tests/022_sales_kind_test.sql)
+(18 assertions).
+
+## Step 19 — `023_z_report.sql` (how much should be in the drawer?)
+
+Adds the `shift_closes` table, a live `z_report(from, to)`, and
+`close_shift(from, to, counted_cash, note)`. The close is **stored, not
+recomputed**, so "was the drawer right last Tuesday?" stays answerable after a
+later re-price moves today's numbers.
+
+A void is **not** filtered out of the cash figures. `void_sale` writes a
+compensating negative payment on the same tender, so the money cancels itself
+inside the sum — a voided invoice leaves the drawer exactly as empty as the sale
+left it full. Do not "fix" this by excluding voided rows; that is a different,
+and wrong, answer to the same number.
+
+Paste [`023_z_report.sql`](./023_z_report.sql).
+
+> **Do not verify this with a bare `select * from public.z_report(...)` in the SQL
+> Editor.** It returns zeros — and not because the shop has sold nothing.
+> `z_report` takes the caller's store from `auth_store_id()`, the SQL Editor has
+> no signed-in user, `store_id` is NULL, and the query therefore matches nothing.
+> This has already misled us once. Check the numbers in the app (Close Shift
+> shows the live Z report) and keep the SQL Editor for the structural checks:
+>
+> ```sql
+> select public.schema_version();                -- expect 23
+> select to_regclass('public.shift_closes');    -- expect shift_closes
+> ```
+
+Gate: [`tests/023_z_report_test.sql`](./tests/023_z_report_test.sql)
+(21 assertions).
+
+## Step 20 — `024_closing_permission.sql` (reading numbers ≠ counting the drawer)
+
+Step 19 gated `close_shift` on `reports.edit`. That couples two decisions a shop
+makes separately: a manager who reviews the numbers, and a cashier who counts
+the drawer at closing time. Granting the second would hand them Reports as a
+side effect. So this adds `closing.view` and `closing.edit`, and `close_shift`
+now requires the latter.
+
+Paste [`024_closing_permission.sql`](./024_closing_permission.sql), then run its
+seed **in the same session**:
+
+```sql
+select public.seed_closing_permissions();
+```
+
+It is a **function, not bare `INSERT`s**, and that is the point: a gate builds a
+fresh database *after* migrations have run, so migration-time seeding is
+invisible to any test of it. Being callable again means a "shift supervisor"
+role added next year gets the same grants by running one line.
+
+Who receives the permissions is inherited — the seed copies `reports.edit` to
+both new codes — so roles that could already see the numbers can now also close
+the drawer, and roles that could not get nothing. Confirm what it did:
+
+```sql
+select p.code, count(*) as roles
+  from role_permissions rp join permissions p on p.id = rp.permission_id
+ where p.code like 'closing.%' group by 1 order by 1;
+```
+
+Gate: [`tests/024_closing_permission_test.sql`](./tests/024_closing_permission_test.sql)
+(14 assertions).
+
+## Step 21 — the one decision this roadmap has been deferring
+
+`012_integrity.sql` shipped the oversell guard **inert**. `stores.allow_negative_stock`
+defaults to `true`, so every store still sells below zero stock exactly as it
+did before Phase 1. Nothing is wrong — the protection has simply never been
+switched on.
+
+```sql
+-- per store:
+-- update public.stores set allow_negative_stock = false where id = '…';
+```
+
+Turn it on when you are willing for checkout to **refuse** with
+`insufficient stock: <name>` rather than sell. There is no UI toggle yet; adding
+one needs the stores write policy loosened, which is Phase 3 territory.
+
+## Where you are
+
+`select public.schema_version();` should return **24** — the app expects 24 and
+shows a version banner when the two disagree. Steps 1–16 are history; if your
+number is below 20, work down from here.
+
 ## Schema baseline (recommended, ~2 minutes)
 
 The hardening roadmap (Phase 0) wants a `pg_dump` of the **live** `public`
