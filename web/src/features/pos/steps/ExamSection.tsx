@@ -19,10 +19,13 @@ const small =
 const field =
   'rounded-lg border border-line bg-white px-3 py-2 outline-none focus:border-brand'
 
-// Rx number boxes are narrower than generic fields: digits are centred and
-// need less padding. Together with the slimmer exam-type/color fields this
-// keeps Type + numbers + lens/frame/color/status + 📎 + ✕ on ONE line even
-// at the tab's enlarged 1.25× scale.
+// Rx number boxes are the same width for SPH, CYL and AX: values are 1-5
+// characters ("-6.25", "180") and the uniform size reads as one grid rather
+// than three different columns. Widths here are in rem, and the app is scaled
+// by html{font-size:18px} * zoom:1.25, so 1rem is 22.5px on screen - every
+// 1rem saved is what keeps the whole prescription on ONE line beside the
+// sidebar. Widths are budgeted against ~61rem of content width (a 1600px
+// screen); at 1920 there is comfortable slack.
 const numField =
   'rounded-md border border-line bg-white px-1 py-1.5 text-center text-sm outline-none focus:border-brand'
 
@@ -56,7 +59,7 @@ function ExamRow({ index }: { index: number }) {
   // Excel-style numeric grid: Enter lands on a cell with its value selected
   // (type to replace), and the arrow keys hop between cells while you're "on"
   // a cell rather than editing inside it.
-  const numCol = (label: string, key: keyof Exam, col: number, w = 'w-13') => (
+  const numCol = (label: string, key: keyof Exam, col: number, w = 'w-11') => (
     <label className="flex flex-col">
       <span className="mb-0.5 text-[10px] font-semibold text-faint">{label}</span>
       <input
@@ -72,14 +75,14 @@ function ExamRow({ index }: { index: number }) {
 
   return (
     <div dir="ltr" className="rounded-xl border border-brand-faint bg-brand-bg/40 p-3">
-      <div className="flex flex-wrap items-end gap-2">
+      <div className="flex flex-wrap items-end gap-1.5">
         <label className="flex flex-col">
           <span className="mb-0.5 text-[10px] font-semibold text-faint">{t('Exam Type')}</span>
           <select
             data-rxr={index}
             data-rxc={0}
             onKeyDown={rxArrowNav}
-            className={`${small} w-26`}
+            className={`${small} w-24`}
             value={String(exam.exam_type ?? 'Distance')}
             onChange={(e) => upd({ exam_type: e.target.value })}
           >
@@ -92,12 +95,12 @@ function ExamRow({ index }: { index: number }) {
         <div className="flex items-end gap-0.5 rounded-md bg-white/50 p-0.5">
           {numCol('R.SPH', 'sphere_od', 1)}
           {numCol('R.CYL', 'cylinder_od', 2)}
-          {numCol('R.AX', 'axis_od', 3, 'w-11')}
+          {numCol('R.AX', 'axis_od', 3)}
         </div>
         <div className="flex items-end gap-0.5 rounded-md bg-white/50 p-0.5">
           {numCol('L.SPH', 'sphere_os', 4)}
           {numCol('L.CYL', 'cylinder_os', 5)}
-          {numCol('L.AX', 'axis_os', 6, 'w-11')}
+          {numCol('L.AX', 'axis_os', 6)}
         </div>
         {numCol('IPD', 'ipd', 7, 'w-11')}
 
@@ -107,7 +110,7 @@ function ExamRow({ index }: { index: number }) {
             value={String(exam.lens_info ?? '')}
             onChange={(v) => upd({ lens_info: v })}
             options={lensTypes.data ?? []}
-            inputClassName={`${small} w-40`}
+            inputClassName={`${small} w-32`}
             inputProps={{ 'data-rxr': index, 'data-rxc': 8 }}
             onPassthroughKey={rxArrowNav}
           />
@@ -119,12 +122,12 @@ function ExamRow({ index }: { index: number }) {
             value={String(exam.frame_info ?? '')}
             onChange={(v) => upd({ frame_info: v })}
             options={frames.data ?? []}
-            inputClassName={`${small} w-40`}
+            inputClassName={`${small} w-32`}
             inputProps={{ 'data-rxr': index, 'data-rxc': 9 }}
             onPassthroughKey={rxArrowNav}
           />
           {warnZeroQty && (
-            <span className="max-w-40 text-[10px] font-semibold leading-tight text-warning">
+            <span className="max-w-32 text-[10px] font-semibold leading-tight text-warning">
               {matchedFrame
                 ? t('This frame quantity is 0 or below - you can still sell it.')
                 : t('Frame not found in inventory - it will be recorded with 0 quantity.')}
