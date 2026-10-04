@@ -12,6 +12,7 @@ import {
 } from '../../data/metadata'
 import { useInventory } from '../../data/inventory'
 import { enterMovesNext, rxArrowNav } from '../pos/enterNav'
+import { SearchableSelect } from '../../components/SearchableSelect'
 import { emptyExam, type Exam } from '../pos/types'
 import type { Sale } from '../../lib/database.types'
 
@@ -271,20 +272,14 @@ export function EditOrderForm({ sale, onDone }: { sale: Sale; onDone: () => void
               {/* Lens Type - narrows over saved lens types; new names are added. */}
               <label className="flex flex-col">
                 <span className="mb-0.5 text-[10px] font-semibold text-faint">{t('Lens Type')}</span>
-                <input
-                  data-rxr={i}
-                  data-rxc={8}
-                  onKeyDown={rxArrowNav}
-                  className={`${small} w-40`}
-                  list={`edit-lens-types-${i}`}
+                <SearchableSelect
                   value={String(row.lens_info ?? '')}
-                  onChange={(e) => upd(i, { lens_info: e.target.value })}
+                  onChange={(v) => upd(i, { lens_info: v })}
+                  options={lensTypes.data ?? []}
+                  inputClassName={`${small} w-40`}
+                  inputProps={{ 'data-rxr': i, 'data-rxc': 8 }}
+                  onPassthroughKey={rxArrowNav}
                 />
-                <datalist id={`edit-lens-types-${i}`}>
-                  {(lensTypes.data ?? []).map((o) => (
-                    <option key={o.id} value={o.name} />
-                  ))}
-                </datalist>
               </label>
 
               {/* Frame - narrows over inventory Frames; unknown names become products. */}

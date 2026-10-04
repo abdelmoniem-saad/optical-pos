@@ -6,6 +6,7 @@ import { useInventory } from '../../../data/inventory'
 import { useStoreId } from '../../../lib/licensing'
 import { usePastExaminations, type PastExam } from '../../../data/examinations'
 import { rxArrowNav } from '../enterNav'
+import { SearchableSelect } from '../../../components/SearchableSelect'
 import { emptyExam, type Exam } from '../types'
 import { usePermissions } from '../../../data/permissions'
 import { prescriptionImageUrl, uploadOrderImage } from '../../../lib/storage'
@@ -102,20 +103,14 @@ function ExamRow({ index }: { index: number }) {
 
         <label className="flex flex-col">
           <span className="mb-0.5 text-[10px] font-semibold text-faint">{t('Lens Type')}</span>
-          <input
-            data-rxr={index}
-            data-rxc={8}
-            onKeyDown={rxArrowNav}
-            className={`${small} w-40`}
-            list="lens-types"
+          <SearchableSelect
             value={String(exam.lens_info ?? '')}
-            onChange={(e) => upd({ lens_info: e.target.value })}
+            onChange={(v) => upd({ lens_info: v })}
+            options={lensTypes.data ?? []}
+            inputClassName={`${small} w-40`}
+            inputProps={{ 'data-rxr': index, 'data-rxc': 8 }}
+            onPassthroughKey={rxArrowNav}
           />
-          <datalist id="lens-types">
-            {(lensTypes.data ?? []).map((l) => (
-              <option key={l.id} value={l.name} />
-            ))}
-          </datalist>
         </label>
 
         <label className="flex flex-col">
