@@ -49,16 +49,15 @@ export function SearchableSelect({
 
   const matches = filterOptions(options, query)
 
-  // Keep the highlight inside the list when the result set shrinks.
-  useEffect(() => {
-    if (active >= matches.length) setActive(matches.length - 1)
-  }, [matches.length, active])
+  // Derived rather than stored, so a stale index can never point past the end
+  // of a list that just shrank under it.
+  const highlighted = active >= 0 && active < matches.length ? active : -1
 
   // Bring the highlighted row into view, or arrow keys would wander past the
   // edge of the list on a long catalogue with no feedback that they had.
   useEffect(() => {
     if (open) activeRef.current?.scrollIntoView({ block: 'nearest' })
-  }, [active, open])
+  }, [highlighted, open])
 
   function commit(text: string) {
     onChange(text)
@@ -100,10 +99,10 @@ export function SearchableSelect({
     // untouched box behaves exactly as it did before this component existed.
     // Swallowing it here also stops the container-level enterMovesNext, which
     // would otherwise move to the next field and drop the pending text.
-    if (e.key === 'Enter' && open && (active >= 0 || query.trim() !== '')) {
+    if (e.key === 'Enter' && open && (highlighted >= 0 || query.trim() !== '')) {
       e.preventDefault()
       e.stopPropagation()
-      commit(active >= 0 ? matches[active].name : query)
+      commit(highlighted >= 0 ? matches[highlighted].name : query)
       return
     }
 
@@ -121,11 +120,17 @@ export function SearchableSelect({
         aria-expanded={open}
         aria-controls={listId}
         aria-autocomplete="list"
-        aria-activedescendant={open && active >= 0 ? `${listId}-${active}` : undefined}
+        aria-activedescendant={open && highlighted >= 0 ? `${listId}-${highlighted}` : undefined}
         onChange={(e) => {
-          setQuery(e.target.value)
-          setActive(-1)
+          const q = e.target.value
+          setQuery(q)
           setOpen(true)
+          // Preselect the first match, so a large catalogue is reachable by
+          // typing a few letters and pressing Enter instead of arrowing.
+          // Only once there is something to search for: highlighting a merely
+          // focused empty field would make Enter commit the first entry as the
+          // cashier tabs down the prescription.
+          setActive(q.trim() ? 0 : -1)
         }}
         onFocus={() => {
           setQuery(value)
@@ -140,31 +145,38 @@ export function SearchableSelect({
       />
 
       {open && matches.length > 0 && (
-        <div
-          id={listId}
-          role="listbox"
-          className="absolute z-50 mt-1 max-h-72 w-full min-w-[19rem] overflow-auto rounded-xl border border-line bg-white py-1 shadow-lg"
-        >
-          {matches.map((o, i) => (
-            <div
-              key={o.id}
-              id={`${listId}-${i}`}
-              role="option"
-              aria-selected={i === active}
-              ref={i === active ? activeRef : undefined}
-              // Keeping focus on the input means onBlur does not fire before the
-              // click lands, so a selection cannot be lost to a race.
-              onMouseDown={(e) => e.preventDefault()}
-              onClick={() => commit(o.name)}
-              className={`cursor-pointer px-3 py-1.5 text-xs leading-snug ${
-                i === active ? 'bg-brand text-white' : 'text-ink hover:bg-faint'
-              }`}
-            >
-              {/* Whitespace-normal so a long lens name wraps in full rather than
-                  being ellipsised by a fixed popup width. */}
-              <span className="block whitespace-normal">{o.name}</span>
-            </div>
-          ))}
+        <div className="absolute z-50 mt-1 w-full min-w-[19rem] overflow-hidden rounded-xl border border-line bg-white shadow-lg">
+          {/* Outside the scroll area so the position in the catalogue stays
+              readable while the list itself scrolls past a long result. */}
+          <div className="border-b border-line/40 px-3 py-1 text-[10px] font-semibold text-faint">
+            {matches.length} of {options.length}
+          </div>
+          <div
+            id={listId}
+            role="listbox"
+            className="max-h-72 overflow-auto py-1"
+          >
+            {matches.map((o, i) => (
+              <div
+                key={o.id}
+                id={`${listId}-${i}`}
+                role="option"
+                aria-selected={i === highlighted}
+                ref={i === highlighted ? activeRef : undefined}
+                // Keeping focus on the input means onBlur does not fire before the
+                // click lands, so a selection cannot be lost to a race.
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => commit(o.name)}
+                className={`cursor-pointer px-3 py-1.5 text-xs leading-snug ${
+                  i === highlighted ? 'bg-brand text-white' : 'text-ink hover:bg-faint'
+                }`}
+              >
+                {/* Whitespace-normal so a long lens name wraps in full rather than
+                    being ellipsised by a fixed popup width. */}
+                <span className="block whitespace-normal">{o.name}</span>
+              </div>
+            ))}
+          </div>
         </div>
       )}
     </div>

@@ -23,8 +23,9 @@ const small =
  * Inline full-order editor for the History tab: the usual header fields PLUS
  * the order's prescriptions. Prescription edits are written back to
  * order_examinations, so the customer profile reflects them automatically.
- * Lens / Frame / Color fields are plain datalist combos (press to see options,
- * live narrowing while typing). NOTHING is written to the settings lists while
+ * Lens / Frame / Color are searchable combos that suggest from the settings
+ * lists and accept values that are not in them yet. NOTHING is written to the
+ * settings lists while
  * editing - on Save, syncExamReferences adds newly typed values and removes
  * replaced ones (when no other order still uses them); orphaned app-created
  * frame products are cleaned up. Quantities are never auto-changed here.
@@ -285,39 +286,27 @@ export function EditOrderForm({ sale, onDone }: { sale: Sale; onDone: () => void
               {/* Frame - narrows over inventory Frames; unknown names become products. */}
               <label className="flex flex-col">
                 <span className="mb-0.5 text-[10px] font-semibold text-faint">{t('Frame')}</span>
-                <input
-                  data-rxr={i}
-                  data-rxc={9}
-                  onKeyDown={rxArrowNav}
-                  className={`${small} w-40`}
-                  list={`edit-frame-products-${i}`}
+                <SearchableSelect
                   value={String(row.frame_info ?? '')}
-                  onChange={(e) => upd(i, { frame_info: e.target.value })}
+                  onChange={(v) => upd(i, { frame_info: v })}
+                  options={framesInv.data ?? []}
+                  inputClassName={`${small} w-40`}
+                  inputProps={{ 'data-rxr': i, 'data-rxc': 9 }}
+                  onPassthroughKey={rxArrowNav}
                 />
-                <datalist id={`edit-frame-products-${i}`}>
-                  {(framesInv.data ?? []).map((f) => (
-                    <option key={f.id} value={f.name} />
-                  ))}
-                </datalist>
               </label>
 
               {/* Color - narrows over saved colors; new names are added. */}
               <label className="flex flex-col">
                 <span className="mb-0.5 text-[10px] font-semibold text-faint">{t('Color')}</span>
-                <input
-                  data-rxr={i}
-                  data-rxc={10}
-                  onKeyDown={rxArrowNav}
-                  className={`${small} w-28`}
-                  list={`edit-frame-colors-${i}`}
+                <SearchableSelect
                   value={String(row.frame_color ?? '')}
-                  onChange={(e) => upd(i, { frame_color: e.target.value })}
+                  onChange={(v) => upd(i, { frame_color: v })}
+                  options={frameColors.data ?? []}
+                  inputClassName={`${small} w-28`}
+                  inputProps={{ 'data-rxr': i, 'data-rxc': 10 }}
+                  onPassthroughKey={rxArrowNav}
                 />
-                <datalist id={`edit-frame-colors-${i}`}>
-                  {(frameColors.data ?? []).map((o) => (
-                    <option key={o.id} value={o.name} />
-                  ))}
-                </datalist>
               </label>
 
               <label className="flex flex-col">

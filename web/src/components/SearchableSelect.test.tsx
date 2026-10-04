@@ -194,4 +194,92 @@ describe('SearchableSelect', () => {
     expect(input().dataset.rxr).toBe('2')
     expect(input().dataset.rxc).toBe('8')
   })
+
+  // ---- highlight on type ----
+
+  it('highlights the first match as soon as you type', () => {
+    render()
+    focus()
+    type('p')
+    expect(shown()).toEqual(['Photochromic Blue', 'Progressive Standard'])
+    const sel = container.querySelector('[role="option"][aria-selected="true"]')
+    expect(sel?.textContent).toBe('Photochromic Blue')
+  })
+
+  it('lets type + Enter reach an entry without touching the arrow keys', () => {
+    const onChange = vi.fn()
+    render({ onChange })
+    focus()
+    type('progress')
+    key('Enter')
+    expect(onChange).toHaveBeenCalledWith('Progressive Standard')
+  })
+
+  it('re-highlights the top match when the query narrows', () => {
+    render()
+    focus()
+    type('p')
+    type('pr')
+    const sel = container.querySelector('[role="option"][aria-selected="true"]')
+    expect(sel?.textContent).toBe('Progressive Standard')
+  })
+
+  it('leaves nothing highlighted when the query matches nothing', () => {
+    render()
+    focus()
+    type('zzz')
+    expect(shown()).toEqual([])
+  })
+
+  // Critical: highlighting a merely-focused empty field would make Enter commit
+  // the first catalogue entry as the cashier tabs down the prescription.
+  it('does NOT highlight on focus alone, so Enter still moves to the next field', () => {
+    const onPassthroughKey = vi.fn()
+    render({ onPassthroughKey })
+    focus()
+    expect(container.querySelector('[aria-selected="true"]')).toBeNull()
+    key('Enter')
+    expect(onPassthroughKey).toHaveBeenCalledTimes(1)
+  })
+
+  it('clears the highlight once the text is emptied again', () => {
+    render()
+    focus()
+    type('p')
+    type('')
+    expect(container.querySelector('[aria-selected="true"]')).toBeNull()
+  })
+
+  // ---- n of m ----
+
+  it('shows how many entries match out of the whole catalogue', () => {
+    render()
+    focus()
+    expect(container.textContent).toContain('3 of 3')
+    type('progress')
+    expect(container.textContent).toContain('1 of 3')
+  })
+
+  it('keeps the count visible while the list is scrolled', () => {
+    render()
+    focus()
+    // The count sits outside the scrolling element, so it cannot scroll away.
+    const count = Array.from(container.querySelectorAll('div')).find((d) =>
+      /^\d+ of \d+$/.test(d.textContent ?? ''),
+    )
+    const list = container.querySelector('[role="listbox"]')
+    expect(count).toBeTruthy()
+    expect(list?.contains(count as Node)).toBe(false)
+  })
+
+  it('reports aria-activedescendant for the highlighted entry', () => {
+    render()
+    focus()
+    type('progress')
+    const id = input().getAttribute('aria-activedescendant')
+    expect(id).toBeTruthy()
+    expect(container.querySelector(`#${CSS.escape(id as string)}`)?.textContent).toBe(
+      'Progressive Standard',
+    )
+  })
 })

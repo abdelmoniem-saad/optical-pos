@@ -115,14 +115,13 @@ function ExamRow({ index }: { index: number }) {
 
         <label className="flex flex-col">
           <span className="mb-0.5 text-[10px] font-semibold text-faint">{t('Frame')}</span>
-          <input
-            data-rxr={index}
-            data-rxc={9}
-            onKeyDown={rxArrowNav}
-            className={`${small} w-40`}
-            list="frame-products"
+          <SearchableSelect
             value={String(exam.frame_info ?? '')}
-            onChange={(e) => upd({ frame_info: e.target.value })}
+            onChange={(v) => upd({ frame_info: v })}
+            options={frames.data ?? []}
+            inputClassName={`${small} w-40`}
+            inputProps={{ 'data-rxr': index, 'data-rxc': 9 }}
+            onPassthroughKey={rxArrowNav}
           />
           {warnZeroQty && (
             <span className="max-w-40 text-[10px] font-semibold leading-tight text-warning">
@@ -131,29 +130,18 @@ function ExamRow({ index }: { index: number }) {
                 : t('Frame not found in inventory - it will be recorded with 0 quantity.')}
             </span>
           )}
-          <datalist id="frame-products">
-            {(frames.data ?? []).map((f) => (
-              <option key={f.id} value={f.name} />
-            ))}
-          </datalist>
         </label>
 
         <label className="flex flex-col">
           <span className="mb-0.5 text-[10px] font-semibold text-faint">{t('Color')}</span>
-          <input
-            data-rxr={index}
-            data-rxc={10}
-            onKeyDown={rxArrowNav}
-            className={`${small} w-18`}
-            list="frame-colors"
+          <SearchableSelect
             value={String(exam.frame_color ?? '')}
-            onChange={(e) => upd({ frame_color: e.target.value })}
+            onChange={(v) => upd({ frame_color: v })}
+            options={frameColors.data ?? []}
+            inputClassName={`${small} w-18`}
+            inputProps={{ 'data-rxr': index, 'data-rxc': 10 }}
+            onPassthroughKey={rxArrowNav}
           />
-          <datalist id="frame-colors">
-            {(frameColors.data ?? []).map((c) => (
-              <option key={c.id} value={c.name} />
-            ))}
-          </datalist>
         </label>
 
         <label className="flex flex-col">
