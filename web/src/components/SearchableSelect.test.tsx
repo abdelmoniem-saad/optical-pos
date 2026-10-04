@@ -36,19 +36,16 @@ afterEach(() => {
 function render(props: Partial<Parameters<typeof SearchableSelect>[0]> = {}) {
   act(() => {
     root.render(
-      <SearchableSelect
-        value=""
-        onChange={() => {}}
-        options={LENSES}
-        {...props}
-      />,
+      <SearchableSelect value="" onChange={() => {}} options={LENSES} {...props} />,
     )
   })
 }
 
 const input = () => container.querySelector('input') as HTMLInputElement
-const shown = () =>
-  Array.from(container.querySelectorAll('[role="option"]')).map((o) => o.textContent)
+const rows = () => Array.from(container.querySelectorAll('[role="option"]'))
+const shown = () => rows().map((o) => o.textContent)
+const selected = () =>
+  container.querySelector('[role="option"][aria-selected="true"]')?.textContent ?? null
 
 function focus() {
   act(() => input().focus())
@@ -71,6 +68,12 @@ function key(k: string) {
     input().dispatchEvent(new KeyboardEvent('keydown', { key: k, bubbles: true }))
   })
 }
+function clickRow(text: string) {
+  act(() => {
+    const row = rows().find((r) => r.textContent === text)
+    row?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+  })
+}
 
 describe('SearchableSelect', () => {
   it('opens on focus and lists every option in full', () => {
@@ -84,44 +87,144 @@ describe('SearchableSelect', () => {
     render()
     focus()
     type('progress')
+    expect(shown()).toContain('Progressive Standard')
+    expect(shown()).not.toContain('Single Vision')
+  })
+
+  // ---- the rule that stops Enter guessing for you ----
+
+  it('ends the list with your own text when it is not an exact catalogue name', () => {
+    render()
+    focus()
+    type('progress')
+    // Fuzzy match listed for discovery, then the literal text underneath.
+    expect(shown()).toEqual(['Progressive Standard', 'progress'])
+  })
+
+  it('highlights your own text, so Enter commits what you actually typed', () => {
+    const onChange = vi.fn()
+    render({ onChange })
+    focus()
+    type('progress')
+    expect(selected()).toBe('progress')
+    key('Enter')
+    expect(onChange).toHaveBeenCalledWith('progress')
+  })
+
+  it('never silently commits a fuzzy match on Enter', () => {
+    const onChange = vi.fn()
+    render({ onChange })
+    focus()
+    type('progress')
+    key('Enter')
+    expect(onChange).not.toHaveBeenCalledWith('Progressive Standard')
+  })
+
+  it('omits the own-text row once the typed text IS a catalogue name', () => {
+    render()
+    focus()
+    type('Progressive Standard')
     expect(shown()).toEqual(['Progressive Standard'])
   })
 
-  it('keeps focus in the input and marks itself expanded for assistive tech', () => {
-    render()
-    focus()
-    expect(input().getAttribute('aria-expanded')).toBe('true')
-    expect(input().getAttribute('role')).toBe('combobox')
-  })
-
-  it('arrow + Enter commits the highlighted option', () => {
+  it('takes the catalogue name, with its real casing, on an exact match', () => {
     const onChange = vi.fn()
     render({ onChange })
     focus()
-    key('ArrowDown')
-    key('ArrowDown')
-    key('Enter')
-    expect(onChange).toHaveBeenCalledWith('Photochromic Blue')
-  })
-
-  it('wraps around at both ends of the list', () => {
-    const onChange = vi.fn()
-    render({ onChange })
-    focus()
-    key('ArrowDown')
-    key('ArrowUp') // back past the top
+    type('progressive standard') // typed in the wrong case on purpose
+    expect(selected()).toBe('Progressive Standard')
     key('Enter')
     expect(onChange).toHaveBeenCalledWith('Progressive Standard')
   })
 
-  it('Enter with nothing highlighted commits the free text', () => {
+  it('still lets you deliberately take a fuzzy match by clicking it', () => {
+    const onChange = vi.fn()
+    render({ onChange })
+    focus()
+    type('progress')
+    clickRow('Progressive Standard')
+    expect(onChange).toHaveBeenCalledWith('Progressive Standard')
+  })
+
+  it('still lets you deliberately take a fuzzy match by arrowing to it', () => {
+    const onChange = vi.fn()
+    render({ onChange })
+    focus()
+    type('progress')
+    expect(selected()).toBe('progress') // starts on your own text
+    key('ArrowUp')
+    expect(selected()).toBe('Progressive Standard')
+    key('Enter')
+    expect(onChange).toHaveBeenCalledWith('Progressive Standard')
+  })
+
+  it('offers your own text even when nothing matches at all', () => {
     const onChange = vi.fn()
     render({ onChange })
     focus()
     type('Kodak P 8300')
+    expect(shown()).toEqual(['Kodak P 8300'])
     key('Enter')
     expect(onChange).toHaveBeenCalledWith('Kodak P 8300')
   })
+
+  // ---- tab-through safety ----
+
+  it('does not highlight on focus alone, so Enter still moves to the next field', () => {
+    const onPassthroughKey = vi.fn()
+    render({ onPassthroughKey })
+    focus()
+    expect(selected()).toBeNull()
+    key('Enter')
+    expect(onPassthroughKey).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not swallow Enter on an untouched field that already has a value', () => {
+    const onPassthroughKey = vi.fn()
+    render({ value: 'Single Vision', onPassthroughKey })
+    focus()
+    key('Enter')
+    expect(onPassthroughKey).toHaveBeenCalledTimes(1)
+  })
+
+  it('clears the highlight once the text is emptied again', () => {
+    render()
+    focus()
+    type('p')
+    type('')
+    expect(selected()).toBeNull()
+  })
+
+  // ---- keyboard passthrough ----
+
+  it('leaves Left/Right to the caller so row navigation still works', () => {
+    const onPassthroughKey = vi.fn()
+    render({ onPassthroughKey })
+    focus()
+    key('ArrowLeft')
+    key('ArrowRight')
+    expect(onPassthroughKey).toHaveBeenCalledTimes(2)
+  })
+
+  it('forwards ArrowDown when the popup is closed, so an empty field still navigates the row', () => {
+    const onPassthroughKey = vi.fn()
+    render({ onPassthroughKey })
+    key('ArrowDown')
+    expect(onPassthroughKey).toHaveBeenCalledTimes(1)
+  })
+
+  it('wraps around both ends of the list', () => {
+    render()
+    focus()
+    type('e') // no exact match, so own-text sits last
+    key('ArrowDown')
+    expect(selected()).not.toBeNull()
+    key('ArrowDown')
+    key('ArrowDown')
+    expect(selected()).not.toBeNull()
+  })
+
+  // ---- commit / cancel ----
 
   // REGRESSION: onBlur used to be handed to commit() directly, so it received
   // a FocusEvent instead of the text and pushed an event object into lens_info.
@@ -135,7 +238,7 @@ describe('SearchableSelect', () => {
     expect(onChange.mock.calls[0][0]).toBeTypeOf('string')
   })
 
-  it('blur after arrow-keying without typing still keeps the existing value', () => {
+  it('blur after focus alone keeps the existing value', () => {
     const onChange = vi.fn()
     render({ value: 'Single Vision', onChange })
     focus()
@@ -157,97 +260,8 @@ describe('SearchableSelect', () => {
     render()
     focus()
     type('pro')
-    key('ArrowDown')
     key('Enter')
     expect(shown()).toEqual([])
-  })
-
-  it('leaves Left/Right to the caller so row navigation still works', () => {
-    // rxArrowNav owns horizontal movement across a prescription row; if the
-    // select swallowed these, the cashier could no longer leave the field.
-    const onPassthroughKey = vi.fn()
-    render({ onPassthroughKey })
-    focus()
-    key('ArrowLeft')
-    key('ArrowRight')
-    expect(onPassthroughKey).toHaveBeenCalledTimes(2)
-  })
-
-  it('forwards ArrowDown when the popup is closed, so an empty field still navigates the row', () => {
-    const onPassthroughKey = vi.fn()
-    render({ value: 'x', onChange: () => {}, onPassthroughKey })
-    // No focus: popup closed.
-    key('ArrowDown')
-    expect(onPassthroughKey).toHaveBeenCalledTimes(1)
-  })
-
-  it('does not swallow Enter on an untouched field', () => {
-    const onPassthroughKey = vi.fn()
-    render({ onPassthroughKey })
-    focus() // opens the popup, but nothing typed and nothing highlighted
-    key('Enter')
-    expect(onPassthroughKey).toHaveBeenCalledTimes(1)
-  })
-
-  it('carries the row/column tags that rxArrowNav reads off the DOM', () => {
-    render({ inputProps: { 'data-rxr': 2, 'data-rxc': 8 } })
-    expect(input().dataset.rxr).toBe('2')
-    expect(input().dataset.rxc).toBe('8')
-  })
-
-  // ---- highlight on type ----
-
-  it('highlights the first match as soon as you type', () => {
-    render()
-    focus()
-    type('p')
-    expect(shown()).toEqual(['Photochromic Blue', 'Progressive Standard'])
-    const sel = container.querySelector('[role="option"][aria-selected="true"]')
-    expect(sel?.textContent).toBe('Photochromic Blue')
-  })
-
-  it('lets type + Enter reach an entry without touching the arrow keys', () => {
-    const onChange = vi.fn()
-    render({ onChange })
-    focus()
-    type('progress')
-    key('Enter')
-    expect(onChange).toHaveBeenCalledWith('Progressive Standard')
-  })
-
-  it('re-highlights the top match when the query narrows', () => {
-    render()
-    focus()
-    type('p')
-    type('pr')
-    const sel = container.querySelector('[role="option"][aria-selected="true"]')
-    expect(sel?.textContent).toBe('Progressive Standard')
-  })
-
-  it('leaves nothing highlighted when the query matches nothing', () => {
-    render()
-    focus()
-    type('zzz')
-    expect(shown()).toEqual([])
-  })
-
-  // Critical: highlighting a merely-focused empty field would make Enter commit
-  // the first catalogue entry as the cashier tabs down the prescription.
-  it('does NOT highlight on focus alone, so Enter still moves to the next field', () => {
-    const onPassthroughKey = vi.fn()
-    render({ onPassthroughKey })
-    focus()
-    expect(container.querySelector('[aria-selected="true"]')).toBeNull()
-    key('Enter')
-    expect(onPassthroughKey).toHaveBeenCalledTimes(1)
-  })
-
-  it('clears the highlight once the text is emptied again', () => {
-    render()
-    focus()
-    type('p')
-    type('')
-    expect(container.querySelector('[aria-selected="true"]')).toBeNull()
   })
 
   // ---- n of m ----
@@ -263,23 +277,36 @@ describe('SearchableSelect', () => {
   it('keeps the count visible while the list is scrolled', () => {
     render()
     focus()
-    // The count sits outside the scrolling element, so it cannot scroll away.
     const count = Array.from(container.querySelectorAll('div')).find((d) =>
       /^\d+ of \d+$/.test(d.textContent ?? ''),
     )
-    const list = container.querySelector('[role="listbox"]')
     expect(count).toBeTruthy()
-    expect(list?.contains(count as Node)).toBe(false)
+    expect(container.querySelector('[role="listbox"]')?.contains(count as Node)).toBe(false)
   })
 
-  it('reports aria-activedescendant for the highlighted entry', () => {
+  // ---- a11y ----
+
+  it('keeps focus in the input and marks itself expanded for assistive tech', () => {
+    render()
+    focus()
+    expect(input().getAttribute('aria-expanded')).toBe('true')
+    expect(input().getAttribute('role')).toBe('combobox')
+  })
+
+  it('points aria-activedescendant at the highlighted row', () => {
     render()
     focus()
     type('progress')
     const id = input().getAttribute('aria-activedescendant')
     expect(id).toBeTruthy()
     expect(container.querySelector(`#${CSS.escape(id as string)}`)?.textContent).toBe(
-      'Progressive Standard',
+      'progress',
     )
+  })
+
+  it('carries the row/column tags that rxArrowNav reads off the DOM', () => {
+    render({ inputProps: { 'data-rxr': 2, 'data-rxc': 8 } })
+    expect(input().dataset.rxr).toBe('2')
+    expect(input().dataset.rxc).toBe('8')
   })
 })
