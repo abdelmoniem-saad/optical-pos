@@ -479,6 +479,23 @@ export const ar: Record<string, string> = {
   Renew: 'تجديد',
   'New expiry date': 'تاريخ الانتهاء الجديد',
   'No stores yet.': 'لا توجد متاجر بعد.',
+  // Consolidated multi-store reporting (migration 025). The screen shows each
+  // store's OWN local day, so the zone column is labelled rather than hidden -
+  // a vendor comparing two shops has to see that the figures are not describing
+  // the same stretch of time.
+  'Revenue across all stores': 'الإيرادات عبر جميع المتاجر',
+  'Checking access...': 'جارِ التحقيق من الصلاحية...',
+  'Run 025_platform_reports.sql to see revenue across stores.':
+    'شغّل 025_platform_reports.sql لعرض الإيرادات عبر المتاجر.',
+  Store: 'المتجر',
+  Day: 'اليوم',
+  // Orders / Paid / Total already existed above and are reused rather than
+  // redefined here: a duplicate key is silently the LAST one that wins, which
+  // is how a reworded term starts meaning one thing in one screen and another
+  // elsewhere.
+  Revenue: 'الإيرادات',
+  inactive: 'غير نشط',
+  'Nothing sold on this day.': 'لا توجد مبيعات في هذا اليوم.',
   'Store admin username': 'اسم مستخدم مدير المتجر',
   'Store admin password': 'كلمة مرور مدير المتجر',
   Expires: 'ينتهي',

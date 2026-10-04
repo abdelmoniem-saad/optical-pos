@@ -8,7 +8,7 @@ import { isMissingRpc } from '../data/rpc'
  *  fact the UI compares the live database against, so if the two ever disagree
  *  the banner tells the shop what to run instead of the app guessing from an
  *  error code. */
-export const EXPECTED_SCHEMA_VERSION = 24
+export const EXPECTED_SCHEMA_VERSION = 25
 
 export type SchemaVersion =
   /** Database confirmed current (or newer) - nothing to show. */

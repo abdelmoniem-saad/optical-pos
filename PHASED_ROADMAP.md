@@ -1243,6 +1243,67 @@ judgement, never a blanket default.
 > document — ships inert. Nothing is broken; the protection was simply never
 > switched on, and switching it on means agreeing to *refuse* a sale.
 
+> **Phase 6 · 025 — consolidated multi-store reporting, and the first screen in the
+> application that deliberately crosses a tenant boundary.** Six phases have been
+> about KEEPING APART; this is the one place that reaches across, so the gate is
+> mostly about *who may call it* rather than about arithmetic. `platform_report_window`
+> checks `is_platform_admin()` as its first statement and fails closed, `execute` is
+> revoked from `PUBLIC` and from `anon`, and **G-A3 proves the block is narrow** —
+> the same shop admin must still get their own store’s report, because a gate that only
+> proves "this is blocked" passes just as happily against a function that breaks
+> every caller including the vendor.
+>
+> **Per-store day boundaries, and the design that was chosen against.** "Today" across
+> stores in different zones has two honest answers: one shared UTC window, or one
+> window per store. This takes the second, and the fixture pins it — Y4 is a single
+> instant at 22:00 UTC on the 20th, which is the 20th in UTC and the 21st in Cairo.
+> It counts for one store and not the other, and **G-A6 fails under the shared-window
+> design**. The screen shows each row’s zone for the same reason.
+>
+> **Voids are excluded here and INCLUDED in `z_report`, and that is not an
+> inconsistency.** This is revenue; 016’s `report_sales_window` excludes voided sales
+> from revenue. `z_report` keeps them because `void_sale` writes a compensating
+> negative payment that cancels inside the sum, which is the right shape for "what
+> should be in the drawer". Two questions, two answers. The comment says so in both
+> places, because a future edit that "harmonised" them would report money the shop
+> did not keep.
+>
+> **The first local run caught the gate itself being wrong twice, and both times the
+> database was right.** Now that gates run on a workstation this is cheap to hit:
+> - G-A4 originally asserted "two rows". It failed with **three**, because **008:70
+>   seeds a real ‘Main Store’** — so every migrated database has a store the fixture
+>   never created. Runs #84/#85’s mistake again: a fixture written for a state the
+>   migrations had already been through. It now asserts that *both fixture stores*
+>   appear, which is the claim, and the note says why the total is not 2. A shop
+>   with no sales being a row of zeros is the correct behaviour, not a bug.
+> - The Cairo day’s revenue is **1500, not 1000** — the gate’s own 500 fixture had been
+>   left out of the expectation. Sixth time in this repository that the number, not
+>   the SQL, was wrong.
+>
+> **And the gate’s first draft could not have tested its own subject.** G-A1/G-A2
+> wrapped `throws_ok` around a helper that CAUGHT exceptions — so the helper would
+> swallow the very refusal being asserted, and the test could only ever see "no
+> exception". A helper for capturing a successful result and an assertion about a
+> refusal are different instruments; the refusals now call the function directly
+> under an impersonated session. The red run is what exposed it: with the helper
+> in place the assertions failed with *caught: no exception* rather than with the
+> missing-function error they were supposed to report.
+>
+> **The client copy of that rule lives in its own module.** `lib/platformReportShape.ts`
+> holds the arithmetic, because importing the data module pulls in `lib/supabase`
+> and throws without `VITE_SUPABASE_*` — so the test file could not run at all. Same
+> reason `lib/createUserAuthz.ts` exists. Worth naming the small mistake inside it:
+> checking whether a translation key existed by searching for `'\u0027Orders\u0027` missed
+> an existing **bare** `Orders:` key and produced three duplicate keys, which oxlint
+> caught. A duplicate key is silently the last one that wins, so it is the kind of
+> defect that renames a term in one screen and not another.
+>
+> **CI will be red on the fingerprint, and that is the check working.** 025 adds a
+> function and an index, so `schema.fingerprint` genuinely no longer matches. It has
+> to be re-recorded **from the step summary** of the run that reports it, not from an
+> artifact — the stale/fresh distinction being invisible is exactly what Phase 5
+> recorded.
+>
 > **#120: green, 13 gates.** The fingerprint re-baselined after reviewing that the
 > diff was two permission rows, one new function and one redefined function.
 

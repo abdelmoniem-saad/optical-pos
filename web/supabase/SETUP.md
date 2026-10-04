@@ -606,9 +606,39 @@ one needs the stores write policy loosened, which is Phase 3 territory.
 
 ## Where you are
 
-`select public.schema_version();` should return **24** — the app expects 24 and
+`select public.schema_version();` should return **25** — the app expects 25 and
 shows a version banner when the two disagree. Steps 1–16 are history; if your
 number is below 20, work down from here.
+
+## Step 22 — `025_platform_reports.sql` (revenue across every store)
+
+Adds one report a **platform admin** can read: every store's revenue for a
+calendar day, in one table. It is the first screen in the app that shows one
+store's money to somebody who does not belong to that store — everything else
+here is tenant-scoped on purpose.
+
+Paste [`025_platform_reports.sql`](./025_platform_reports.sql).
+
+**Each row is that store's own local day.** A store in Cairo and a store in UTC
+get different windows for the same calendar date, and the screen shows the zone
+so the numbers can be read correctly. There is no shared-UTC alternative here to
+accidentally fall back on.
+
+Two things it deliberately does **not** do:
+
+- It does not filter out voided sales — it excludes them, because this is
+  *revenue*, not a drawer. `z_report` (Step 19) keeps them, because
+  `void_sale` writes a compensating negative payment that cancels inside the
+  sum. Both are right, for different questions. Don't "harmonise" them.
+- It does not work for a shop admin. It raises `platform admin only`, and
+  `execute` is revoked from `anon` entirely, so the refusal is in SQL and not
+  only in the screen.
+
+A shop with no sales that day appears as a row of zeros rather than a missing
+row — "sold nothing" and "we have no such shop" are different answers.
+
+Gate: [`tests/025_platform_reports_test.sql`](./tests/025_platform_reports_test.sql)
+(14 assertions).
 
 ## Schema baseline (recommended, ~2 minutes)
 

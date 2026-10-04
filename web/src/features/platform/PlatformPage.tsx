@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../../lib/supabase'
 import { useI18n } from '../../i18n/LanguageContext'
 import { useIsPlatformAdminQuery } from '../../lib/licensing'
+import { usePlatformReport } from '../../data/platformReports'
 
 type StoreRow = {
   id: string
@@ -26,6 +27,11 @@ export function PlatformPage() {
   const platform = useIsPlatformAdminQuery()
   const isPlatform = platform.data ?? false
   const [err, setErr] = useState<string | null>(null)
+  // The browser's own idea of today is only the DEFAULT: 025 re-derives every
+  // store's real day bounds server-side, so a wrong tablet clock cannot move the
+  // books. Picking a different day here is exact, and that is its purpose.
+  const [reportDay, setReportDay] = useState(todayLocalISO())
+  const report = usePlatformReport(reportDay)
   const [form, setForm] = useState({
     name: '',
     owner_name: '',
@@ -148,6 +154,16 @@ export function PlatformPage() {
     )
   }
 
+/** 'YYYY-MM-DD' in the browser's own zone. Mirrors CloseShiftPage's helper. */
+function todayLocalISO(): string {
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(
+    d.getDate(),
+  ).padStart(2, '0')}`
+}
+
+const money = (n: number) => n.toFixed(2)
+
   const field =
     'w-full rounded-lg border border-line bg-white px-3 py-2 text-sm outline-none focus:border-brand'
 
@@ -219,6 +235,73 @@ export function PlatformPage() {
           {t('Create store')}
         </button>
       </div>
+
+  {/* ---- consolidated revenue, all stores (migration 025) ----
+Each row is that store's OWN local day, which is why the zone is shown: a
+vendor comparing two shops has to be able to see that the two figures are not
+describing the same stretch of wall-clock time. */}
+  <div className="mb-6 rounded-xl border border-line bg-white p-4 shadow-sm">
+    <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+      <h2 className="font-semibold text-brand-dark">{t('Revenue across all stores')}</h2>
+      <input
+        type="date"
+        className={`${field} w-auto`}
+        value={reportDay}
+        onChange={(e) => setReportDay(e.target.value)}
+      />
+    </div>
+
+    {platform.data === undefined ? (
+      <p className="text-sm text-faint">{t('Checking access...')}</p>
+    ) : report.data && !report.data.inDatabase ? (
+      <p className="text-sm text-warning">
+        {t('Run 025_platform_reports.sql to see revenue across stores.')}
+      </p>
+    ) : (
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-line text-left text-[11px] uppercase tracking-wide text-faint">
+              <th className="px-2 py-1.5">{t('Store')}</th>
+              <th className="px-2 py-1.5">{t('Day')}</th>
+              <th className="px-2 py-1.5 text-right">{t('Orders')}</th>
+              <th className="px-2 py-1.5 text-right">{t('Revenue')}</th>
+              <th className="px-2 py-1.5 text-right">{t('Paid')}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {(report.data?.rows ?? []).map((r) => (
+              <tr key={r.store_id} className="border-b border-line/40">
+                <td className="px-2 py-1.5">
+                  {r.store_name}
+                  {!r.is_active && (
+                    <span className="ml-2 text-[11px] text-faint">({t('inactive')})</span>
+                  )}
+                </td>
+                <td className="px-2 py-1.5 text-xs text-muted">{r.time_zone}</td>
+                <td className="px-2 py-1.5 text-right">{r.order_count}</td>
+                <td className="px-2 py-1.5 text-right">{money(r.revenue)}</td>
+                <td className="px-2 py-1.5 text-right">{money(r.paid)}</td>
+              </tr>
+            ))}
+            {report.data && report.data.totals.stores > 0 && (
+              <tr className="bg-faint/40 font-semibold">
+                <td className="px-2 py-1.5" colSpan={2}>
+                  {t('Total')} ({report.data.totals.stores})
+                </td>
+                <td className="px-2 py-1.5 text-right">{report.data.totals.orders}</td>
+                <td className="px-2 py-1.5 text-right">{money(report.data.totals.revenue)}</td>
+                <td className="px-2 py-1.5 text-right">{money(report.data.totals.paid)}</td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+        {report.data?.rows.length === 0 && (
+          <p className="px-2 py-3 text-sm text-faint">{t('Nothing sold on this day.')}</p>
+        )}
+      </div>
+    )}
+  </div>
 
       {/* ---- stores list ---- */}
       <div className="overflow-hidden rounded-xl border border-line bg-white shadow-sm">
