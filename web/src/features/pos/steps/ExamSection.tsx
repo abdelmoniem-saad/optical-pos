@@ -24,9 +24,9 @@ const field =
 // than three different columns. Widths here are in rem, and the app is scaled
 // by html{font-size:18px} * zoom:1.25, so 1rem is 22.5px on screen - every
 // 1rem saved is what keeps the whole prescription on ONE line beside the
-// sidebar. The row now needs about 54rem, which fits a 1440-wide screen
-// beside the w-38 sidebar with very little to spare. It does NOT fit 1366.
-// Anything added here should come out of the budget below, not on top of it.
+// sidebar. Widths are trimmed to keep the whole prescription on ONE line
+// beside the sidebar on a 1440-wide screen. It does NOT fit 1366. Anything
+// added here must come out of this budget, not on top of it.
 const numField =
   'rounded-md border border-line bg-white px-1 py-1.5 text-center text-sm outline-none focus:border-brand'
 
@@ -169,7 +169,7 @@ function ExamRow({ index }: { index: number }) {
           className="rounded-md px-2 py-1.5 text-sm text-danger hover:bg-danger/10 disabled:opacity-30"
           title={t('Remove')}
         >
-          âœ•
+          ✕
         </button>
       </div>
     </div>
@@ -207,7 +207,7 @@ function PastPrescriptions({ customerId }: { customerId: string }) {
         onClick={() => setOpen((o) => !o)}
         className="rounded-lg bg-brand-faint px-3 py-2 text-sm font-semibold text-brand-dark"
       >
-        {t('Previous Prescriptions')} ({count}) {open ? 'â–²' : 'â–¼'}
+        {t('Previous Prescriptions')} ({count}) {open ? '▲' : '▼'}
       </button>
       {open && (
         // One prescription PER ROW (compact list) so long histories don't eat
@@ -222,7 +222,7 @@ function PastPrescriptions({ customerId }: { customerId: string }) {
                 <div className="min-w-32 text-sm font-semibold text-brand-dark">
                   {(p.sale.order_date ?? '').slice(0, 10) || 'N/A'}
                   {p.sale.invoice_no ? (
-                    <span className="text-brand"> Â· #{p.sale.invoice_no}</span>
+                    <span className="text-brand"> · #{p.sale.invoice_no}</span>
                   ) : null}
                 </div>
                 <div dir="ltr" className="flex flex-wrap gap-x-4 font-mono text-xs text-muted">
@@ -307,7 +307,7 @@ export function ExamSection() {
             onClick={() => setQrOpen(true)}
             className="rounded-md border border-line px-2 py-1.5 text-xs text-brand hover:bg-surface"
           >
-            ðŸ“± {t('Attach from mobile')}
+            📱 {t('Attach from mobile')}
           </button>
         </div>
       </div>
@@ -359,7 +359,7 @@ function OrderImageSlot({ slot, label }: { slot: 'rx' | 'frame'; label: string }
       } hover:bg-surface ${replaceLocked ? 'opacity-50' : ''}`}
       title={replaceLocked ? t('Replace requires admin') : label}
     >
-      {busy ? 'â€¦' : path ? `âœ“ ${label}` : `ðŸ“Ž ${label}`}
+      {busy ? '…' : path ? `✓ ${label}` : `📎 ${label}`}
       <input
         type="file"
         accept="image/*"
