@@ -117,6 +117,16 @@ describe('renderOrderUnitHTML', () => {
     expect(UNIT_CSS).toContain('.rcpt-num{direction:ltr')
   })
 
+  it('does not leave one blank band in the customer column', () => {
+    // The customer copy has no prescription table, so its body is short. Pinning
+    // the foot with margin-top:auto alone reopened a single void between the
+    // details and the money, which reads as a printing fault. The body has to
+    // grow and centre itself for the whitespace to arrive as two small margins.
+    expect(UNIT_CSS).toMatch(/\.rcpt-col-customer \.rcpt-body\{[^}]*justify-content:center/)
+    // ...and the money still has to stay level with the other two copies.
+    expect(UNIT_CSS).toContain('.rcpt-col-customer .rcpt-foot{margin-top:auto}')
+  })
+
   // The unit is direction:rtl, so the FIRST <th> emitted is the one the eye reads
   // first on the sheet. The source order is therefore the mirror of the printed
   // one, and these two assertions are the only thing stopping a well-meaning

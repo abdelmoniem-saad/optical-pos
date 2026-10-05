@@ -293,9 +293,22 @@ export const UNIT_CSS = `
    space falls BELOW the totals instead of pooling between table and totals. */
 .rcpt-body{flex:0 1 auto;min-height:0;overflow:hidden}
 .rcpt-foot{padding-top:1mm}
-/* The customer copy has no prescription table, so its body is short and would
-   otherwise leave a void above the money. Pushing the foot down keeps the
-   totals at the bottom of the column, as they are on the other two copies. */
+/* The customer copy has no prescription table, so its body is short and the
+   column would otherwise show ONE blank band between the details and the money
+   - which reads as something failing to print rather than as a design.
+
+   Instead the body takes the free space and centres itself in it, so the same
+   whitespace arrives as two small margins instead of one void. The rows also
+   breathe a little more than on the shop copy. The foot stays pinned, so the
+   money still sits level with the other two copies across the cut.
+
+   Centred rather than fully distributed: the customer column is ~90mm tall for
+   roughly five rows, so spreading it edge to edge would leave 15mm of blank
+   between a name and an invoice number. Centring plus modest extra padding
+   reads as airiness; full distribution reads as a broken form. */
+.rcpt-col-customer .rcpt-body{flex:1 1 auto;display:flex;flex-direction:column;
+  justify-content:center;min-height:0}
+.rcpt-col-customer .rcpt-meta td{padding:1mm 0}
 .rcpt-col-customer .rcpt-foot{margin-top:auto}
 .rcpt-col-customer{border-inline-start:1.5pt solid #000}
 .rcpt-lab{flex:0 0 auto;border-top:2pt solid #000;padding:1.5mm 2mm;box-sizing:border-box;overflow:hidden}
