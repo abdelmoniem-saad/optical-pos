@@ -479,6 +479,12 @@ export const ar: Record<string, string> = {
   Renew: 'تجديد',
   'New expiry date': 'تاريخ الانتهاء الجديد',
   'No stores yet.': 'لا توجد متاجر بعد.',
+  // WhatsApp share. The receipt text itself is Arabic (it is the same wording
+  // the printed sheet uses); these are the button and its two outcomes.
+  'Share on WhatsApp': 'المشاركة عبر واتساب',
+  'WhatsApp opened in a new tab.': 'فتحت واتساب واتساب في متصف جديد.',
+  'Copied to clipboard - paste it into the chat yourself.':
+    'نسخت إلى الحافظرة - الصقها في المحادثة بنفسك.',
   // Consolidated multi-store reporting (migration 025). The screen shows each
   // store's OWN local day, so the zone column is labelled rather than hidden -
   // a vendor comparing two shops has to see that the figures are not describing

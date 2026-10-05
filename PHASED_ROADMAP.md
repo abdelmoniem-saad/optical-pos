@@ -28,13 +28,13 @@ order: **push every rule into Postgres, then let the app trust it.**
 
 | Layer | What exists | Notes |
 |---|---|---|
-| Schema | `web/supabase/000…022_*.sql` — 23 migrations, flat files | applied by pasting into the Supabase SQL Editor (`SETUP.md`) |
+| Schema | `web/supabase/000…025_*.sql` — 26 migrations, flat files | applied by pasting into the Supabase SQL Editor (`SETUP.md`) |
 | Tenancy & licensing | `008`, `009` + `lib/licensing.ts` | `store_id` on every table, `auth_store_id()`, read/write license gates via RLS |
 | Checkout | `data/sales.ts`, RPC `002`→`011`, `features/pos/*` | atomic RPC **with a non-atomic client fallback** |
 | Payments | `011`, `data/salesPayments.ts`, `lib/payments.ts` | ledger + sync trigger + split tenders — solid foundation |
 | Screens | POS wizard, History, Lab, Inventory, Purchasing, Reports, Customers, Staff/RBAC, Notes, Platform, Mobile upload, Settings | all functional |
-| Tests | **20 Vitest files, 211 tests, pure functions** — plus **13 pgTAP gates, ~263 assertions**, which do touch Postgres | Vitest: `pricing`, `payments`, `receipt`, `posDraft`, `enterNav`, `types`, `permissions`, `sales`, `translations`, `schemaVersion`, `reportRpc`, `createUserAuthz`, `offlineMutations`, `suggest`, `SearchableSelect`. pgTAP: `012`–`024` |
-| CI | `.github/workflows/ci.yml` — two jobs, green on every push | `web` runs `tsc -b`, `oxlint`, `vitest`, `build`; `db` applies 000–022 to a throwaway Postgres, runs `check-migrations-stamp.sh`, the pgTAP suite, and the schema-fingerprint drift check |
+| Tests | **21 Vitest files, 230 tests, pure functions** — plus **14 pgTAP gates, 290 assertions**, which do touch Postgres | Vitest: `pricing`, `payments`, `receipt`, `posDraft`, `enterNav`, `types`, `permissions`, `sales`, `translations`, `schemaVersion`, `reportRpc`, `createUserAuthz`, `offlineMutations`, `suggest`, `SearchableSelect`, `platformReportShape`. pgTAP: `012`–`025` |
+| CI | `.github/workflows/ci.yml` — two jobs, green on every push | `web` runs `tsc -b`, `oxlint`, `vitest`, `build`; `db` applies 000–025 to a throwaway Postgres, runs `check-migrations-stamp.sh`, the pgTAP suite, and the schema-fingerprint drift check |
 
 > **This table is an audit snapshot taken before any of the work below, and it is
 > kept as written rather than quietly updated** — except where a row was so wrong it
@@ -757,10 +757,19 @@ item is a small RPC plus a screen.
 > - [x] **History cursor paging** — now a `(order_date, id)` cursor rather than OFFSET, so a
 >   sale rung up while the cashier reads page 2 no longer shifts rows and shows one invoice
 >   twice while hiding another. The id tiebreak matters because sales can share a timestamp.
-> - [ ] **Receipt share / thermal print** — `features/pos/receipt.ts` has tested formatting;
->   share-to-WhatsApp and an 80 mm stylesheet are additive.
-> - [ ] **Consolidated multi-store reporting** — platform-admin view, now that store scoping
->   is trustworthy.
+> - [x] **Receipt share** — half of this row is done, and the other half is declined rather
+>   than pending. `buildOrderText()` / `whatsAppShareUrl()` in `receipt.ts`, and a
+>   **Share on WhatsApp** button on both the POS receipt and the History reprint.
+>   **No phone is pre-filled**, and that is the decision worth reading: the app
+>   normalises numbers nowhere, so `01000000051`, `+20100000051` and `20100000051`
+>   are all the same person, and guessing a country code to build `wa.me/?phone=`
+>   risks opening the customer’s chat against a stranger. The contact picker costs
+>   one tap and is never wrong. Clipboard fallback if the browser blocks the window.
+> - [~] **Thermal print (80 mm) — declined.** The A4 sheet the shop already uses is the
+>   artefact they want, so the 80 mm stylesheet was not written. `receipt.ts`’s print
+>   path is untouched and remains the only one.
+> - [x] **Consolidated multi-store reporting** — shipped as `025`, which is now the first
+>   surface in the app that deliberately crosses a tenant boundary.
 
 **Deliberately deferred:** true offline-first (conflict-merged) data model — queue-and-replay
 covers the real need at 1/10 the cost; realtime two-register sync; Playwright end-to-end.
@@ -1339,7 +1348,7 @@ Deferred on purpose, with the trigger that should bring each one back:
 and that "none of them touches Postgres, so nothing in the database has ever been tested."** That
 was true in the audit and stopped being true in Phase 1. The sentence survives as the reason the
 pgTAP suite exists; what it must not do is imply the gap is still open. The database is now
-covered by 13 gates and ~263 assertions — and it is the layer where every money defect in this
+covered by 14 gates and 290 assertions — and it is the layer where every money defect in this
 document lived, which is the whole argument of the roadmap.
 
 The audit's original inventory: `data/permissions`, `data/sales`, `features/pos/{enterNav,
@@ -1348,8 +1357,8 @@ pricing,receipt,types}`, `i18n/translations`, `lib/{payments,posDraft}`. Added s
 
 | Layer | Tool | Covers | Status |
 |---|---|---|---|
-| Pure logic | Vitest (`npm run test`) | pricing, receipt text, payment split maths, draft shape, report-RPC shape, suggest filtering, combo-box keyboard/commit paths | ✅ 20 files, 211 tests |
-| **Database** | **pgTAP** (`npm run test:db`) | re-priced totals, stock guard, invoice uniqueness, idempotency, constraints, voids, refunds, RBAC, receiving, customer balances, lab dwell, the version ledger, `sales.kind`, Z report, closing permissions | ✅ 13 gates, ~263 assertions, CI `db` job |
+| Pure logic | Vitest (`npm run test`) | pricing, receipt text, payment split maths, draft shape, report-RPC shape, suggest filtering, combo-box keyboard/commit paths, multi-store report totals, WhatsApp receipt text | ✅ 21 files, 230 tests |
+| **Database** | **pgTAP** (`npm run test:db`) | re-priced totals, stock guard, invoice uniqueness, idempotency, constraints, voids, refunds, RBAC, receiving, customer balances, lab dwell, the version ledger, `sales.kind`, Z report, closing permissions, cross-store platform reporting | ✅ 14 gates, 290 assertions, CI `db` job |
 | **Authorisation** | pgTAP, impersonating a real cashier JWT via `set role` + `set_config` | RLS matrix per role × table, denied deletes, denied cross-store reads, denied admin minting, denied reads of another store's closes | ✅ Phase 2/3 — `013` (54), `014` (33), `015` (13) |
 | Migration safety | `scripts/check-migrations-stamp.sh` (files) + `assert_versions_recorded()` (ledger) + a `pg_dump` fingerprint in CI | an unstamped migration is a red build; a schema that drifts from the repo fails the build | ✅ Phase 5/6 — the fingerprint baseline is recorded and enforcing |
 | Query cost | structural assertions (the partial index exists, its predicate is the void filter) | no seq scans on the hot paths | ◐ Phase 4 — asserted structurally, **not** measured against a 50k-row dataset |
@@ -1466,6 +1475,10 @@ map of what each file is responsible for, so a review can tell which phase owns 
 | `019_lab_dwell.sql` | `lab_status_changed_at` / `lab_started_at` / `lab_ready_at` (trigger-maintained; the last two written ONCE) + `lab_queue()` | Phase 6 - makes "how long has this job been waiting?" answerable at all |
 | `020_version_gate.sql` | Backfills the ledger for 018/019, adds `assert_versions_recorded()` (raises, not returns false), and `scripts/check-migrations-stamp.sh` makes an unstamped migration a red build | Phase 6 - the drift check was the blind spot: 018/019 shipped without recording themselves, so a fully-migrated shop was indistinguishable from a shop stuck at 017 |
 | `022_sales_kind.sql` | `sales.kind` ('sale' \| 'prescription', NOT NULL defaulting to 'sale', constrained) + a re-derivation of the kind inside `create_sale_order`, and `order_count` narrowed to `kind = 'sale'` | Phase 6 — the last open Phase-4 item, and **not** the money bug the audit recorded: revenue was always right, because a zero-total row adds 0. `order_count` was `count(*)` |
+| `021_bootstrap_platform_admin.sql` | `bootstrap_platform_admin(email)` — opens the locked `platform_admins` table **once**, for the case where the only platform-admin login is gone. Refuses while any admin exists, so a leaked handle is worth nothing after setup; `execute` revoked from `anon`/`authenticated` | Phase 6 — the one admin task that had no route except holding the service-role key |
+| `023_z_report.sql` | `shift_closes` (append-only) + `z_report(from, to)` + `close_shift(...)`. A void is **NOT** filtered out of the cash figures — `void_sale` writes a compensating negative payment that cancels inside the sum | Phase 6 — "how much should be in the drawer, and is it"; `expected_cash` is stored rather than recomputed, which is what makes the answer survive a later re-price |
+| `024_closing_permission.sql` | `closing.view` + `closing.edit`, so closing the till is not the same grant as reading Reports; `close_shift` now requires the former. Seed is `seed_closing_permissions()`, **callable again** | Phase 6 — migration-time seeding is invisible to a gate, so the seed is a function |
+| `025_platform_reports.sql` | `platform_report_window(day)` — one row per store, each on **its own** local day, for platform admins. Plus `store_time_zone_for(uuid)` and a date-leading index on `sales` | Phase 6 — the first surface that deliberately crosses a tenant boundary, so it fails closed on `is_platform_admin()` and revokes execute from `PUBLIC` |
 | `supabase/functions/create-user/index.ts` | Creates an Auth user + mirrors it into `public.users` using the service-role key | JWT-only gate, caller-supplied `role_id`/`store_id` — Phase 3 |
 | `web/supabase/tests/_shim.sql`, `tests/012_integrity_test.sql` | Plain-Postgres shims (roles, `auth/`, `storage/`, pgTAP) + the Phase 1 gate (26 assertions) | Run by `npm run test:db` and CI job `db` — no live project touched |
 | `web/supabase/baseline/schema_after_012.sql` | Live `pg_dump --schema-only` of `public`, captured in CI | The **after-012** reference snapshot (012 was already applied when captured) — the diff base for `013`+. Supersedes the drifting `000_base_schema.sql`; Phase 5 turns the drift check into a job |

@@ -407,3 +407,124 @@ export function printOrderDocuments(docs: OrderDoc[], shop: Shop): boolean {
 export function printOrderDocument(doc: OrderDoc, shop: Shop): boolean {
   return printOrderDocuments([doc], shop)
 }
+
+
+// ---------- WhatsApp text rendering ----------
+
+/**
+ * One eye, as `SPH / CYL x AX`, or '' when the eye was left blank.
+ *
+ * Blank rather than '-': a half-filled prescription is normal (a mono lens has
+ * no CYL, a sunglasses order may have no numbers at all), and printing empty
+ * punctuation on a receipt the customer reads says "missing" where the shop
+ * meant "not applicable".
+ */
+function eyeText(sph: string, cyl: string, ax: string): string {
+  const parts = [cell(sph), cell(cyl)].filter(Boolean)
+  const axis = cell(ax)
+  if (!parts.length) return axis ? `x${axis}` : ''
+  return axis ? `${parts.join(' / ')} x${axis}` : parts.join(' / ')
+}
+
+/** Only the optional lines that have something in them. */
+function labelled(label: string, value: string): string[] {
+  return value ? [`${label}: ${value}`] : []
+}
+
+/**
+ * The order as plain text, for WhatsApp.
+ *
+ * Deliberately NOT HTML and NOT markdown tables: WhatsApp renders neither, and
+ * a table pasted into a chat reads as broken. Plain labelled lines are what a
+ * customer can actually read on a phone.
+ *
+ * The wording is the same Arabic the printed sheet uses (فاتورة / الإجمالي /
+ * المتبقي …) rather than fresh labels, so the two artefacts a customer holds -
+ * the paper and the message - do not describe the same invoice in two dialects.
+ * Those labels live in `metaTable`/`totalsTable` as literals; they are repeated
+ * here rather than extracted, because extracting them would mean threading a
+ * label table through the HTML renderer for no gain at this size.
+ *
+ * The remaining balance is included on purpose: it is the one number a customer
+ * is most likely to want and least likely to have to hand.
+ */
+export function buildOrderText(doc: OrderDoc, shop: Shop): string {
+  const t = doc.totals
+  const out: string[] = []
+
+  out.push(`*${shop.name}*`)
+
+  const head = [`فاتورة #${cell(doc.invoiceNo)}`, cell(doc.orderDate)].filter(Boolean)
+  out.push(head.join('  |  '))
+  if (cell(doc.deliveryDate)) out.push(`التسليم: ${cell(doc.deliveryDate)}`)
+  out.push(`العميل: ${cell(doc.customerName)}`)
+  out.push(...labelled('الجوال', cell(doc.customerPhone)))
+  out.push(...labelled('الطبيب', cell(doc.doctorName)))
+
+  if (!doc.rows.length) {
+    out.push('', 'لا توجد وصفات')
+  } else {
+    for (const r of doc.rows) {
+      out.push('', `*${r.index})* ${cell(r.type)}`)
+      const R = eyeText(r.sphOd, r.cylOd, r.axOd)
+      const L = eyeText(r.sphOs, r.cylOs, r.axOs)
+      out.push(...labelled('يمين', R))
+      out.push(...labelled('يسار', L))
+      out.push(...labelled('IPD', cell(r.ipd)))
+      out.push(...labelled('العدسة', cell(r.lens)))
+      out.push(...labelled('الإطار', cell(r.frame)))
+      out.push(...labelled('اللون', cell(r.color)))
+      out.push(...labelled('الحالة', cell(r.status)))
+    }
+  }
+
+  const cur = cell(shop.currency)
+  const amt = (n: number) => (cur ? `${money(n)} ${cur}` : money(n))
+  out.push('', `الإجمالي: ${amt(t.gross)}`)
+  if (t.discount > 0) out.push(`الخصم: - ${amt(t.discount)}`)
+  out.push(`الصافي: ${amt(t.net)}`)
+  out.push(`المدفوع: ${amt(t.paid)}`)
+  out.push(`*المتبقي: ${amt(t.remaining)}*`)
+
+  const footer = [cell(shop.address), cell(shop.phone)].filter(Boolean)
+  if (footer.length) out.push('', footer.join('  |  '))
+  out.push('شكراً لزيارتكم')
+
+  return out.join('\n')
+}
+
+/**
+ * A wa.me link carrying the receipt text.
+ *
+ * NO phone number is pre-filled, and that is a decision rather than a gap. The
+ * app normalises phone numbers nowhere - `customer.phone` is stored exactly as
+ * typed, so 01000000051, +20100000051 and 201000000051 are all valid entries for
+ * the same person. Guessing a country code to build `wa.me/?phone=` risks
+ * opening the customer's chat against a stranger's number, which is a far worse
+ * outcome than one extra tap in the contact picker.
+ */
+export function whatsAppShareUrl(text: string): string {
+  return `https://wa.me/?text=${encodeURIComponent(text)}`
+}
+
+/**
+ * Open WhatsApp with the receipt.
+ *
+ * Returns false when the browser refused the window, so the caller can fall back
+ * to the clipboard - a blocked popup otherwise looks like a button that does
+ * nothing, which is how a cashier learns to ignore it.
+ */
+export async function shareOrderOnWhatsApp(
+  doc: OrderDoc,
+  shop: Shop,
+): Promise<'opened' | 'copied'> {
+  const text = buildOrderText(doc, shop)
+  const win = window.open(whatsAppShareUrl(text), '_blank', 'noopener,noreferrer')
+  if (win) return 'opened'
+  try {
+    await navigator.clipboard.writeText(text)
+    return 'copied'
+  } catch {
+    return 'copied'
+  }
+}

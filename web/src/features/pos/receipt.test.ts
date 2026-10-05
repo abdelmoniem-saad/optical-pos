@@ -1,7 +1,14 @@
 import { describe, expect, it } from 'vitest'
 import type { Customer, Sale } from '../../lib/database.types'
 import type { CompletedOrder } from './POSContext'
-import { UNIT_CSS, buildOrderDocument, renderOrderUnitHTML } from './receipt'
+import {
+  UNIT_CSS,
+  buildOrderDocument,
+  renderOrderUnitHTML,
+  buildOrderText,
+  whatsAppShareUrl,
+} from './receipt'
+import type { OrderDoc, Shop } from './receipt'
 import { emptyExam } from './types'
 
 const shop = { name: 'Lensy', address: 'شارع 1', phone: '0100', currency: 'ج.م' }
@@ -189,5 +196,118 @@ describe('renderOrderUnitHTML', () => {
 
     expect(shopCol).toContain('rcpt-rx')
     expect(lab).toContain('rcpt-rx')
+  })
+})
+
+// ---------- WhatsApp text ----------
+
+const SHOP: Shop = {
+  name: 'Lensy Optical',
+  address: '5 Tahrir St',
+  phone: '01000000000',
+  currency: 'EGP',
+}
+
+const doc = (over: Partial<OrderDoc> = {}): OrderDoc => ({
+  invoiceNo: 'Y0001',
+  orderDate: '20/09/2026',
+  deliveryDate: '27/09/2026',
+  customerName: 'Ahmed',
+  customerPhone: '01000000051',
+  doctorName: '',
+  rows: [
+    {
+      index: 1, type: 'Distance',
+      sphOd: '-1.25', cylOd: '-0.50', axOd: '180',
+      sphOs: '-1.25', cylOs: '-0.50', axOs: '175',
+      ipd: '63', lens: 'Progressive', frame: 'Ray-Ban', color: 'أسود', status: 'جديد',
+    },
+  ],
+  totals: { gross: 1000, discount: 50, net: 950, paid: 500, remaining: 450 },
+  ...over,
+})
+
+describe('buildOrderText', () => {
+  it('carries the facts a customer actually needs', () => {
+    const text = buildOrderText(doc(), SHOP)
+    expect(text).toContain('Lensy Optical')
+    expect(text).toContain('Y0001')
+    expect(text).toContain('Ahmed')
+    expect(text).toContain('Progressive')
+    expect(text).toContain('20/09/2026')
+  })
+
+  it('leads with the remaining balance, which is the number they want', () => {
+    const text = buildOrderText(doc(), SHOP)
+    expect(text).toContain('450.00 EGP')
+    // and it is the bolded line, so it is what stands out in the chat
+    expect(text).toContain('*المتبقي: 450.00 EGP*')
+  })
+
+  it('shows the discount only when there is one', () => {
+    expect(buildOrderText(doc(), SHOP)).toContain('الخصم')
+    const none = buildOrderText(doc({ totals: { gross: 1000, discount: 0, net: 1000, paid: 1000, remaining: 0 } }), SHOP)
+    expect(none).not.toContain('الخصم')
+  })
+
+  it('omits a blank eye rather than printing empty punctuation', () => {
+    // A mono lens has no CYL and an order may have no numbers at all; printing
+    // "R:  /  x" on a customer-facing receipt reads as missing, not as N/A.
+    const text = buildOrderText(doc({
+      rows: [{ ...doc().rows[0], sphOd: '-2.00', cylOd: '', axOd: '', sphOs: '', cylOs: '', axOs: '', ipd: '' }],
+    }), SHOP)
+    expect(text).not.toContain('يمين: /')
+    expect(text).not.toContain('x')
+    expect(text).toContain('يمين: -2.00')
+  })
+
+  it('omits optional fields that are empty instead of printing "undefined"', () => {
+    const text = buildOrderText(doc({ customerPhone: '', doctorName: '', deliveryDate: '' }), SHOP)
+    expect(text).not.toContain('undefined')
+    expect(text).not.toContain('null')
+    expect(text).not.toContain('الجوال')
+    expect(text).not.toContain('الطبيب')
+    expect(text).not.toContain('التسليم')
+  })
+
+  it('says so when there are no prescriptions, rather than printing nothing', () => {
+    expect(buildOrderText(doc({ rows: [] }), SHOP)).toContain('لا توجد وصفات')
+  })
+
+  it('numbers every row of a two-prescription order', () => {
+    const rows = [doc().rows[0], { ...doc().rows[0], index: 2, lens: 'Single Vision' }]
+    const text = buildOrderText(doc({ rows }), SHOP)
+    expect(text).toContain('*1)*')
+    expect(text).toContain('*2)*')
+    expect(text).toContain('Single Vision')
+  })
+
+  it('keeps Arabic lens and colour names intact', () => {
+    const text = buildOrderText(doc({ rows: [{ ...doc().rows[0], lens: 'متعدد البؤر', color: 'بني' }] }), SHOP)
+    expect(text).toContain('متعدد البؤر')
+    expect(text).toContain('بني')
+  })
+})
+
+describe('whatsAppShareUrl', () => {
+  it('points at wa.me with the text encoded', () => {
+    const url = whatsAppShareUrl('فاتورة #Y0001')
+    expect(url.startsWith('https://wa.me/?text=')).toBe(true)
+    expect(decodeURIComponent(url.split('text=')[1])).toBe('فاتورة #Y0001')
+  })
+
+  // The characters most likely to survive a hand-rolled template: a space
+  // truncating the link, an & starting a bogus query parameter, and a + read
+  // as a space. Encoding is the whole correctness of this function.
+  it('escapes characters that would otherwise break the query string', () => {
+    const text = 'Lens & Frame 100% +20 0100 x2'
+    const decoded = decodeURIComponent(whatsAppShareUrl(text).split('text=')[1])
+    expect(decoded).toBe(text)
+    expect(whatsAppShareUrl(text).split('text=')[1]).not.toMatch(/[&+]/)
+  })
+
+  it('round-trips a whole receipt', () => {
+    const text = buildOrderText(doc(), SHOP)
+    expect(decodeURIComponent(whatsAppShareUrl(text).split('text=')[1])).toBe(text)
   })
 })

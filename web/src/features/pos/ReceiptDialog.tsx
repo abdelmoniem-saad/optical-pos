@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { usePOS, type CompletedOrder } from './POSContext'
 import { useI18n } from '../../i18n/LanguageContext'
 import { useSettings } from '../../data/settings'
@@ -6,6 +6,7 @@ import {
   UNIT_CSS,
   buildOrderDocument,
   printOrderDocument,
+  shareOrderOnWhatsApp,
   renderOrderUnitHTML,
   type Shop,
 } from './receipt'
@@ -33,6 +34,9 @@ export function ReceiptDialog({ order }: { order: CompletedOrder }) {
   )
 
   const doc = useMemo(() => buildOrderDocument(order, shop), [order, shop])
+  // 'opened' | 'copied' - set only when the share button is used, so the
+  // note is not sitting there claiming something happened before any click.
+  const [shareNote, setShareNote] = useState<'opened' | 'copied' | null>(null)
   const unitHTML = useMemo(() => renderOrderUnitHTML(doc, shop), [doc, shop])
 
   return (
@@ -71,6 +75,23 @@ export function ReceiptDialog({ order }: { order: CompletedOrder }) {
         >
           🖨 {t('Print')}
         </button>
+
+        <button
+          onClick={async () => {
+            const how = await shareOrderOnWhatsApp(doc, shop)
+            setShareNote(how)
+          }}
+          className="mt-2 w-full rounded-lg border border-line py-2.5 font-semibold text-muted hover:bg-surface"
+        >
+          {t('Share on WhatsApp')}
+        </button>
+        {shareNote && (
+          <p className="mt-1 text-center text-[11px] text-muted">
+            {shareNote === 'opened'
+              ? t('WhatsApp opened in a new tab.')
+              : t('Copied to clipboard - paste it into the chat yourself.')}
+          </p>
+        )}
 
         <button
           onClick={closeReceipt}
