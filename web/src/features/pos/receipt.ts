@@ -211,6 +211,21 @@ function totalsTable(doc: OrderDoc, currency: string, kind: 'shop' | 'customer')
  * prescription count grows - graduated so even 6+ Rx show COMPLETELY.
  * Column order: CUSTOMER on the right, shop on the left.
  */
+
+/**
+ * The shop's own contact details - address on one line, phone on the next.
+ *
+ * Two lines rather than one joined with a middot: the sheet gets cut in half
+ * and the address is how a customer confirms they are at the right shop, so it
+ * has to be readable on its own instead of sharing a baseline with a number.
+ */
+function shopIdentity(shop: Shop): string {
+  const lines: string[] = []
+  if (shop.address) lines.push(`<div>${esc(shop.address)}</div>`)
+  if (shop.phone) lines.push(`<div><span class="rcpt-num">${esc(shop.phone)}</span></div>`)
+  return lines.length ? `<div class="rcpt-sub">${lines.join('')}</div>` : ''
+}
+
 export function renderOrderUnitHTML(doc: OrderDoc, shop: Shop): string {
   const cur = shop.currency
   const density =
@@ -234,13 +249,13 @@ export function renderOrderUnitHTML(doc: OrderDoc, shop: Shop): string {
   const customerCol = `
     <div class="rcpt-col rcpt-col-customer">
       <div class="rcpt-head">${esc(shop.name)}</div>
-      ${shop.address || shop.phone ? `<div class="rcpt-sub">${shop.address ? esc(shop.address) : ''}${shop.address && shop.phone ? ' · ' : ''}${shop.phone ? `<span class="rcpt-num">${esc(shop.phone)}</span>` : ''}</div>` : ''}
+      ${shopIdentity(shop)}
       <div class="rcpt-tag">نسخة العميل</div>
       <div class="rcpt-body">
         ${metaTable(doc)}
       </div>
+      <div class="rcpt-money">${totalsTable(doc, cur, 'customer')}</div>
       <div class="rcpt-foot">
-        ${totalsTable(doc, cur, 'customer')}
         <div class="rcpt-note">يعتبر هذا الإيصال لاغ بعد ثلاثة أشهر من تاريخه</div>
         <div class="rcpt-thanks">شكراً لتعاملكم معنا 🌹</div>
       </div>
@@ -248,7 +263,7 @@ export function renderOrderUnitHTML(doc: OrderDoc, shop: Shop): string {
   const shopCol = `
     <div class="rcpt-col rcpt-col-shop">
       <div class="rcpt-head">نسخة المحل - ${esc(shop.name)}</div>
-      ${shop.address || shop.phone ? `<div class="rcpt-sub">${shop.address ? esc(shop.address) : ''}${shop.address && shop.phone ? ' · ' : ''}${shop.phone ? `<span class="rcpt-num">${esc(shop.phone)}</span>` : ''}</div>` : ''}
+      ${shopIdentity(shop)}
       <div class="rcpt-body">
         ${metaTable(doc)}
         ${rxTable(doc, false)}
@@ -263,9 +278,7 @@ export function renderOrderUnitHTML(doc: OrderDoc, shop: Shop): string {
   // shop it belongs to. It therefore carries the shop's own identity - name,
   // phone and address - and NOT the doctor, who is not the party the workshop
   // needs to call and whose name belongs on the customer's copy.
-  const labIdentity = shop.address || shop.phone
-    ? `<div class="rcpt-sub">${shop.address ? esc(shop.address) : ''}${shop.address && shop.phone ? ' · ' : ''}${shop.phone ? `<span class="rcpt-num">${esc(shop.phone)}</span>` : ''}</div>`
-    : ''
+  const labIdentity = shopIdentity(shop)
   const labTier = `
     <div class="rcpt-lab">
       <div class="rcpt-head rcpt-head-lab">${esc(shop.name)} - نسخة المعمل - فاتورة <span class="rcpt-num">#${esc(doc.invoiceNo)}</span> · التسليم <span class="rcpt-num">${esc(doc.deliveryDate)}</span></div>
@@ -293,23 +306,17 @@ export const UNIT_CSS = `
    space falls BELOW the totals instead of pooling between table and totals. */
 .rcpt-body{flex:0 1 auto;min-height:0;overflow:hidden}
 .rcpt-foot{padding-top:1mm}
-/* The customer copy has no prescription table, so its body is short and the
-   column would otherwise show ONE blank band between the details and the money
-   - which reads as something failing to print rather than as a design.
-
-   Instead the body takes the free space and centres itself in it, so the same
-   whitespace arrives as two small margins instead of one void. The rows also
-   breathe a little more than on the shop copy. The foot stays pinned, so the
-   money still sits level with the other two copies across the cut.
-
-   Centred rather than fully distributed: the customer column is ~90mm tall for
-   roughly five rows, so spreading it edge to edge would leave 15mm of blank
-   between a name and an invoice number. Centring plus modest extra padding
-   reads as airiness; full distribution reads as a broken form. */
-.rcpt-col-customer .rcpt-body{flex:1 1 auto;display:flex;flex-direction:column;
-  justify-content:center;min-height:0}
-.rcpt-col-customer .rcpt-meta td{padding:1mm 0}
-.rcpt-col-customer .rcpt-foot{margin-top:auto}
+/* Money is CENTRED in the customer column, not pinned to the bottom. The body
+   keeps its natural height and the two auto margins split the leftover space
+   evenly above and below the totals, so they land in the middle of the copy
+   instead of hugging the money-free bottom third. */
+.rcpt-col-customer .rcpt-body{flex:0 0 auto;min-height:0}
+.rcpt-col-customer .rcpt-money{flex:0 0 auto;margin-top:auto;margin-bottom:auto}
+/* The closing lines are lifted clear of the bottom edge. Printers crop the last
+   few millimetres unpredictably and the cut is not always square to the page,
+   and a receipt whose final line lands on the cut is one the customer cannot
+   prove they were given. */
+.rcpt-col-customer .rcpt-foot{flex:0 0 auto;margin-bottom:6mm}
 .rcpt-col-customer{border-inline-start:1.5pt solid #000}
 .rcpt-lab{flex:0 0 auto;border-top:2pt solid #000;padding:1.5mm 2mm;box-sizing:border-box;overflow:hidden}
 .rcpt-head{font-size:10.5pt;font-weight:800;border-bottom:0.75pt solid #000;padding-bottom:0.8mm;margin-bottom:1mm}

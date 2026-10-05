@@ -117,14 +117,39 @@ describe('renderOrderUnitHTML', () => {
     expect(UNIT_CSS).toContain('.rcpt-num{direction:ltr')
   })
 
-  it('does not leave one blank band in the customer column', () => {
-    // The customer copy has no prescription table, so its body is short. Pinning
-    // the foot with margin-top:auto alone reopened a single void between the
-    // details and the money, which reads as a printing fault. The body has to
-    // grow and centre itself for the whitespace to arrive as two small margins.
-    expect(UNIT_CSS).toMatch(/\.rcpt-col-customer \.rcpt-body\{[^}]*justify-content:center/)
-    // ...and the money still has to stay level with the other two copies.
-    expect(UNIT_CSS).toContain('.rcpt-col-customer .rcpt-foot{margin-top:auto}')
+  it('centres the money in the customer column instead of pinning it low', () => {
+    // The customer copy has no prescription table, so the column is short. Two
+    // auto margins on the totals split the leftover space evenly above and below
+    // them, which is what puts the money in the middle rather than leaving one
+    // blank band between the details and the totals.
+    expect(UNIT_CSS).toMatch(/\.rcpt-col-customer \.rcpt-money\{[^}]*margin-top:auto/)
+    expect(UNIT_CSS).toMatch(/\.rcpt-col-customer \.rcpt-money\{[^}]*margin-bottom:auto/)
+    // The body must NOT grow, or it would swallow the free space the money's
+    // margins are there to divide.
+    expect(UNIT_CSS).toMatch(/\.rcpt-col-customer \.rcpt-body\{[^}]*flex:0 0 auto/)
+  })
+
+  it('keeps the closing lines off the bottom edge of the sheet', () => {
+    // Printers crop the last few millimetres unpredictably and the cut is not
+    // always square to the page. A receipt whose final line lands on the cut is
+    // one the customer cannot prove they were given.
+    const foot = UNIT_CSS.match(/\.rcpt-col-customer \.rcpt-foot\{[^}]*\}/)
+    expect(foot).not.toBeNull()
+    expect(foot![0]).toMatch(/margin-bottom:\d/)
+  })
+
+  it('puts the shop address and phone on separate lines', () => {
+    // The sheet is cut in half and the address is how a customer confirms they
+    // are at the right shop, so it must not share a baseline with a number.
+    const html = renderOrderUnitHTML(buildOrderDocument(order(), shop), shop)
+    expect(html).toContain(
+      '<div class="rcpt-sub"><div>شارع 1</div>' +
+        '<div><span class="rcpt-num">0100</span></div></div>',
+    )
+    // ...and the old joined-on-one-line form is gone. Scoped to the sub header
+    // rather than the whole document: the lab header legitimately uses a middot
+    // to separate the invoice number from the delivery date.
+    expect(html).not.toContain('<div class="rcpt-sub">شارع 1 · ')
   })
 
   // The unit is direction:rtl, so the FIRST <th> emitted is the one the eye reads
