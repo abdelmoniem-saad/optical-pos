@@ -494,21 +494,68 @@ export function buildOrderText(doc: OrderDoc, shop: Shop): string {
 }
 
 /**
- * A wa.me link carrying the receipt text.
- *
- * NO phone number is pre-filled, and that is a decision rather than a gap. The
- * app normalises phone numbers nowhere - `customer.phone` is stored exactly as
- * typed, so 01000000051, +20100000051 and 201000000051 are all valid entries for
- * the same person. Guessing a country code to build `wa.me/?phone=` risks
- * opening the customer's chat against a stranger's number, which is a far worse
- * outcome than one extra tap in the contact picker.
+ * Default country dialling code, used only when a stored number is in national
+ * form. Overridable per shop via the `country_code` setting, because hardcoding
+ * it would be right for exactly one country.
  */
-export function whatsAppShareUrl(text: string): string {
-  return `https://wa.me/?text=${encodeURIComponent(text)}`
+export const DEFAULT_COUNTRY_CODE = '20'
+
+/**
+ * The customer's phone as WhatsApp requires it: digits only, country code first,
+ * no plus sign and no national trunk zero.
+ *
+ * `customer.phone` is stored exactly as typed and the app normalises it nowhere,
+ * so all of these are legitimate entries for one person and must collapse to the
+ * same digits:
+ *
+ *   01000000051    -> 201000000051   (national: trunk 0 dropped, code prepended)
+ *   +201000000051  -> 201000000051
+ *   00201000000051 -> 201000000051
+ *   201000000051   -> 201000000051   (already international)
+ *
+ * Returns null when the result cannot be trusted - blank, or a length no real
+ * number has - so the caller can fall back to the contact picker. Opening a
+ * customer's chat against a mistyped stranger's number is worse than one tap.
+ */
+export function resolveWhatsAppNumber(
+  raw: string,
+  countryCode: string = DEFAULT_COUNTRY_CODE,
+): string | null {
+  const trimmed = (raw ?? '').trim()
+  if (!trimmed) return null
+  const hadPlus = trimmed.startsWith('+')
+  let digits = trimmed.replace(/\D/g, '')
+  if (!digits) return null
+  if (digits.startsWith('00')) digits = digits.slice(2)
+  else if (!hadPlus && digits.startsWith('0')) digits = digits.replace(/^0+/, '')
+  const cc = (countryCode || DEFAULT_COUNTRY_CODE).replace(/\D/g, '')
+  // Already carries its country code? Only assume so when it begins with the
+  // one this shop dialled from, rather than guessing for any long number.
+  const full = cc && digits.startsWith(cc) ? digits : `${cc}${digits}`
+  return /^\d{8,15}$/.test(full) ? full : null
 }
 
 /**
- * Open WhatsApp with the receipt.
+ * A wa.me link carrying the receipt text.
+ *
+ * With a resolvable number the link opens that chat directly; without one it
+ * degrades to the contact picker, so a missing or odd-typed phone still shares.
+ *
+ * The number is a PATH segment - `wa.me/<number>` is the documented short form,
+ * and `?phone=` on wa.me is not a thing. Either way the text is URL-encoded:
+ * a space would otherwise truncate the link.
+ */
+export function whatsAppShareUrl(
+  text: string,
+  phone?: string,
+  countryCode?: string,
+): string {
+  const number = phone ? resolveWhatsAppNumber(phone, countryCode) : null
+  return `${number ? `https://wa.me/${number}` : 'https://wa.me/'}?text=${encodeURIComponent(text)}`
+}
+
+/**
+ * Open WhatsApp with the receipt, addressed to the customer when we can.
  *
  * Returns false when the browser refused the window, so the caller can fall back
  * to the clipboard - a blocked popup otherwise looks like a button that does
@@ -517,14 +564,22 @@ export function whatsAppShareUrl(text: string): string {
 export async function shareOrderOnWhatsApp(
   doc: OrderDoc,
   shop: Shop,
+  opts: { phone?: string; countryCode?: string } = {},
 ): Promise<'opened' | 'copied'> {
   const text = buildOrderText(doc, shop)
-  const win = window.open(whatsAppShareUrl(text), '_blank', 'noopener,noreferrer')
+  const win = window.open(
+    whatsAppShareUrl(text, opts.phone, opts.countryCode),
+    '_blank',
+    'noopener,noreferrer',
+  )
   if (win) return 'opened'
   try {
     await navigator.clipboard.writeText(text)
-    return 'copied'
   } catch {
-    return 'copied'
+    // Nothing we can do here, and the receipt is on the screen in front of the
+    // cashier regardless - which is why both paths report 'copied' honestly:
+    // the text IS available to paste, and saying otherwise invents a failure
+    // that the user cannot act on.
   }
+  return 'copied'
 }

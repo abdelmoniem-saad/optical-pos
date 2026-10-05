@@ -78,7 +78,10 @@ export function ReceiptDialog({ order }: { order: CompletedOrder }) {
 
         <button
           onClick={async () => {
-            const how = await shareOrderOnWhatsApp(doc, shop)
+            const how = await shareOrderOnWhatsApp(doc, shop, {
+              phone: doc.customerPhone,
+              countryCode: settings.data?.country_code,
+            })
             setShareNote(how)
           }}
           className="mt-2 w-full rounded-lg border border-line py-2.5 font-semibold text-muted hover:bg-surface"

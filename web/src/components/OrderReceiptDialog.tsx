@@ -127,7 +127,10 @@ export function OrderReceiptDialog({ sale, onClose }: { sale: Sale; onClose: () 
         {/* Same action as the POS receipt: a re-printed receipt from History is
             exactly the one a customer asks for by message, so it shares too. */}
         <button
-          onClick={async () => setShareNote(await shareOrderOnWhatsApp(doc, shop))}
+          onClick={async () => setShareNote(await shareOrderOnWhatsApp(doc, shop, {
+            phone: doc.customerPhone,
+            countryCode: settings.data?.country_code,
+          }))}
           className="mt-2 w-full rounded-lg border border-line py-2.5 font-semibold text-muted hover:bg-surface"
         >
           {t('Share on WhatsApp')}

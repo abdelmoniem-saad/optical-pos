@@ -485,6 +485,8 @@ export const ar: Record<string, string> = {
   'WhatsApp opened in a new tab.': 'فتحت واتساب واتساب في متصف جديد.',
   'Copied to clipboard - paste it into the chat yourself.':
     'نسخت إلى الحافظرة - الصقها في المحادثة بنفسك.',
+  // Used to address the WhatsApp share when a phone is stored in national form.
+  'Country Code': 'كود الدولة',
   // Consolidated multi-store reporting (migration 025). The screen shows each
   // store's OWN local day, so the zone column is labelled rather than hidden -
   // a vendor comparing two shops has to see that the figures are not describing

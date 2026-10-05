@@ -8,6 +8,8 @@ const FIELDS: { key: string; label: string; multiline?: boolean }[] = [
   { key: 'store_address', label: 'Address', multiline: true },
   { key: 'store_phone', label: 'Phone' },
   { key: 'currency', label: 'Currency' },
+  // Used to address the WhatsApp share when a phone is stored in national form.
+  { key: 'country_code', label: 'Country Code' },
 ]
 
 export function SettingsPage() {

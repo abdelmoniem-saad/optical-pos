@@ -7,6 +7,7 @@ import {
   renderOrderUnitHTML,
   buildOrderText,
   whatsAppShareUrl,
+  resolveWhatsAppNumber,
 } from './receipt'
 import type { OrderDoc, Shop } from './receipt'
 import { emptyExam } from './types'
@@ -309,5 +310,66 @@ describe('whatsAppShareUrl', () => {
   it('round-trips a whole receipt', () => {
     const text = buildOrderText(doc(), SHOP)
     expect(decodeURIComponent(whatsAppShareUrl(text).split('text=')[1])).toBe(text)
+  })
+})
+
+// ---------- addressing the customer ----------
+
+describe('resolveWhatsAppNumber', () => {
+  // The same person is stored four different ways depending on who typed it.
+  // Every one has to land on the same chat.
+  const expected = '201000000051'
+  it('drops the national trunk zero and adds the country code', () => {
+    expect(resolveWhatsAppNumber('01000000051')).toBe(expected)
+  })
+  it('keeps a number that is already international', () => {
+    expect(resolveWhatsAppNumber('+201000000051')).toBe(expected)
+    expect(resolveWhatsAppNumber('201000000051')).toBe(expected)
+  })
+  it('understands the 00 prefix used when dialling from abroad', () => {
+    expect(resolveWhatsAppNumber('00201000000051')).toBe(expected)
+  })
+  it('copes with the spaces and dashes people actually type', () => {
+    expect(resolveWhatsAppNumber('+20 100 000 0051')).toBe(expected)
+    expect(resolveWhatsAppNumber('010-000-000-51')).toBe(expected)
+  })
+
+  // The reason the fallback exists at all.
+  it('returns null rather than guessing when there is nothing to work with', () => {
+    expect(resolveWhatsAppNumber('')).toBeNull()
+    expect(resolveWhatsAppNumber('   ')).toBeNull()
+    expect(resolveWhatsAppNumber('abc')).toBeNull()
+  })
+  it('rejects a length no real number has instead of dialling it', () => {
+    expect(resolveWhatsAppNumber('123')).toBeNull()
+    expect(resolveWhatsAppNumber('1234567890123456789')).toBeNull()
+  })
+
+  it('follows the shop setting, not a hardcoded country', () => {
+    expect(resolveWhatsAppNumber('0501234567', '966')).toBe('966501234567')
+    // trunk zero dropped, then the code prefixed - 11 digits, not 12
+    expect(resolveWhatsAppNumber('0501234567', '20')).toBe('20501234567')
+    // already carries the configured code, so it must not be doubled
+    expect(resolveWhatsAppNumber('+966501234567', '966')).toBe('966501234567')
+  })
+})
+
+describe('whatsAppShareUrl with a customer number', () => {
+  it('puts the number in the PATH, which is the documented wa.me form', () => {
+    const url = whatsAppShareUrl('hello', '01000000051')
+    expect(url.startsWith('https://wa.me/201000000051?text=')).toBe(true)
+    // the documented short form has no ?phone= anywhere
+    expect(url).not.toContain('phone=')
+  })
+
+  it('falls back to the contact picker when the number cannot be trusted', () => {
+    expect(whatsAppShareUrl('hello', '').startsWith('https://wa.me/?text=')).toBe(true)
+    expect(whatsAppShareUrl('hello', '123').startsWith('https://wa.me/?text=')).toBe(true)
+  })
+
+  it('still encodes the text when a number is present', () => {
+    const url = whatsAppShareUrl('فاتورة & 100%', '01000000051')
+    expect(url.split('?text=')[1]).not.toMatch(/[&+]/)
+    expect(decodeURIComponent(url.split('?text=')[1])).toBe('فاتورة & 100%')
   })
 })
