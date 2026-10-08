@@ -96,6 +96,10 @@ describe('schema version', () => {
     // which is why the half of this invariant that MOVES is asserted here.
     // 022 (sales.kind) is the second such bump, and the mechanism held: this
     // test is what noticed, not the banner.
-    expect(EXPECTED_SCHEMA_VERSION).toBe(25)
+    // 026 (the licence window) is the third: the migration recorded version 26
+    // in the database, but this constant was left at 25 - so a shop that had not
+    // applied 026 read 25 < 25 = 'ok' and was silently told it was current. The
+    // database number and the app number move together, or the banner lies.
+    expect(EXPECTED_SCHEMA_VERSION).toBe(26)
   })
 })
