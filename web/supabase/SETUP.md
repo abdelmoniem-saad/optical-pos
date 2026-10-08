@@ -638,6 +638,41 @@ A shop with no sales that day appears as a row of zeros rather than a missing
 row — "sold nothing" and "we have no such shop" are different answers.
 
 Gate: [`tests/025_platform_reports_test.sql`](./tests/025_platform_reports_test.sql)
+
+## Step 23 — `026_license_window.sql` (the licence window, finally read)
+
+Every licence since `008` carried a `starts_at` — "this licence begins next
+month" — and no function ever read it. `license_read_ok`, `license_write_ok`
+and `my_license_state` all decided "active" from `is_revoked` and `expires_at`
+alone, so a licence bought to begin next month was live today.
+
+Paste [`026_license_window.sql`](./026_license_window.sql).
+
+What it fixes:
+
+- **The start date is honoured.** A licence whose `starts_at` is in the future
+  now permits neither reads nor writes, and the app is told `pending` rather
+  than that the shop is trading.
+- **A date a person picked is a day in the shop's zone.** The old expiry picker
+  cast a bare `YYYY-MM-DD` in the *session* timezone at 00:00, so "expires the
+  31st" was dead from the *start* of the 31st — every renewal silently lost a
+  day. Dates now become store-local instants, with the expiry stored as the
+  **exclusive** end of the day (the shop keeps its last day). Cairo is seasonal
+  (UTC+3 on summer DST, UTC+2 in winter), so the conversion goes through
+  `store_time_zone_for()` rather than a hard-coded offset.
+- **Editing a licence is a platform-admin act.** Two RPCs —
+  `set_license_window(...)` and `set_license_revoked(...)` — replace writing
+  the table from the browser. Both check `is_platform_admin()` *inside* the
+  function as well as behind RLS. Setting new dates no longer carries
+  `is_revoked: false` with it, so typing a new date into a revoked licence
+  cannot bring it back to life.
+- **A licence change is now auditable.** `audit_row_trigger` is attached to
+  `store_licenses` — the one change a shop would most ask the vendor to prove.
+
+`my_license_state()` changes return type, so the migration drops and re-grants
+it; re-pasting is safe.
+
+Gate: [`tests/026_license_window_test.sql`](./tests/026_license_window_test.sql)
 (14 assertions).
 
 ## Schema baseline (recommended, ~2 minutes)

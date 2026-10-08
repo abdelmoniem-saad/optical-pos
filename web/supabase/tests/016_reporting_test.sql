@@ -219,9 +219,10 @@ select matches((select indexdef from pg_indexes
   'voided_at IS NULL',
   'G-R10b ...and its predicate is the void exclusion, so the filter is free');
 -- ===== G-T1/G-T2: one definition of "today" ==========================
--- The store is Africa/Cairo, which is EEST = UTC+3 all year (Egypt moved to a
--- permanent UTC+3 in 2023 - a detail worth stating, because assuming +2 here
--- is wrong and the test fails for the right reason). R0004 at 23:30 UTC on the
+-- The store is Africa/Cairo, which on this SUMMER date is EEST = UTC+3 (Cairo is
+-- seasonal: UTC+3 on summer DST, UTC+2 on winter standard time - September sits
+-- in summer, so assuming +2 here is wrong and the test fails for the right
+-- reason). R0004 at 23:30 UTC on the
 -- The bounds are compared as TIMESTAMPTZ, not as text. Comparing
 -- from_at::text asserts how Postgres RENDERS an instant in the session's
 -- timezone, which is a property of the machine running the gate, not of
