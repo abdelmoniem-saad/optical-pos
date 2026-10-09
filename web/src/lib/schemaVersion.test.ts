@@ -100,6 +100,10 @@ describe('schema version', () => {
     // in the database, but this constant was left at 25 - so a shop that had not
     // applied 026 read 25 < 25 = 'ok' and was silently told it was current. The
     // database number and the app number move together, or the banner lies.
-    expect(EXPECTED_SCHEMA_VERSION).toBe(26)
+    // 027 (plan feature flags) is the fourth: license_feature() and the
+    // platform report now read store_licenses.features, which 008 created and
+    // nothing had ever read - a column that looked configurable and governed
+    // nothing. The mechanism held again: this test is what noticed.
+    expect(EXPECTED_SCHEMA_VERSION).toBe(27)
   })
 })
