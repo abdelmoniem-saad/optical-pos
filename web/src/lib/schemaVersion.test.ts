@@ -104,6 +104,8 @@ describe('schema version', () => {
     // platform report now read store_licenses.features, which 008 created and
     // nothing had ever read - a column that looked configurable and governed
     // nothing. The mechanism held again: this test is what noticed.
-    expect(EXPECTED_SCHEMA_VERSION).toBe(27)
+    // 028 (partial refund) is the fifth: refund_sale() returns PART of a live
+    // sale on one tender, where void_sale (013/014) reverses the whole thing.
+    expect(EXPECTED_SCHEMA_VERSION).toBe(28)
   })
 })
