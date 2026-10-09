@@ -459,6 +459,20 @@ export const ar: Record<string, string> = {
     'اسم المتجر وبيانات دخول المدير (6 أحرف على الأقل) مطلوبة',
   'No license': 'لا يوجد ترخيص',
 
+  // Storage maintenance: orphaned images
+  'Orphaned images': 'صور غير مرتبطة',
+  'Photos in storage that no invoice references any more - left by a failed checkout or an older build.':
+    'صور في التخزين لا يشير إليها أي فاتور بعد - بقيت من عملية دفع فاشلة أو إصدار أقدم.',
+  'Scan storage': 'فحص التخزين',
+  'Scanning…': 'جارٍ الفحص…',
+  'No orphaned images found.': 'لا توجد صور غير مرتبطة.',
+  'Reclaimable': 'قابل للاستعادة',
+  'files': 'ملفات',
+  // 'Delete' already exists in the dictionary (unquoted, line 52) - reusing it
+  // rather than adding a duplicate key, which is silently the last one that
+  // wins and would drift the two screens apart (025's duplicate-key trap).
+  'Some stores could not be scanned': 'تعذّر فحص بعض المتاجر',
+
   // Order photos
   'Attach': 'إرفاق',
   'Scan this with the phone camera to attach the two photos':

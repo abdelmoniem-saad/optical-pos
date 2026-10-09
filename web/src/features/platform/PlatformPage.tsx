@@ -4,6 +4,7 @@ import { supabase } from '../../lib/supabase'
 import { useI18n } from '../../i18n/LanguageContext'
 import { useIsPlatformAdminQuery } from '../../lib/licensing'
 import { usePlatformReport } from '../../data/platformReports'
+import { useOrphanScan, useDeleteOrphans } from '../../data/storageCleanup'
 
 type StoreRow = {
   id: string
@@ -12,7 +13,7 @@ type StoreRow = {
   owner_phone: string | null
   created_at: string | null
   store_licenses:
-    | { id: string; plan: string; expires_at: string | null; is_revoked: boolean }[]
+    | { id: string; plan: string; starts_at: string | null; expires_at: string | null; is_revoked: boolean }[]
     | null
 }
 
@@ -32,6 +33,8 @@ export function PlatformPage() {
   // books. Picking a different day here is exact, and that is its purpose.
   const [reportDay, setReportDay] = useState(todayLocalISO())
   const report = usePlatformReport(reportDay)
+  const orphanScan = useOrphanScan()
+  const deleteOrphans = useDeleteOrphans()
   const [form, setForm] = useState({
     name: '',
     owner_name: '',
@@ -338,11 +341,24 @@ describing the same stretch of wall-clock time. */}
                       type="date"
                       value={lic?.expires_at?.slice(0, 10) ?? ''}
                       onChange={(e) => {
-                        if (!e.target.value) return
+                        if (!e.target.value || !lic) return
+                        // Through set_license_window (026), NOT a direct update.
+                        // The old code wrote { expires_at, is_revoked: false }
+                        // here, which silently UN-REVOKED a revoked licence the
+                        // moment anyone touched its date - the exact defect 026
+                        // exists to remove. The RPC converts the bare date in
+                        // the store's own zone to an exclusive end day and
+                        // leaves is_revoked alone. starts_at and plan are read
+                        // back so the window is set, not invented.
+                        const start =
+                          lic.starts_at?.slice(0, 10) ?? e.target.value
                         void supabase
-                          .from('store_licenses')
-                          .update({ expires_at: e.target.value, is_revoked: false })
-                          .eq('id', lic!.id)
+                          .rpc('set_license_window', {
+                            p_store: s.id,
+                            p_starts_on: start,
+                            p_expires_on: e.target.value,
+                            p_plan: lic.plan,
+                          })
                           .then(() => stores.refetch())
                       }}
                       className="rounded-md border border-line px-2 py-1 text-xs"
@@ -352,6 +368,74 @@ describing the same stretch of wall-clock time. */}
               )
             })}
           </ul>
+        )}
+      </div>
+
+      {/* ---- storage maintenance: orphaned images (T15) ---- */}
+      <div className="overflow-hidden rounded-xl border border-line bg-white shadow-sm">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line/60 px-4 py-3">
+          <div>
+            <div className="font-semibold">{t('Orphaned images')}</div>
+            <div className="text-xs text-faint">
+              {t('Photos in storage that no invoice references any more - left by a failed checkout or an older build.')}
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => orphanScan.refetch()}
+            disabled={orphanScan.isFetching}
+            className="rounded-md border border-line px-3 py-1.5 text-xs font-semibold disabled:opacity-50"
+          >
+            {orphanScan.isFetching ? t('Scanning…') : t('Scan storage')}
+          </button>
+        </div>
+        {orphanScan.data && (
+          <div className="px-4 py-3 text-sm">
+            {(() => {
+              const rows = orphanScan.data ?? []
+              const withOrphans = rows.filter((r) => r.orphans.length > 0)
+              const totalBytes = rows.reduce((a, r) => a + r.bytes, 0)
+              const totalFiles = rows.reduce((a, r) => a + r.orphans.length, 0)
+              if (rows.some((r) => r.error)) {
+                return (
+                  <p className="text-danger">
+                    {t('Some stores could not be scanned')}:{' '}
+                    {rows.filter((r) => r.error).map((r) => r.store_name).join(', ')}
+                  </p>
+                )
+              }
+              if (totalFiles === 0) {
+                return <p className="text-faint">{t('No orphaned images found.')}</p>
+              }
+              return (
+                <>
+                  <p className="mb-2">
+                    {t('Reclaimable')}: <strong>{totalFiles}</strong> {t('files')} ·{' '}
+                    {(totalBytes / 1024 / 1024).toFixed(1)} MB
+                  </p>
+                  <ul className="divide-y divide-line/40">
+                    {withOrphans.map((r) => (
+                      <li key={r.store_id} className="flex items-center justify-between gap-2 py-1.5">
+                        <span>
+                          {r.store_name} · {r.orphans.length} {t('files')}
+                        </span>
+                        <button
+                          type="button"
+                          disabled={deleteOrphans.isPending}
+                          onClick={() =>
+                            deleteOrphans.mutate({ paths: r.orphans })
+                          }
+                          className="rounded-md bg-danger/10 px-2 py-1 text-xs font-semibold text-danger disabled:opacity-50"
+                        >
+                          {t('Delete')}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              )
+            })()}
+          </div>
         )}
       </div>
     </div>
