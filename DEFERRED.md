@@ -1,10 +1,11 @@
 # LensyPOS — Deferred Work
 
-`PHASED_ROADMAP.md` (archived at `docs/archive/PHASED_ROADMAP.md`) tracked the
-six-phase hardening programme. **All six phases are implemented and gated.** This
-file is the surviving memory of what was *deliberately not done*, and the trigger
-that should bring each one back. Kept short on purpose: an item here is a
-decision with a reason, not a task list.
+`PHASED_ROADMAP.md` tracked the six-phase hardening programme and has been
+retired. **All six phases are implemented and gated.** The full history of that
+programme — the audit, the per-phase notes and the post-mortems — lives in git
+at commit `9da219d` and earlier; this file is the surviving memory of what was
+*deliberately not done*, and the trigger that should bring each one back. Kept
+short on purpose: an item here is a decision with a reason, not a task list.
 
 ## Deliberately deferred
 
