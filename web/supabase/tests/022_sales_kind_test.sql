@@ -168,7 +168,7 @@ delete from public.sales where invoice_no = 'KDEFAULT';
 -- add-constraint statement above it. Same trap as 012's seven money constraints,
 -- which were each added `not valid` and then validated.
 select is((select count(*)::int from pg_constraint
-            where conname = 'Use the checkout or refund action to change this invoice' and not convalidated), 0,
+            where conname = 'sales_kind_check' and not convalidated), 0,
   'G-K2b the kind constraint is validated, not left NOT VALID');
 
 -- 022 adds no argument, so the client's rpc() call is unchanged. That is the
@@ -274,7 +274,7 @@ select throws_ok(
   $$update public.sales set kind = 'hacked'
      where id = (select sale_id from _cap where k = 'k1')$$,
   '42501', null,
-  'G-K11 a direct UPDATE cannot invent a third kind - the constraint holds even without the RPC');
+  'G-K11 a direct UPDATE cannot invent a third kind - the action guard refuses raw writes');
 
 -- ===== G-K12: tenant isolation ===============================================
 -- A prescription in ANOTHER store must not move this store's numbers. Inserted as

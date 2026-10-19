@@ -54,8 +54,7 @@ as test data. Record exact validation results and any deployment blockers here.
    Check two real sessions (administrator and restricted employee) after release:
    revoke an action, verify the open employee session loses it, then restore it.
 2. Update `web/supabase/schema.fingerprint` from the trusted CI step summary,
-   as required by `DEFERRED.md`. The old fingerprint is intentionally unchanged;
-   this branch must not be described as fully CI-green before that step.
+   as required by `DEFERRED.md`; require all CI checks to pass before merging.
    Release update: the fingerprint is now recorded from PR #1 CI run 39321408088;
    production migration 029 and create-user version 5 were verified via Supabase.
 3. Define and implement data visibility separately from screen/action access.
