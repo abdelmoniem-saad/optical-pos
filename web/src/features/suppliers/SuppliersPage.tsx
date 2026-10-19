@@ -27,12 +27,13 @@ function money(n: number) {
 
 function SupplierForm({ onClose }: { onClose: () => void }) {
   const { t } = useI18n()
+  const access = usePermissions()
   const add = useAddSupplier()
   const [f, setF] = useState({ name: '', phone: '', email: '', address: '' })
   const cls = 'w-full rounded-lg border border-line px-3 py-2 text-sm outline-none focus:border-brand'
 
   async function submit() {
-    if (!f.name.trim()) return
+    if (!f.name.trim() || !access.can('suppliers.create')) return
     await add.mutateAsync({ name: f.name.trim(), phone: f.phone, email: f.email, address: f.address })
     onClose()
   }
@@ -49,7 +50,7 @@ function SupplierForm({ onClose }: { onClose: () => void }) {
         </div>
         <div className="mt-4 flex justify-end gap-2">
           <button onClick={onClose} className="rounded-lg border border-line px-4 py-2 text-muted hover:bg-surface">{t('Cancel')}</button>
-          <button onClick={submit} disabled={add.isPending} className="rounded-lg bg-brand px-4 py-2 font-semibold text-white disabled:opacity-60">{t('Save')}</button>
+          <button onClick={submit} disabled={add.isPending || !access.can('suppliers.create')} className="rounded-lg bg-brand px-4 py-2 font-semibold text-white disabled:opacity-60">{t('Save')}</button>
         </div>
       </div>
     </div>
@@ -59,6 +60,7 @@ function SupplierForm({ onClose }: { onClose: () => void }) {
 /** One expandable shipment: total vs Σ(payments), plus its dated ledger. */
 function ShipmentCard({ purchase }: { purchase: Purchase }) {
   const { t } = useI18n()
+  const access = usePermissions()
   const payments = usePurchasePayments(purchase.id)
   const items = usePurchaseItems(purchase.id)
   const receive = useReceivePurchase()
@@ -84,7 +86,7 @@ function ShipmentCard({ purchase }: { purchase: Purchase }) {
 
   async function submitPayment() {
     const amt = Number(amount) || 0
-    if (amt <= 0 || !purchase.id) return
+    if (amt <= 0 || !purchase.id || !access.can('suppliers.edit')) return
     await addPay.mutateAsync({
       purchase_id: purchase.id,
       amount: amt,
@@ -95,7 +97,7 @@ function ShipmentCard({ purchase }: { purchase: Purchase }) {
   }
 
   async function doReceive() {
-    if (!purchase.id || !outstanding) return
+    if (!purchase.id || !outstanding || !access.can('suppliers.edit')) return
     await receive.mutateAsync(purchase.id)
   }
 
@@ -127,7 +129,7 @@ function ShipmentCard({ purchase }: { purchase: Purchase }) {
           <span className="text-faint">{open ? '▲' : '▼'}</span>
         </button>
 
-        {hasLines && !allReceived && (
+        {hasLines && !allReceived && access.can('suppliers.edit') && (
           <button
             onClick={doReceive}
             disabled={receive.isPending}
@@ -165,7 +167,7 @@ function ShipmentCard({ purchase }: { purchase: Purchase }) {
                 <span className="font-semibold text-success">+{money(Number(p.amount ?? 0))}</span>
                 <button
                   onClick={() => delPay.mutate(p.id)}
-                  disabled={delPay.isPending}
+                  disabled={delPay.isPending || !access.can('suppliers.edit')}
                   title={t('Delete')}
                   className="px-1 text-danger hover:underline disabled:opacity-40"
                 >
@@ -175,6 +177,7 @@ function ShipmentCard({ purchase }: { purchase: Purchase }) {
             ))}
           </ul>
 
+          {(addPay.isError || delPay.isError) && <p role="alert" className="text-sm text-danger">{String(addPay.error?.message || delPay.error?.message)}</p>}
           {/* Document a partial payment / deposit by amount + date. */}
           <div className="mt-2 flex flex-wrap items-center gap-2">
             <input
@@ -193,7 +196,7 @@ function ShipmentCard({ purchase }: { purchase: Purchase }) {
             </label>
             <button
               onClick={submitPayment}
-              disabled={addPay.isPending}
+              disabled={addPay.isPending || !access.can('suppliers.edit')}
               className="rounded-lg bg-brand px-3 py-2 text-xs font-semibold text-white disabled:opacity-60"
             >
               {t('Add Payment')}
@@ -221,6 +224,7 @@ function ShipmentForm({
   onClose: () => void
 }) {
   const { t } = useI18n()
+  const access = usePermissions()
   const products = useInventory()
   const add = useAddPurchaseWithItems()
   const [lines, setLines] = useState<PurchaseItem[]>([])
@@ -233,7 +237,7 @@ function ShipmentForm({
   }
 
   async function submit() {
-    if (!valid) return
+    if (!valid || !access.can('suppliers.create') || !access.can('suppliers.edit')) return
     await add.mutateAsync({
       purchase: {
         supplier_id: supplier.id,
@@ -337,7 +341,7 @@ function ShipmentForm({
           </button>
           <button
             onClick={submit}
-            disabled={!valid || add.isPending}
+            disabled={!valid || add.isPending || !access.can('suppliers.create') || !access.can('suppliers.edit')}
             className="rounded-lg bg-brand px-4 py-2 font-semibold text-white disabled:opacity-60"
           >
             {add.isPending ? t('Saving…') : t('Save and receive')}
@@ -350,6 +354,7 @@ function ShipmentForm({
 
 function Shipments({ supplier }: { supplier: Supplier }) {
   const { t } = useI18n()
+  const access = usePermissions()
   const purchases = usePurchases(supplier.id)
   const [adding, setAdding] = useState(false)
 
@@ -379,13 +384,14 @@ function Shipments({ supplier }: { supplier: Supplier }) {
         </ul>
       )}
 
-      {adding && <ShipmentForm supplier={supplier} onClose={() => setAdding(false)} />}
+      {adding && access.can('suppliers.create') && access.can('suppliers.edit') && <ShipmentForm supplier={supplier} onClose={() => setAdding(false)} />}
     </div>
   )
 }
 
 export function SuppliersPage() {
   const { t } = useI18n()
+  const access = usePermissions()
   const confirm = useConfirm()
   const suppliers = useSuppliers()
   const del = useDeleteSupplier()
@@ -411,6 +417,7 @@ export function SuppliersPage() {
 
   async function remove(s: Supplier) {
     // The mutation cascades: shipments (and their payment history) go first.
+    if (!access.can('suppliers.delete')) return
     const ok = await confirm(`"${s.name}" - ${t('Delete supplier and all their shipments?')}`)
     if (!ok) return
     del.mutate(s.id, {
@@ -485,7 +492,7 @@ export function SuppliersPage() {
         </div>
       </div>
 
-      {adding && <SupplierForm onClose={() => setAdding(false)} />}
+      {adding && canCreate && <SupplierForm onClose={() => setAdding(false)} />}
     </div>
   )
 }

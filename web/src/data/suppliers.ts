@@ -1,3 +1,4 @@
+import { invalidatePurchases } from './refresh'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import { isMissingRpc } from './rpc'
@@ -71,7 +72,7 @@ export function useAddSupplier() {
       if (error) throw error
       return data
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: SKEY }),
+    onSuccess: () => invalidatePurchases(qc),
   })
 }
 
@@ -82,7 +83,7 @@ export function useUpdateSupplier() {
       const { error } = await supabase.from('suppliers').update(patch).eq('id', id)
       if (error) throw error
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: SKEY }),
+    onSuccess: () => invalidatePurchases(qc),
   })
 }
 
@@ -116,6 +117,7 @@ export function useDeleteSupplier() {
       return ids.length
     },
     onSuccess: () => {
+      void invalidatePurchases(qc)
       qc.invalidateQueries({ queryKey: SKEY })
       qc.invalidateQueries({ queryKey: PURCHASES_KEY })
       qc.invalidateQueries({ queryKey: PAYMENTS_KEY })
@@ -145,7 +147,7 @@ export function useAddPurchase() {
       if (error) throw error
       return data
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: PURCHASES_KEY }),
+    onSuccess: () => invalidatePurchases(qc),
   })
 }
 
@@ -212,6 +214,7 @@ export function useReceivePurchase() {
       return typeof data === 'number' ? data : 0
     },
     onSuccess: () => {
+      void invalidatePurchases(qc)
       // Stock moved and costs may have been re-averaged, so every inventory
       // view is now stale. Both keys, not just purchases.
       qc.invalidateQueries({ queryKey: PURCHASES_KEY })
@@ -249,7 +252,7 @@ export function useAddPurchaseWithItems() {
       const received = await receive.mutateAsync(purchase.id)
       return { purchase, received }
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: PURCHASES_KEY }),
+    onSuccess: () => invalidatePurchases(qc),
   })
 }
 
@@ -306,6 +309,7 @@ export function useAddPurchasePayment() {
       return data
     },
     onSuccess: () => {
+      void invalidatePurchases(qc)
       qc.invalidateQueries({ queryKey: PAYMENTS_KEY })
     },
   })
@@ -317,8 +321,8 @@ export function useDeletePurchasePayment() {
     mutationFn: async (id: string): Promise<void> => {
       // Migration 013 revoked the direct DELETE on purchase_payments too.
       const { error } = await supabase.rpc('delete_purchase_payment', { p_payment: id })
-      if (error && !isMissingRpc('delete_purchase_payment', error)) throw error
+      if (error) throw error
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: PAYMENTS_KEY }),
+    onSuccess: () => invalidatePurchases(qc),
   })
 }

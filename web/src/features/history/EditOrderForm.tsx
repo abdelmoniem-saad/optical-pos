@@ -1,3 +1,4 @@
+import { usePermissions } from '../../data/permissions'
 import { useEffect, useState } from 'react'
 import { useI18n } from '../../i18n/LanguageContext'
 import { useUpdateSale, LAB_STATUSES } from '../../data/sales'
@@ -8,7 +9,7 @@ import {
 import {
   useLensTypes,
   useFrameColors,
-  syncExamReferences,
+  addMissingOrderMetadata,
 } from '../../data/metadata'
 import { useInventory } from '../../data/inventory'
 import { enterMovesNext, rxArrowNav } from '../pos/enterNav'
@@ -32,6 +33,7 @@ const small =
  */
 export function EditOrderForm({ sale, onDone }: { sale: Sale; onDone: () => void }) {
   const { t } = useI18n()
+  const perms = usePermissions()
   const update = useUpdateSale()
   const replaceExams = useReplaceOrderExaminations(sale.id)
   const examsQ = useOrderExaminations(sale.id)
@@ -73,6 +75,7 @@ export function EditOrderForm({ sale, onDone }: { sale: Sale; onDone: () => void
   }
 
   async function submit() {
+    if (!perms.can('history.edit') || update.isPending || replaceExams.isPending) return
     setError(null)
     try {
       await update.mutateAsync({
@@ -90,16 +93,9 @@ export function EditOrderForm({ sale, onDone }: { sale: Sale; onDone: () => void
       // clobber them because of a fetch hiccup.
       if (rows !== null && !examsQ.isError) {
         await replaceExams.mutateAsync(rows)
-        // Sync the settings/inventory references against the SAVED rows:
-        // newly typed lens/color values are added, replaced values are removed
-        // (when no other order uses them), new frames become products, and
-        // orphaned app-created frame products are cleaned up. Quantities of
-        // existing products are never auto-changed by an edit.
-        await syncExamReferences({
-          invoiceNo: sale.invoice_no,
-          oldRows: examsQ.data ?? [],
-          newRows: rows,
-        })
+        // Prescriptions may contribute suggestions; editing one must not
+        // create/delete stock products as a hidden side effect.
+        if (perms.can('inventory.edit')) await addMissingOrderMetadata(rows)
       }
       onDone()
     } catch (e) {
@@ -108,6 +104,8 @@ export function EditOrderForm({ sale, onDone }: { sale: Sale; onDone: () => void
   }
 
   const busy = update.isPending || replaceExams.isPending
+
+  if (!perms.can('history.edit')) return null
 
   return (
     <div className="mt-3 rounded-lg border border-brand-faint bg-white p-3" onKeyDown={enterMovesNext}>
@@ -135,7 +133,7 @@ export function EditOrderForm({ sale, onDone }: { sale: Sale; onDone: () => void
           <input
             type="number"
             className={field}
-            value={form.discount}
+            readOnly value={form.discount}
             onChange={(e) => setForm({ ...form, discount: Number(e.target.value) })}
           />
         </label>
@@ -155,7 +153,7 @@ export function EditOrderForm({ sale, onDone }: { sale: Sale; onDone: () => void
           <span className="mb-0.5 text-xs text-faint">{t('Lab Status')}</span>
           <select
             className={field}
-            value={form.lab_status ?? ''}
+            disabled={!perms.can('lab.edit')} value={form.lab_status ?? ''}
             onChange={(e) => setForm({ ...form, lab_status: e.target.value })}
           >
             <option value="">-</option>

@@ -1,3 +1,4 @@
+import { usePermissions } from '../../../data/permissions'
 import { useState } from 'react'
 import { usePOS, type CustomerDraft } from '../POSContext'
 import { useI18n } from '../../../i18n/LanguageContext'
@@ -12,6 +13,7 @@ function money(n: number) {
 
 export function CartStep() {
   const { t } = useI18n()
+  const perms = usePermissions()
   const {
     state,
     totals,
@@ -331,7 +333,7 @@ export function CartStep() {
         <div className="flex gap-2">
           <button
             onClick={() => finishOrder()}
-            disabled={state.busy}
+            disabled={state.busy || !(state.savedSale ? perms.can('pos.edit') || perms.can('history.edit') : perms.can('pos.create'))}
             className="rounded-lg bg-success px-5 py-2.5 font-semibold text-white disabled:opacity-60"
           >
             {state.busy ? t('Saving…') : t('Finish Checkout →')}
@@ -376,12 +378,13 @@ function Row({
 /** Inline editable customer detail for the order step; saves to the DB on blur. */
 function CustomerField({ label, field }: { label: string; field: keyof CustomerDraft }) {
   const { state, setCustomerDraft, saveCustomerEdits } = usePOS()
+  const perms = usePermissions()
   return (
     <label className="flex flex-col">
       <span className="mb-0.5 text-[10px] font-semibold text-faint">{label}</span>
       <input
         className="rounded-md border border-line bg-white px-2 py-1.5 text-sm outline-none focus:border-brand"
-        value={state.customerDraft[field]}
+        readOnly={!perms.can('customers.edit')} value={state.customerDraft[field]}
         onChange={(e) => setCustomerDraft({ [field]: e.target.value } as Partial<CustomerDraft>)}
         onBlur={(e) => saveCustomerEdits({ [field]: e.target.value } as Partial<CustomerDraft>)}
       />

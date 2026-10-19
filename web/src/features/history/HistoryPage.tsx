@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import {
   useInfiniteSales,
   useSetOrderImage,
@@ -35,12 +35,14 @@ export function HistoryPage() {
   const { t } = useI18n()
   const perms = usePermissions()
   const [params, setParams] = useSearchParams()
-  const [termInput, setTermInput] = useState(params.get('q') ?? '')
+  const termInput = params.get('q') ?? ''
+  const setTermInput = (q: string) => setParams({ q }, { replace: true })
   const [term, setTerm] = useState(termInput.trim())
-  const [range, setRange] = useState<SalesRange>(
-    (params.get('range') as SalesRange) || 'all',
-  )
-  const [open, setOpen] = useState<string | null>(null)
+  const range: SalesRange = params.get('range') === 'today' ? 'today' : params.get('range') === 'month' ? 'month' : 'all'
+  const setRange = (range: SalesRange) => setParams({ q: termInput, range }, { replace: true })
+  const [open, setOpen] = useState<string | null>(params.get('sale'))
+  const saleId = params.get('sale')
+  useEffect(() => { setOpen(saleId) }, [saleId])
   const [reprint, setReprint] = useState<Sale | null>(null)
   const [editing, setEditing] = useState<string | null>(null)
   const [qrFor, setQrFor] = useState<Sale | null>(null)
@@ -51,18 +53,10 @@ export function HistoryPage() {
     return () => clearTimeout(id)
   }, [termInput])
 
-  // Keep the filter in the URL (replace, not push): switching tabs and coming
-  // back - or refreshing / sharing the link - restores the same view.
-  useEffect(() => {
-    const next = new URLSearchParams()
-    if (term) next.set('q', term)
-    if (range !== 'all') next.set('range', range)
-    setParams(next, { replace: true })
-  }, [term, range, setParams])
 
   // Server-filtered, paged feed - the browser only ever holds ~50 orders per
   // page and loads more as you scroll, so the tab stays fast for years.
-  const query = useInfiniteSales(range, term)
+  const query = useInfiniteSales(range, term, saleId)
   const rows = useMemo(
     () => query.data?.pages.flatMap((p) => p.rows) ?? [],
     [query.data],
@@ -180,7 +174,9 @@ export function HistoryPage() {
                   <SalePayments sale={s} balance={balance} />
                   <OrderExamsLazy saleId={s.id} />
                   <OrderImages sale={s} onQr={() => setQrFor(s)} />
-                  <div className="mt-3 flex gap-2">
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {s.customer_id && perms.can('customers.view') && <Link className="rounded-lg border border-line px-3 py-1.5 text-brand" to={`/customers/${s.customer_id}`}>{t('Customer')}</Link>}
+                    {s.lab_status && !s.voided_at && perms.can('lab.view') && <Link className="rounded-lg border border-line px-3 py-1.5 text-brand" to={`/lab?sale=${s.id}`}>{t('Lab')}</Link>}
                     <button
                       onClick={() => setReprint(s)}
                       className="rounded-lg border border-line px-3 py-1.5 text-sm text-muted hover:bg-surface"

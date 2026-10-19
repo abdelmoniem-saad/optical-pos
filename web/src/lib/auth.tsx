@@ -51,14 +51,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => sub.subscription.unsubscribe()
   }, [])
 
-  // Keep a `users` row linked to the signed-in auth user so invoices can be
-  // attributed (sales.user_id → users.id, keyed BY the auth UUID - the same
-  // convention staff.ts::useCurrentUser relies on).
-  useEffect(() => {
-    const u = session?.user
-    if (u) void ensureStaffRecord(u)
-  }, [session])
-
   async function signIn(username: string, password: string) {
     const email = usernameToEmail(username)
     const { error } = await supabase.auth.signInWithPassword({ email, password })
@@ -102,79 +94,4 @@ export function displayName(user: User | null): string {
     user.email?.split('@')[0] ||
     'User'
   )
-}
-
-/**
- * Keep the signed-in auth user's STAFF RECORD current, so invoices can be
- * attributed and roles/permissions apply.
- *
- * Resolution order (mirrors staff.ts):
- *   1. A row keyed by the auth UID - keep its display name fresh.
- *   2. A LEGACY row whose username equals the email local-part - leave it as
- *      is; it already carries the correct role (this is what makes the seeded
- *      'admin' account work).
- *
- * It used to have a third step: CREATE the staff record when neither of the
- * above matched. That step could never run, and the code hid the reason.
- *
- * A staff row is created two ways that DO work, and neither is this one:
- *   • the create-user Edge Function, which holds the service-role key and so
- *     bypasses RLS entirely (the Staff screen's "Add Staff" button), and
- *   • 015_link_staff_ids.sql, run by a superuser.
- *
- * A plain INSERT from the browser is refused twice over, and neither refusal
- * is a bug in the database:
- *   1. the INSERT policy on public.users requires a store OR a platform admin,
- *      so a brand-new login satisfies neither - the row it would create is
- *      what would give it a store, which is circular;
- *   2. `public.users.store_id` is NOT NULL (008), and a new login has no store.
- *      Postgres raises 23502, not an RLS error, which is why the message was
- *      so unrecognisable.
- *
- * The old code ran both steps inside `try { ... } catch {}`, so the failure was
- * invisible: an account that had never been provisioned simply never got a
- * staff record, and the app reported it as "This account is not linked to a
- * store" - a symptom pointing at provisioning when the cause was this insert.
- * Nothing was ever created here, so removing it changes no behaviour; what it
- * removes is a comment that promised a row the function could not write.
- *
- * Making self-service provisioning actually work needs a `security definer`
- * RPC (and a decision about store_id), which is a schema change and therefore
- * its own piece of work - not something to smuggle in by deleting a branch.
- */
-async function ensureStaffRecord(user: User): Promise<void> {
-  try {
-    const meta = user.user_metadata ?? {}
-    const fullName = (meta.full_name as string) || ''
-    const username =
-      (meta.username as string) || user.email?.split('@')[0] || 'staff'
-
-    // 1) Already linked by id?
-    const { data: byId } = await supabase
-      .from('users')
-      .select('id')
-      .eq('id', user.id)
-      .maybeSingle<{ id: string }>()
-    if (byId) {
-      if (fullName) {
-        await supabase.from('users').update({ full_name: fullName }).eq('id', user.id)
-      }
-      return
-    }
-
-    // 2) Legacy row with the same username? Adopt silently - its role is the
-    //    source of truth and sales can reference its existing PK safely.
-    const { data: byName } = await supabase
-      .from('users')
-      .select('id')
-      .eq('username', username)
-      .maybeSingle<{ id: string }>()
-    if (byName) return
-
-    // 3) Nothing to do. Deliberately NOT an insert: see the note above. An
-    //    unprovisioned login is now told so plainly by AppLayout, which is a
-    //    better outcome than a silent attempt that could never have worked.
-  } catch {
-    // Attribution is best-effort - never block login over it.
-  }
 }

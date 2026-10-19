@@ -52,7 +52,7 @@ on conflict (code) do nothing;
 
 insert into public.role_permissions (role_id, permission_id)
 select 'aaaaaaaa-aaaa-4aaa-8aaa-0000000000b1'::uuid, p.id
-  from public.permissions p where p.code = 'history.void'
+  from public.permissions p where p.code in ('history.view','history.void')
 on conflict (role_id, permission_id) do nothing;
 
 insert into public.users (id, username, password_hash, store_id, role_id, is_active) values

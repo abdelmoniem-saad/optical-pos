@@ -1,3 +1,4 @@
+import { usePermissions } from '../../data/permissions'
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { useCustomer, useUpdateCustomer } from '../../data/customers'
@@ -59,6 +60,7 @@ function BalanceStrip({ customerId }: { customerId: string | null }) {
 export function CustomerDetailPage() {
   const { t } = useI18n()
   const { id } = useParams()
+  const perms = usePermissions()
   const customer = useCustomer(id ?? null)
   const orders = useCustomerOrders(id ?? null)
   const [open, setOpen] = useState<string | null>(null)
@@ -83,7 +85,7 @@ export function CustomerDetailPage() {
             {[c?.phone, c?.city, c?.email].filter(Boolean).join(' · ')}
           </div>
         </div>
-        {c && (
+        {c && perms.can('customers.edit') && (
           <button
             onClick={() => setShowEdit(true)}
             className="rounded-lg border border-line px-3 py-2 text-sm font-semibold text-brand hover:bg-surface"
@@ -124,12 +126,12 @@ export function CustomerDetailPage() {
                 className="flex w-full items-center justify-between px-4 py-3 text-start hover:bg-surface"
               >
                 <div>
-                  <div className="font-semibold">#{o.invoice_no}</div>
+                  <div className="font-semibold">#{o.invoice_no} {o.voided_at && <span className="text-xs text-danger">{t('Voided')}</span>}</div>
                   <div className="text-xs text-faint">{(o.order_date ?? '').slice(0, 10)}</div>
                 </div>
                 <div className="text-end">
                   <div className="font-semibold">{fmt(net)}</div>
-                  {bal > 0 && <div className="text-xs text-danger">{t('due')} {fmt(bal)}</div>}
+                  {bal > 0 && !o.voided_at && <div className="text-xs text-danger">{t('due')} {fmt(bal)}</div>}
                 </div>
               </button>
               {expanded && (
@@ -188,6 +190,7 @@ export function CustomerDetailPage() {
                       )}
                     </div>
                   )}
+                  {perms.can('history.view') && <Link to={`/history?sale=${o.id}`} className="me-2 mt-3 inline-block rounded-lg border border-line px-3 py-1.5 text-brand">{t('Open invoice')}</Link>}
                   <button
                     onClick={() => setReprint(o)}
                     className="mt-3 rounded-lg border border-line px-3 py-1.5 text-sm text-muted hover:bg-surface"
@@ -202,7 +205,7 @@ export function CustomerDetailPage() {
       </div>
 
       {reprint && <OrderReceiptDialog sale={reprint} onClose={() => setReprint(null)} />}
-      {showEdit && c && (
+      {showEdit && c && perms.can('customers.edit') && (
         <EditCustomerDialog customer={c} onClose={() => setShowEdit(false)} />
       )}
     </div>

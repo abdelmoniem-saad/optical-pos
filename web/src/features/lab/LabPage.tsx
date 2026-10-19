@@ -1,5 +1,8 @@
+import { usePermissions } from '../../data/permissions'
+import { SalePayments } from '../history/SalePayments'
+import { useToast } from '../../components/Feedback'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import {
   formatWait,
   useInfiniteLabSales,
@@ -59,19 +62,17 @@ export function LabPage() {
   const { t } = useI18n()
   const updateStatus = useUpdateLabStatus()
   const [params, setParams] = useSearchParams()
-  const [filter, setFilter] = useState<string>(params.get('status') ?? 'All')
+  const filter = params.get('status') ?? 'All'
+  const saleId = params.get('sale')
+  const setFilter = (status: string) => setParams({ status }, { replace: true })
+  const perms = usePermissions()
+  const notify = useToast()
+  const [collecting, setCollecting] = useState<string | null>(null)
   const [reprint, setReprint] = useState<Sale | null>(null)
 
-  // Keep the status filter in the URL so it survives tab switches and a refresh
-  // restores the same view.
-  useEffect(() => {
-    const next = new URLSearchParams()
-    if (filter !== 'All') next.set('status', filter)
-    setParams(next, { replace: true })
-  }, [filter, setParams])
 
   // Paged server feed - only orders WITH a lab status, 50 at a time.
-  const query = useInfiniteLabSales(filter)
+  const query = useInfiniteLabSales(filter, saleId)
   const rows = useMemo(
     () => query.data?.pages.flatMap((p) => p.rows) ?? [],
     [query.data],
@@ -114,7 +115,7 @@ export function LabPage() {
           onChange={(e) => setFilter(e.target.value)}
           className="rounded-lg border border-line bg-white px-3 py-2 outline-none focus:border-brand"
         >
-          <option value="All">{t('All')}</option>
+          <option value="All">{t('All')}</option><option value="Pending">{t('Pending Lab')}</option>
           {LAB_STATUSES.map((s) => (
             <option key={s} value={s}>{t(s)}</option>
           ))}
@@ -162,7 +163,9 @@ export function LabPage() {
                   </span>
                   <select
                     value={s.lab_status ?? 'Not Started'}
-                    onChange={(e) => updateStatus.mutate({ id: s.id, status: e.target.value })}
+                    disabled={!perms.can('lab.edit') || updateStatus.isPending}
+                    aria-label={`${t('Lab Status')}: ${s.invoice_no}`}
+                    onChange={(e) => updateStatus.mutate({ id: s.id, status: e.target.value }, { onError: error => notify(error.message) })}
                     className="rounded-lg border border-line bg-white px-2 py-1.5 text-sm outline-none focus:border-brand"
                   >
                     {LAB_STATUSES.map((st) => (
@@ -180,6 +183,13 @@ export function LabPage() {
               </div>
               <div className="mt-2 border-t border-line/40 pt-2">
                 <ExamLines saleId={s.id} />
+                <div className="mt-3 flex flex-wrap items-center gap-3 text-sm">
+                  <span className={Number(s.net_amount)-Number(s.amount_paid)>0 ? 'text-danger':'text-success'}>{t('Balance')}: {(Number(s.net_amount)-Number(s.amount_paid)).toFixed(2)}</span>
+                  {perms.can('history.view') && <Link className="text-brand hover:underline" to={`/history?sale=${s.id}`}>{t('Open invoice')}</Link>}
+                  {s.customer_id && perms.can('customers.view') && <Link className="text-brand hover:underline" to={`/customers/${s.customer_id}`}>{t('Customer')}</Link>}
+                  {s.lab_status==='Ready' && perms.can('history.view') && <button className="rounded-lg border border-line px-3 py-1.5" onClick={() => setCollecting(collecting===s.id ? null:s.id)}>{t('Payments')}</button>}
+                </div>
+                {collecting===s.id && perms.can('history.view') && <SalePayments sale={s} balance={Number(s.net_amount)-Number(s.amount_paid)}/>}
               </div>
             </div>
           ))}

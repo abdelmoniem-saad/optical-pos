@@ -189,7 +189,7 @@ export function useUpdateProduct() {
       id: string
       patch: Partial<Omit<ProductInsert, 'stock_qty'>>
     }): Promise<void> => {
-      const { error } = await supabase.from('inventory').update(patch).eq('id', id)
+      const { error } = await supabase.from('inventory').update(patch).eq('id', id).select('id').single()
       if (error) throw error
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: KEY }),

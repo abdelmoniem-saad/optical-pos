@@ -36,6 +36,14 @@ function AppShell() {
   }
   if (!user) return <Navigate to="/login" replace />
 
+  if (!perms.loading && !perms.error && (!perms.active || perms.openAccess)) {
+    return <div className="flex h-full flex-col items-center justify-center gap-4 bg-surface p-6 text-center">
+      <h1 className="text-xl font-semibold text-brand-dark">{t(perms.active ? 'No position — no access':'Inactive')}</h1>
+      <p className="max-w-md text-sm text-muted">{t('Assign an active position in Employees before setting exceptions.')}</p>
+      <button onClick={() => signOut()} className="rounded-lg border border-line px-4 py-2">{t('Sign out')}</button>
+    </div>
+  }
+
   // Not linked to a store (migration 014). auth_store_id() no longer falls back
   // to matching the caller's EMAIL LOCAL PART against users.username, because
   // that let any auth identity with no staff row borrow whoever's username it
@@ -138,7 +146,7 @@ function AppShell() {
                 'No staff record is linked to this account, so access control is not applied.',
               )}
             >
-              ⚠ {t('No access group (full access)')}
+              ⚠ {t('No position — no access')}
             </p>
           )}
           <button
@@ -158,6 +166,7 @@ function AppShell() {
       </aside>
 
       <main className="flex min-w-0 flex-1 flex-col overflow-hidden">
+        {perms.error && <div role="alert" className="bg-warning-bg px-4 py-2 text-sm text-warning">{t(perms.error)}</div>}
         {licenseGrace && (
           <div className="bg-warning-bg px-4 py-2 text-center text-xs font-semibold text-warning">
             {t('License expired - data is read-only during the grace period. Renew to continue working.')}

@@ -73,6 +73,13 @@ begin
   perform set_config('request.jwt.claims', json_build_object('sub', p_uid::text)::text, false);
 end $$;
 
+-- 029: provision explicit positions for these legacy workflow fixtures.
+insert into public.roles(name,store_id)
+select 'gate_026_' || u.store_id::text,u.store_id from public.users u where u.role_id is null group by u.store_id;
+update public.users u set role_id=r.id from public.roles r where u.role_id is null and r.name='gate_026_' || u.store_id::text;
+insert into public.role_permissions(role_id,permission_id)
+select r.id,p.id from public.roles r cross join public.permissions p
+where r.name like 'gate_026_%' and p.code=any(public.supported_permissions()) on conflict do nothing;
 -- ===== 1) the start date is honoured =======================================
 -- Nothing below needed the RPCs to prove itself: these three are the ORIGINAL
 -- defect, and they fail against the unpatched database on their own.

@@ -1,0 +1,2173 @@
+{
+  "description": "Full-byte inventory scan of every tracked file; hashes identify the reviewed checkout. Binary assets and lockfiles are inventoried, not treated as feature implementations.",
+  "files": [
+    {
+      "path": ".claude/launch.json",
+      "bytes": 227,
+      "sha256": "5bc73cb79b67312a2b135bcf8751aa5718abaf95083dd8a161ae499b1d157e22",
+      "kind": "text",
+      "lines": 12,
+      "entrypoints": [],
+      "calls": []
+    },
+    {
+      "path": ".gitattributes",
+      "bytes": 1067,
+      "sha256": "eff3b9c9547db9ccb6e599595e3dc8ce239aa15e6cd073f60d45e2cc0aa7a87b",
+      "kind": "text",
+      "lines": 19,
+      "entrypoints": [],
+      "calls": []
+    },
+    {
+      "path": ".github/workflows/ci.yml",
+      "bytes": 8530,
+      "sha256": "64ab4afacaa6fb11b43deadab40ccb7b0ad6f9326a369c1e38ddf639209d77bf",
+      "kind": "text",
+      "lines": 195,
+      "entrypoints": [],
+      "calls": []
+    },
+    {
+      "path": ".github/workflows/schema-baseline.yml",
+      "bytes": 7269,
+      "sha256": "a68def8a265c38313eaf16c9180b1c1f5c00a21fcfb8795218735b7894818fcb",
+      "kind": "text",
+      "lines": 144,
+      "entrypoints": [],
+      "calls": []
+    },
+    {
+      "path": ".gitignore",
+      "bytes": 984,
+      "sha256": "1c99ee407d9bae7b6f9e2b28801feae4f9c73160a66693f7551199e21bb32a39",
+      "kind": "text",
+      "lines": 63,
+      "entrypoints": [],
+      "calls": []
+    },
+    {
+      "path": ".idea/.gitignore",
+      "bytes": 184,
+      "sha256": "1bfdece3645ed8ed356030f22cc2004dc3f401ff060ac3d24de811c3bcd82e16",
+      "kind": "text",
+      "lines": 9,
+      "entrypoints": [],
+      "calls": []
+    },
+    {
+      "path": "DEFERRED.md",
+      "bytes": 3391,
+      "sha256": "0619a0e0e56dc03b988298682ca01eb94fb0d68917214c55580f9e281f780922",
+      "kind": "text",
+      "lines": 49,
+      "entrypoints": [],
+      "calls": []
+    },
+    {
+      "path": "README.md",
+      "bytes": 10291,
+      "sha256": "fc5d6654f2d412eb270eea674d9ead2278c0a2300e572fc074c242620e221c16",
+      "kind": "text",
+      "lines": 201,
+      "entrypoints": [],
+      "calls": []
+    },
+    {
+      "path": "render.yaml",
+      "bytes": 1169,
+      "sha256": "b02ac230dfe4333ff5758211886190e4b2e45a4e22fbd1b9e15148279259b39d",
+      "kind": "text",
+      "lines": 31,
+      "entrypoints": [],
+      "calls": []
+    },
+    {
+      "path": "supabase/config.toml",
+      "bytes": 237,
+      "sha256": "a7fcbd026d72fce66a8d82ee8b6ed5c2888f3451fe8870d41533d656788e5235",
+      "kind": "text",
+      "lines": 7,
+      "entrypoints": [],
+      "calls": []
+    },
+    {
+      "path": "supabase/functions/create-user/authz.ts",
+      "bytes": 5621,
+      "sha256": "4fbf1c2964daba814b3790ce65e9c10491d16e3080eaf1bdef829e8d6104b912",
+      "kind": "text",
+      "lines": 154,
+      "entrypoints": [
+        "rpcValue",
+        "authorizeCreateUser"
+      ],
+      "calls": []
+    },
+    {
+      "path": "supabase/functions/create-user/index.ts",
+      "bytes": 6532,
+      "sha256": "f34dcd2c3ac115cf7ccb8d8d7600870ada453544e4931a87a63d66f62ca48704",
+      "kind": "text",
+      "lines": 152,
+      "entrypoints": [],
+      "calls": [
+        "auth_uid",
+        "auth_store_id",
+        "is_platform_admin",
+        "resolve_can",
+        "license_write_ok",
+        "my_store_license",
+        "users",
+        "can_assign_role"
+      ]
+    },
+    {
+      "path": "web/.env.example",
+      "bytes": 462,
+      "sha256": "dff7e58a446738565a423025065f25708a3554606f7e20327bd1b6ce8e8591cb",
+      "kind": "text",
+      "lines": 9,
+      "entrypoints": [],
+      "calls": []
+    },
+    {
+      "path": "web/.gitignore",
+      "bytes": 429,
+      "sha256": "55ef1175968e7555edcda0d312b46618740df81f16527c432bfa0cec55bc5530",
+      "kind": "text",
+      "lines": 29,
+      "entrypoints": [],
+      "calls": []
+    },
+    {
+      "path": "web/.oxlintrc.json",
+      "bytes": 253,
+      "sha256": "3f46d4038fd69c0011da897b887d747e3d66f0bbda8b523a54891fbd473d67ef",
+      "kind": "text",
+      "lines": 9,
+      "entrypoints": [],
+      "calls": []
+    },
+    {
+      "path": "web/README.md",
+      "bytes": 3375,
+      "sha256": "bfb7336a50d89ad2ca28e2ab21f16c8e9f494097996e3d0bd32e0482dbed23cd",
+      "kind": "text",
+      "lines": 86,
+      "entrypoints": [],
+      "calls": []
+    },
+    {
+      "path": "web/index.html",
+      "bytes": 424,
+      "sha256": "98ada8804bbc5c8973b9e4564fc20df56c7baee7a8adba5448c0659181b19ea0",
+      "kind": "text",
+      "lines": 15,
+      "entrypoints": [],
+      "calls": []
+    },
+    {
+      "path": "web/package-lock.json",
+      "bytes": 310530,
+      "sha256": "985ef474a95bed842ebe6effc7e103b523a928796ce9a8c08185095f25114380",
+      "kind": "text",
+      "lines": 8492,
+      "entrypoints": [],
+      "calls": []
+    },
+    {
+      "path": "web/package.json",
+      "bytes": 1527,
+      "sha256": "f1981f51405d5f94ce003b51b9fda491262a8810dc5f9d07a140109d87c7062a",
+      "kind": "text",
+      "lines": 47,
+      "entrypoints": [],
+      "calls": []
+    },
+    {
+      "path": "web/public/apple-touch-icon.png",
+      "bytes": 386,
+      "sha256": "00a1565f6472dc36a6f1ecc20beda6e13cf947379b6c4960f6898acec4bbb4d1",
+      "kind": "binary",
+      "lines": null,
+      "entrypoints": [],
+      "calls": []
+    },
+    {
+      "path": "web/public/favicon.svg",
+      "bytes": 9522,
+      "sha256": "61bc9a161de58248288e6905425d7180f0624c2865007b97d763fdac12043a66",
+      "kind": "text",
+      "lines": 1,
+      "entrypoints": [],
+      "calls": []
+    },
+    {
+      "path": "web/public/pwa-192x192.png",
+      "bytes": 413,
+      "sha256": "4c7ae7a8b60f4eba0c54cd9e2b88590495a796e7fe07e10e586636edc9020274",
+      "kind": "binary",
+      "lines": null,
+      "entrypoints": [],
+      "calls": []
+    },
+    {
+      "path": "web/public/pwa-512x512.png",
+      "bytes": 1496,
+      "sha256": "5056713faad14409a8ab3257d285fe45c71598143304d3d3cb621166a671c29d",
+      "kind": "binary",
+      "lines": null,
+      "entrypoints": [],
+      "calls": []
+    },
+    {
+      "path": "web/scripts/bench-queries.sh",
+      "bytes": 2080,
+      "sha256": "ace430cd0b3e07bc96d39cc5d7500e2fcc7f929a30d34d3cc7e8003a9199187c",
+      "kind": "text",
+      "lines": 51,
+      "entrypoints": [],
+      "calls": []
+    },
+    {
+      "path": "web/scripts/check-migrations-stamp.sh",
+      "bytes": 3894,
+      "sha256": "a643ac6a97f6d7237dc32444d17f57bb72dbebe7a7ee372d61af886833a5769f",
+      "kind": "text",
+      "lines": 87,
+      "entrypoints": [],
+      "calls": []
+    },
+    {
+      "path": "web/scripts/local-db-setup.ps1",
+      "bytes": 7708,
+      "sha256": "5e0ecad6e84d512b1ca4b16c65e407c78f52722310d8bda4f981e22d7969ce74",
+      "kind": "text",
+      "lines": 155,
+      "entrypoints": [],
+      "calls": []
+    },
+    {
+      "path": "web/scripts/psql-shim.js",
+      "bytes": 6801,
+      "sha256": "5365d63c8d53d6c5aa37fa5ed5c973395bfb5520e57f58437c04b05457208fc8",
+      "kind": "text",
+      "lines": 184,
+      "entrypoints": [],
+      "calls": []
+    },
+    {
+      "path": "web/scripts/schema-fingerprint.sh",
+      "bytes": 3344,
+      "sha256": "628b121eae9e4e77d118638ad1ecf5a07f38e17f978d7998c6ab983d9592be8d",
+      "kind": "text",
+      "lines": 72,
+      "entrypoints": [],
+      "calls": []
+    },
+    {
+      "path": "web/scripts/test-db-local.sh",
+      "bytes": 1882,
+      "sha256": "9ec397ba956b255d9b1df1c2487fed0fab8467e55d82cb395f78e5e227a02dcb",
+      "kind": "text",
+      "lines": 47,
+      "entrypoints": [],
+      "calls": []
+    },
+    {
+      "path": "web/scripts/test-db.sh",
+      "bytes": 2983,
+      "sha256": "ebf175f0188289f8e08d1afd63f94a686bbbb4d35d8ddf20a3e1bbd52e7ed761",
+      "kind": "text",
+      "lines": 83,
+      "entrypoints": [],
+      "calls": []
+    },
+    {
+      "path": "web/src/components/AppLayout.tsx",
+      "bytes": 10106,
+      "sha256": "112b5bf19d8ec5243188ca44365f6a4f7f84afcbabc92a6388154214d131395a",
+      "kind": "text",
+      "lines": 239,
+      "entrypoints": [
+        "AppLayout"
+      ],
+      "calls": []
+    },
+    {
+      "path": "web/src/components/Calculator.tsx",
+      "bytes": 4074,
+      "sha256": "a04edaba5d67d06d4a93610df4c92e517d0f65efc0d0dbf33f5b5984567ec4d3",
+      "kind": "text",
+      "lines": 134,
+      "entrypoints": [
+        "Calculator"
+      ],
+      "calls": []
+    },
+    {
+      "path": "web/src/components/ExamView.tsx",
+      "bytes": 3727,
+      "sha256": "c66e042823ee6e2a639bb66125cba723d85da73890e86c9694200fe110709a18",
+      "kind": "text",
+      "lines": 99,
+      "entrypoints": [
+        "ExamList",
+        "OrderExamsLazy"
+      ],
+      "calls": []
+    },
+    {
+      "path": "web/src/components/Feedback.tsx",
+      "bytes": 4639,
+      "sha256": "1feb55da849cea9116c9e09e7700e5a1421d9e6b1c125916487eaa94e25686e1",
+      "kind": "text",
+      "lines": 147,
+      "entrypoints": [
+        "FeedbackProvider",
+        "useConfirm",
+        "useToast"
+      ],
+      "calls": []
+    },
+    {
+      "path": "web/src/components/GlobalSearch.tsx",
+      "bytes": 5291,
+      "sha256": "40b9734c5fa51f114fbe748ca3b59497574296a0852683ae86263a040abd20c8",
+      "kind": "text",
+      "lines": 146,
+      "entrypoints": [
+        "GlobalSearch"
+      ],
+      "calls": []
+    },
+    {
+      "path": "web/src/components/OfflineBanner.tsx",
+      "bytes": 1226,
+      "sha256": "d877ee501a574970a3139e2cc543718a11335dcb03608dd02427df849b36c03c",
+      "kind": "text",
+      "lines": 27,
+      "entrypoints": [
+        "OfflineBanner"
+      ],
+      "calls": []
+    },
+    {
+      "path": "web/src/components/OrderReceiptDialog.tsx",
+      "bytes": 5691,
+      "sha256": "91ca7177bf7d753b642bf26d1e15ec49a80eff38e081e4e2c87306b1ddedc993",
+      "kind": "text",
+      "lines": 156,
+      "entrypoints": [
+        "OrderReceiptDialog"
+      ],
+      "calls": []
+    },
+    {
+      "path": "web/src/components/QrDialog.tsx",
+      "bytes": 1608,
+      "sha256": "bad6953d056a3a7811980bdc54fc62052d63d32a371d1e41c6775e4244dbf951",
+      "kind": "text",
+      "lines": 47,
+      "entrypoints": [
+        "QrDialog"
+      ],
+      "calls": []
+    },
+    {
+      "path": "web/src/components/SchemaBanner.tsx",
+      "bytes": 1387,
+      "sha256": "012c4ea2930cfdfb2c42beebbb85199d5e305df95cfe468f8be9db8c1509ba3e",
+      "kind": "text",
+      "lines": 30,
+      "entrypoints": [
+        "SchemaBanner"
+      ],
+      "calls": []
+    },
+    {
+      "path": "web/src/components/SearchableSelect.test.tsx",
+      "bytes": 9295,
+      "sha256": "6e5cffb295bc72c645171bc833e6f8ab713fce4fe8d68aa6f39753cb36c130dc",
+      "kind": "text",
+      "lines": 313,
+      "entrypoints": [],
+      "calls": []
+    },
+    {
+      "path": "web/src/components/SearchableSelect.tsx",
+      "bytes": 8854,
+      "sha256": "790fa04f872c51a3f318ee840e8524d1ceae0a686da08910b800f954c6dfaa37",
+      "kind": "text",
+      "lines": 238,
+      "entrypoints": [
+        "SearchableSelect"
+      ],
+      "calls": []
+    },
+    {
+      "path": "web/src/data/customerLedger.test.ts",
+      "bytes": 4126,
+      "sha256": "1142992f9d9819dc60bd5610c0e17e91fe28710403d606d6f287caf165053c85",
+      "kind": "text",
+      "lines": 109,
+      "entrypoints": [],
+      "calls": []
+    },
+    {
+      "path": "web/src/data/customerLedger.ts",
+      "bytes": 4683,
+      "sha256": "ba14e99173544adfe0764807f5a479a17cfc71266b5d50905662694989ebf95e",
+      "kind": "text",
+      "lines": 114,
+      "entrypoints": [
+        "oneRow",
+        "toBalance",
+        "useCustomerBalance",
+        "useCustomerDebtors"
+      ],
+      "calls": [
+        "customer_balance",
+        "customer_debtors"
+      ]
+    },
+    {
+      "path": "web/src/data/customers.ts",
+      "bytes": 7807,
+      "sha256": "d46e3af0d30bbe8d5e0983999787fce3caf72efd09a0166ebc286e3fb8ec3a0b",
+      "kind": "text",
+      "lines": 243,
+      "entrypoints": [
+        "useCustomers",
+        "useCustomer",
+        "useCustomerSearch",
+        "useCustomerSearchExtended",
+        "useInfiniteCustomers",
+        "useAddCustomer",
+        "useUpdateCustomer",
+        "useDeleteCustomer"
+      ],
+      "calls": [
+        "customers",
+        "sales",
+        "prescriptions"
+      ]
+    },
+    {
+      "path": "web/src/data/examinations.ts",
+      "bytes": 3212,
+      "sha256": "a193641025d5506f416d9a8ede719193d6b4cb21d9b3afc6557e4d7758ae1d1a",
+      "kind": "text",
+      "lines": 90,
+      "entrypoints": [
+        "useOrderExaminations",
+        "useReplaceOrderExaminations",
+        "usePastExaminations"
+      ],
+      "calls": [
+        "order_examinations",
+        "replace_order_examinations",
+        "sales"
+      ]
+    },
+    {
+      "path": "web/src/data/inventory.ts",
+      "bytes": 7940,
+      "sha256": "ff97c287c41dec80e710c9f0ad4fd03cf8010c1a93a76b350a3028fd2d672279",
+      "kind": "text",
+      "lines": 232,
+      "entrypoints": [
+        "useInventory",
+        "ensureFrameProduct",
+        "useProductStock",
+        "useAddProduct",
+        "useUpdateProduct",
+        "useAdjustStock"
+      ],
+      "calls": [
+        "inventory",
+        "stock_movements",
+        "add_inventory_item"
+      ]
+    },
+    {
+      "path": "web/src/data/labWait.test.ts",
+      "bytes": 2315,
+      "sha256": "ad6f0210cd3c062ef1874b9bcadbdd94fdc1feeafbf509b51dcf66e9e76d3b80",
+      "kind": "text",
+      "lines": 59,
+      "entrypoints": [],
+      "calls": []
+    },
+    {
+      "path": "web/src/data/metadata.ts",
+      "bytes": 8905,
+      "sha256": "998f0d9c07e07649d283c234dc262481fd7d2af263397a422f124d9ff494eeea",
+      "kind": "text",
+      "lines": 256,
+      "entrypoints": [
+        "useAddMetadata",
+        "useReorderMetadata",
+        "useDeleteMetadata",
+        "addMissingOrderMetadata",
+        "syncExamReferences"
+      ],
+      "calls": [
+        "order_examinations",
+        "inventory",
+        "sale_items",
+        "stock_movements"
+      ]
+    },
+    {
+      "path": "web/src/data/notes.ts",
+      "bytes": 4045,
+      "sha256": "691123cacd209237c84a41575c0b4f905bc0864feea94b9a5827e2f150487dca",
+      "kind": "text",
+      "lines": 125,
+      "entrypoints": [
+        "useEveryoneNotes",
+        "useMyNotes",
+        "useAddNote",
+        "useUpdateNote",
+        "useNoteSeen",
+        "useMarkNoteSeen",
+        "useDeleteNote"
+      ],
+      "calls": [
+        "notes",
+        "note_seen"
+      ]
+    },
+    {
+      "path": "web/src/data/permissions.test.ts",
+      "bytes": 3118,
+      "sha256": "9115599bcaa9d5110bff40f879ee1edb45ca346a91372becc7efd1df86aa2a7b",
+      "kind": "text",
+      "lines": 81,
+      "entrypoints": [],
+      "calls": []
+    },
+    {
+      "path": "web/src/data/permissions.tsx",
+      "bytes": 4045,
+      "sha256": "20609cb233142bc0c811ad80291fd5059aaed1894e9c55b15c8e086474af71cb",
+      "kind": "text",
+      "lines": 95,
+      "entrypoints": [
+        "useRoleGrants",
+        "useUserOverrides",
+        "useToggleRoleGrant",
+        "useSetUserOverride",
+        "PermissionsProvider",
+        "usePermissions"
+      ],
+      "calls": [
+        "role_permissions",
+        "user_permissions",
+        "set_role_permission",
+        "set_user_permission",
+        "my_permissions"
+      ]
+    },
+    {
+      "path": "web/src/data/platformReports.ts",
+      "bytes": 1527,
+      "sha256": "cb639afe7e897e94a6aa6acb08364191cfb65ecd2ec67e9e356f30abdaffb674",
+      "kind": "text",
+      "lines": 36,
+      "entrypoints": [
+        "usePlatformReport"
+      ],
+      "calls": [
+        "platform_report_window"
+      ]
+    },
+    {
+      "path": "web/src/data/reportRpc.test.ts",
+      "bytes": 4720,
+      "sha256": "8fe7b6842b52ec8cf7cd3ac1dd0493ff8fca704ba453352f565d2c58aebf27db",
+      "kind": "text",
+      "lines": 131,
+      "entrypoints": [],
+      "calls": []
+    },
+    {
+      "path": "web/src/data/rpc.ts",
+      "bytes": 1137,
+      "sha256": "9b477ada3867a051adcc9b6b8e4a5f4e38076851df6fcd92776a7ceb1f2ed54e",
+      "kind": "text",
+      "lines": 28,
+      "entrypoints": [
+        "isMissingRpc"
+      ],
+      "calls": []
+    },
+    {
+      "path": "web/src/data/sales.test.ts",
+      "bytes": 5816,
+      "sha256": "ec990a36752c0d6fff416a14218726d0b67b31dee78d006d2a2dabd70b713fff",
+      "kind": "text",
+      "lines": 156,
+      "entrypoints": [],
+      "calls": []
+    },
+    {
+      "path": "web/src/data/sales.ts",
+      "bytes": 49092,
+      "sha256": "80ba25647651a143fdeb9be158eb5fb9775e9fd63b42af2f8804c6c144fb70a9",
+      "kind": "text",
+      "lines": 1245,
+      "entrypoints": [
+        "useTodaySales",
+        "callReport",
+        "isReportingInDatabase",
+        "callReportRow",
+        "fetchReportTotals",
+        "fetchTopCustomers",
+        "fetchVoidSummary",
+        "fetchStoreDay",
+        "useSalesSummary",
+        "useInfiniteSales",
+        "useInfiniteLabSales",
+        "useCustomerOrders",
+        "getNextInvoiceNo",
+        "nextInvoiceNo",
+        "useCreateSale",
+        "useUpdateSaleFull",
+        "useUpdateLabStatus",
+        "useSetOrderImage",
+        "useLabQueue",
+        "formatWait",
+        "useUpdateSale",
+        "useVoidSale",
+        "useAddStandalonePrescription"
+      ],
+      "calls": [
+        "sales",
+        "report_sales_window",
+        "report_top_customers",
+        "report_voided_count",
+        "store_day_range",
+        "customers",
+        "next_invoice_no",
+        "create_sale_order",
+        "sale_items",
+        "stock_movements",
+        "order_examinations",
+        "sale_payments",
+        "update_sale_order",
+        "set_lab_status",
+        "lab_queue",
+        "void_sale"
+      ]
+    },
+    {
+      "path": "web/src/data/salesPayments.ts",
+      "bytes": 6225,
+      "sha256": "7ed53a0cc7fb1829c12931dfb95e069b42c451d1675ab6f0ddbdb76d6f1679b1",
+      "kind": "text",
+      "lines": 156,
+      "entrypoints": [
+        "useRefundSale",
+        "isMissingPaymentLedger",
+        "paymentLedgerMissingError",
+        "useSalePayments",
+        "useAddSalePayments",
+        "usePaymentsRange",
+        "replaceSalePayments"
+      ],
+      "calls": [
+        "refund_sale",
+        "sale_payments",
+        "collect_sale_payment"
+      ]
+    },
+    {
+      "path": "web/src/data/search.ts",
+      "bytes": 3603,
+      "sha256": "4dc7a566eae83c3bdf9032d28b302fbbe06afc665d937ab87f6bbcf8aed35000",
+      "kind": "text",
+      "lines": 72,
+      "entrypoints": [
+        "useGlobalSearch"
+      ],
+      "calls": [
+        "search_text",
+        "customers",
+        "inventory",
+        "sales"
+      ]
+    },
+    {
+      "path": "web/src/data/settings.ts",
+      "bytes": 1197,
+      "sha256": "50100afae85f2479594ce8adcb055218477ce93674687495f002414a172cc892",
+      "kind": "text",
+      "lines": 37,
+      "entrypoints": [
+        "useSettings",
+        "useSetSetting"
+      ],
+      "calls": [
+        "settings"
+      ]
+    },
+    {
+      "path": "web/src/data/staff.ts",
+      "bytes": 1924,
+      "sha256": "be59ed135725dbf3a3debee68f0a192b90d28a00c994a06d3782317eaec6bb17",
+      "kind": "text",
+      "lines": 44,
+      "entrypoints": [
+        "useUsers",
+        "useCurrentUser",
+        "resolveStaffUserId",
+        "useIsAdmin",
+        "useUpdateUserRole"
+      ],
+      "calls": [
+        "users",
+        "set_staff_access"
+      ]
+    },
+    {
+      "path": "web/src/data/storageCleanup.ts",
+      "bytes": 5012,
+      "sha256": "2253e33bd0dba11db186ba1680105ad4f6ea69c4399f52ea0e0fdb7771deee20",
+      "kind": "text",
+      "lines": 137,
+      "entrypoints": [
+        "useOrphanScan",
+        "useDeleteOrphans"
+      ],
+      "calls": [
+        "sales",
+        "stores"
+      ]
+    },
+    {
+      "path": "web/src/data/suppliers.ts",
+      "bytes": 11314,
+      "sha256": "937d88543344c718dfdd6561f77f3ecd68cf3a424a354c9828d5dc481a01c17b",
+      "kind": "text",
+      "lines": 329,
+      "entrypoints": [
+        "useSuppliers",
+        "useAddSupplier",
+        "useUpdateSupplier",
+        "useDeleteSupplier",
+        "usePurchases",
+        "useAddPurchase",
+        "usePurchaseItems",
+        "useReceivePurchase",
+        "useAddPurchaseWithItems",
+        "useAllPurchasePayments",
+        "usePurchasePayments",
+        "useAddPurchasePayment",
+        "useDeletePurchasePayment"
+      ],
+      "calls": [
+        "suppliers",
+        "purchases",
+        "delete_purchase",
+        "purchase_items",
+        "receive_purchase",
+        "purchase_payments",
+        "delete_purchase_payment"
+      ]
+    },
+    {
+      "path": "web/src/data/zreport.test.ts",
+      "bytes": 3146,
+      "sha256": "3c3b730e4a52db5dea9a1a421a573cdededb231162b3266e5f8d4871bec5dc2b",
+      "kind": "text",
+      "lines": 85,
+      "entrypoints": [],
+      "calls": []
+    },
+    {
+      "path": "web/src/data/zreport.ts",
+      "bytes": 9596,
+      "sha256": "870722959558a87a6abe9c8b205ce02c17c8e2bac70686506824de172f27d5a6",
+      "kind": "text",
+      "lines": 254,
+      "entrypoints": [
+        "isZReportReady",
+        "useStoreDayBounds",
+        "useZReport",
+        "useShiftCloses",
+        "useCloseShift",
+        "parseCountedCash",
+        "computeVariance",
+        "varianceVerdict"
+      ],
+      "calls": [
+        "z_report",
+        "shift_closes",
+        "close_shift"
+      ]
+    },
+    {
+      "path": "web/src/features/auth/LoginPage.tsx",
+      "bytes": 3339,
+      "sha256": "7850b907a65d91812ef68504e443517edd14d58ee03323329a6cd34ee34c4cfa",
+      "kind": "text",
+      "lines": 96,
+      "entrypoints": [
+        "LoginPage"
+      ],
+      "calls": []
+    },
+    {
+      "path": "web/src/features/closing/CloseShiftPage.tsx",
+      "bytes": 12067,
+      "sha256": "09efab05e65638d1ad3881a7e50db0f7884c451db48d8cf3550a4455f0068092",
+      "kind": "text",
+      "lines": 314,
+      "entrypoints": [
+        "CloseShiftPage"
+      ],
+      "calls": []
+    },
+    {
+      "path": "web/src/features/customers/CustomerDetailPage.tsx",
+      "bytes": 12689,
+      "sha256": "8c390a5f75be4dfc4919d2507394045ea60c1424a2b2457859d9719294d9d003",
+      "kind": "text",
+      "lines": 317,
+      "entrypoints": [
+        "CustomerDetailPage"
+      ],
+      "calls": []
+    },
+    {
+      "path": "web/src/features/customers/CustomersPage.tsx",
+      "bytes": 8208,
+      "sha256": "15c0e3b9be091f1e8823151ecb1ef62a9bf2ac83fdffd4effae03b79d453e6b5",
+      "kind": "text",
+      "lines": 217,
+      "entrypoints": [
+        "CustomersPage"
+      ],
+      "calls": []
+    },
+    {
+      "path": "web/src/features/history/EditOrderForm.tsx",
+      "bytes": 14744,
+      "sha256": "393c1e5d4d79951b86e54c0944588bec3d15aff116c7e074c04820986d2c6ed9",
+      "kind": "text",
+      "lines": 359,
+      "entrypoints": [
+        "EditOrderForm"
+      ],
+      "calls": []
+    },
+    {
+      "path": "web/src/features/history/HistoryPage.tsx",
+      "bytes": 13309,
+      "sha256": "aef844894c7452b4b925aed225bbe02a55201f45e34e59c13b3819f5361299a0",
+      "kind": "text",
+      "lines": 323,
+      "entrypoints": [
+        "HistoryPage"
+      ],
+      "calls": []
+    },
+    {
+      "path": "web/src/features/history/SalePayments.tsx",
+      "bytes": 11095,
+      "sha256": "d207366fca835daf9916990f1f223a93d2e70b77df1f9aa93f3b1dcb1401fa51",
+      "kind": "text",
+      "lines": 241,
+      "entrypoints": [
+        "SalePayments"
+      ],
+      "calls": []
+    },
+    {
+      "path": "web/src/features/history/VoidSaleButton.tsx",
+      "bytes": 3874,
+      "sha256": "9a2700066086d7d5bf3ff1f5c6bf69f470a062758a8bf76c271d7359f5687549",
+      "kind": "text",
+      "lines": 107,
+      "entrypoints": [
+        "VoidSaleButton"
+      ],
+      "calls": []
+    },
+    {
+      "path": "web/src/features/inventory/InventoryPage.tsx",
+      "bytes": 11160,
+      "sha256": "0820665b7d31a5d2779efa32e1d2e7b488c88cc9b74fabb16d7e4c52cdf5c346",
+      "kind": "text",
+      "lines": 297,
+      "entrypoints": [
+        "InventoryPage"
+      ],
+      "calls": []
+    },
+    {
+      "path": "web/src/features/inventory/OpticalSettings.tsx",
+      "bytes": 7863,
+      "sha256": "db521c0472550b78be8dfb3537ee96c0534649a8e9f2f0555a2771b155ccb8b1",
+      "kind": "text",
+      "lines": 244,
+      "entrypoints": [
+        "OpticalSettings"
+      ],
+      "calls": []
+    },
+    {
+      "path": "web/src/features/inventory/inventoryTabs.test.ts",
+      "bytes": 1321,
+      "sha256": "a5c07051fda6b85c9bc6b1d2247998582a3059e766cf5d6bd083b853c3c8d260",
+      "kind": "text",
+      "lines": 34,
+      "entrypoints": [],
+      "calls": []
+    },
+    {
+      "path": "web/src/features/inventory/tabs.ts",
+      "bytes": 1191,
+      "sha256": "98edbe6cd719f0efa0141721dd6deb15b4a07b14a065e68614bbf37da20cdfe6",
+      "kind": "text",
+      "lines": 28,
+      "entrypoints": [
+        "resolveTab"
+      ],
+      "calls": []
+    },
+    {
+      "path": "web/src/features/lab/LabPage.tsx",
+      "bytes": 9058,
+      "sha256": "1aafb9e1c9c908c8d4a7e9bf73487f2567d380a63dc7501b1f1f1da6f376503f",
+      "kind": "text",
+      "lines": 210,
+      "entrypoints": [
+        "LabPage"
+      ],
+      "calls": []
+    },
+    {
+      "path": "web/src/features/mobile/MUploadPage.tsx",
+      "bytes": 9913,
+      "sha256": "95f57d256eb59c47a533bc792d8698620d9e39b30b0dfd1e3b0ab36bf969ebe2",
+      "kind": "text",
+      "lines": 238,
+      "entrypoints": [
+        "MUploadPage"
+      ],
+      "calls": [
+        "sales"
+      ]
+    },
+    {
+      "path": "web/src/features/notes/NotesPage.tsx",
+      "bytes": 9332,
+      "sha256": "c78cacb0eca6c1f0667fb3c71640e33a6c8cbe7f14f04a781f7efeafe9ba08ed",
+      "kind": "text",
+      "lines": 292,
+      "entrypoints": [
+        "NotesPage"
+      ],
+      "calls": []
+    },
+    {
+      "path": "web/src/features/platform/PlatformPage.tsx",
+      "bytes": 18117,
+      "sha256": "9f498d423e4cb2e8c67c7312e2f01857b444adf99b3e886a81680134d61f5fdb",
+      "kind": "text",
+      "lines": 444,
+      "entrypoints": [
+        "PlatformPage"
+      ],
+      "calls": [
+        "stores",
+        "store_licenses",
+        "permissions",
+        "roles",
+        "role_permissions",
+        "set_license_window"
+      ]
+    },
+    {
+      "path": "web/src/features/pos/POSContext.tsx",
+      "bytes": 30616,
+      "sha256": "617316fa0f7d7f9aff7f25c8fdc3bd1e531aaedf8de61c88713b6eb82b39b8e9",
+      "kind": "text",
+      "lines": 842,
+      "entrypoints": [
+        "localDateISO",
+        "POSProvider",
+        "usePOS"
+      ],
+      "calls": [
+        "sales",
+        "inventory",
+        "sale_items",
+        "order_examinations",
+        "customers",
+        "products"
+      ]
+    },
+    {
+      "path": "web/src/features/pos/POSPage.tsx",
+      "bytes": 5532,
+      "sha256": "326abbf753827e15a30d0200011a47baa655dcd9d08414cc442bbf498303eac8",
+      "kind": "text",
+      "lines": 179,
+      "entrypoints": [
+        "POSPage"
+      ],
+      "calls": []
+    },
+    {
+      "path": "web/src/features/pos/ReceiptDialog.tsx",
+      "bytes": 4148,
+      "sha256": "58229f317dbc0cd9d7c69a87134591e0a51fdce0cd5c8b639c2d7d886c4de710",
+      "kind": "text",
+      "lines": 115,
+      "entrypoints": [
+        "ReceiptDialog"
+      ],
+      "calls": []
+    },
+    {
+      "path": "web/src/features/pos/enterNav.test.ts",
+      "bytes": 6377,
+      "sha256": "4388882871eb61bf92ff7df805dc8dc40adeafe9c08e897610d6643abf06acec",
+      "kind": "text",
+      "lines": 170,
+      "entrypoints": [],
+      "calls": []
+    },
+    {
+      "path": "web/src/features/pos/enterNav.ts",
+      "bytes": 4207,
+      "sha256": "87fd708a99b04ab06010a34e77381b3390bb1c66a063093da7ab11ed7b8a7027",
+      "kind": "text",
+      "lines": 108,
+      "entrypoints": [
+        "rxArrowNav",
+        "enterMovesNext"
+      ],
+      "calls": []
+    },
+    {
+      "path": "web/src/features/pos/pricing.test.ts",
+      "bytes": 5825,
+      "sha256": "1b6ecb91da9bb159b4910123bbf57739a425951498cf8c6d710bf818a6ef0e63",
+      "kind": "text",
+      "lines": 170,
+      "entrypoints": [],
+      "calls": []
+    },
+    {
+      "path": "web/src/features/pos/pricing.ts",
+      "bytes": 3623,
+      "sha256": "2334013cc304a5ec02f20993b991522d57d772c4a40ac0c985535ae5dc43bab9",
+      "kind": "text",
+      "lines": 105,
+      "entrypoints": [
+        "computeTotals",
+        "setLineDiscount",
+        "addLine",
+        "setQty",
+        "removeLine"
+      ],
+      "calls": []
+    },
+    {
+      "path": "web/src/features/pos/receipt.test.ts",
+      "bytes": 16679,
+      "sha256": "b4b2566e47a6792e15d22938c0c73cf7a54a5b689f625c58bf615a81e5d55bfb",
+      "kind": "text",
+      "lines": 411,
+      "entrypoints": [],
+      "calls": []
+    },
+    {
+      "path": "web/src/features/pos/receipt.ts",
+      "bytes": 27102,
+      "sha256": "ce7920e8c85ea8651c425ea14fd620f6b41a43fba27df4fdffea7cafad2a2cef",
+      "kind": "text",
+      "lines": 606,
+      "entrypoints": [
+        "buildOrderDocument",
+        "renderOrderUnitHTML",
+        "printOrderDocuments",
+        "printOrderDocument",
+        "buildOrderText",
+        "resolveWhatsAppNumber",
+        "whatsAppShareUrl",
+        "shareOrderOnWhatsApp"
+      ],
+      "calls": []
+    },
+    {
+      "path": "web/src/features/pos/steps/AdditionalItemsStep.tsx",
+      "bytes": 3432,
+      "sha256": "7d520a4efc378d90f48692102effb86bb052d384f9301f6be4edde39b90214b6",
+      "kind": "text",
+      "lines": 89,
+      "entrypoints": [
+        "AdditionalItemsStep"
+      ],
+      "calls": []
+    },
+    {
+      "path": "web/src/features/pos/steps/CartStep.tsx",
+      "bytes": 16357,
+      "sha256": "9a05027131924349e4ebec03d06c8d48ca990340e5bc058b91d95f812bc2a016",
+      "kind": "text",
+      "lines": 394,
+      "entrypoints": [
+        "CartStep"
+      ],
+      "calls": []
+    },
+    {
+      "path": "web/src/features/pos/steps/CategoryStep.tsx",
+      "bytes": 1378,
+      "sha256": "27486cccb037e56a1128ab0f47eaa87459b1b263884d03ff4d2df9f7e05c82d7",
+      "kind": "text",
+      "lines": 34,
+      "entrypoints": [
+        "CategoryStep"
+      ],
+      "calls": []
+    },
+    {
+      "path": "web/src/features/pos/steps/CustomerStep.tsx",
+      "bytes": 4509,
+      "sha256": "af194efa884fa7da340b30dfee0d8e626d2eaea2acd23e3f64e615e26b9f7bbf",
+      "kind": "text",
+      "lines": 105,
+      "entrypoints": [
+        "CustomerStep"
+      ],
+      "calls": []
+    },
+    {
+      "path": "web/src/features/pos/steps/ExamSection.tsx",
+      "bytes": 15379,
+      "sha256": "fe9d27090a285d85cc4fa6b9f620da02cbd69b7fb18720758a1d0b5f415b5772",
+      "kind": "text",
+      "lines": 401,
+      "entrypoints": [
+        "ExamSection"
+      ],
+      "calls": []
+    },
+    {
+      "path": "web/src/features/pos/types.test.ts",
+      "bytes": 2494,
+      "sha256": "c93d658b48f641965ddb6e5b38f90c1691594e68a5863eaab6dcbad7657eee84",
+      "kind": "text",
+      "lines": 66,
+      "entrypoints": [],
+      "calls": []
+    },
+    {
+      "path": "web/src/features/pos/types.ts",
+      "bytes": 1956,
+      "sha256": "972c0ea6f5085f942650617ee4c1a4faf4d17e43deb808b11e1f7b887ebf40ea",
+      "kind": "text",
+      "lines": 56,
+      "entrypoints": [
+        "emptyExam",
+        "needsExamination",
+        "inferLoadedCategory"
+      ],
+      "calls": []
+    },
+    {
+      "path": "web/src/features/reports/ReportsPage.tsx",
+      "bytes": 13339,
+      "sha256": "d8d9d4190878ed3c7ed0aff15c87a10f4994f674bf0c2dd4b6ac033dd6cf875e",
+      "kind": "text",
+      "lines": 303,
+      "entrypoints": [
+        "ReportsPage"
+      ],
+      "calls": []
+    },
+    {
+      "path": "web/src/features/reports/computeReport.test.ts",
+      "bytes": 4401,
+      "sha256": "e5a062852bbc7d9da335096cc54b3753964df7bec4d3f95a7ae8f5c8892f1c03",
+      "kind": "text",
+      "lines": 130,
+      "entrypoints": [],
+      "calls": []
+    },
+    {
+      "path": "web/src/features/reports/computeReport.ts",
+      "bytes": 3414,
+      "sha256": "d155e20f75b21e7ae9d09715418d0ea56b04440821e9ad8a97f4097cd7f58687",
+      "kind": "text",
+      "lines": 91,
+      "entrypoints": [
+        "isLive",
+        "computeReport"
+      ],
+      "calls": []
+    },
+    {
+      "path": "web/src/features/settings/SettingsPage.tsx",
+      "bytes": 3379,
+      "sha256": "993f17d244017fa4c815e4b76a3a2a842493132d1f066bf4a14b8820865f3846",
+      "kind": "text",
+      "lines": 86,
+      "entrypoints": [
+        "SettingsPage"
+      ],
+      "calls": []
+    },
+    {
+      "path": "web/src/features/staff/StaffPage.tsx",
+      "bytes": 14869,
+      "sha256": "b01ae852ed57283ecfef18168a53fb1b896a987d41c42ea11992469854be3a80",
+      "kind": "text",
+      "lines": 221,
+      "entrypoints": [
+        "StaffPage"
+      ],
+      "calls": [
+        "create_staff_role"
+      ]
+    },
+    {
+      "path": "web/src/features/suppliers/SuppliersPage.tsx",
+      "bytes": 20705,
+      "sha256": "51a96f469aba4a1457ba51ce6ce4e7318b5c7646e62816c5b5c6c06f60243aa9",
+      "kind": "text",
+      "lines": 499,
+      "entrypoints": [
+        "SuppliersPage"
+      ],
+      "calls": []
+    },
+    {
+      "path": "web/src/i18n/LanguageContext.tsx",
+      "bytes": 1511,
+      "sha256": "e47e56385fd018dbb50fd2aebda30a9d437f422e84bafb84efa7c2218ed3885f",
+      "kind": "text",
+      "lines": 55,
+      "entrypoints": [
+        "LanguageProvider",
+        "useI18n"
+      ],
+      "calls": []
+    },
+    {
+      "path": "web/src/i18n/translations.test.ts",
+      "bytes": 1784,
+      "sha256": "c06b2f3b9f969dfa347dc18943b5d866290a3929223e06253abb2dcc79f3cbb8",
+      "kind": "text",
+      "lines": 52,
+      "entrypoints": [],
+      "calls": []
+    },
+    {
+      "path": "web/src/i18n/translations.ts",
+      "bytes": 31755,
+      "sha256": "5af92a93198b2d7fc5fcea68fdd456fc93ed3b87e9331eec420224fe02f0c30b",
+      "kind": "text",
+      "lines": 582,
+      "entrypoints": [],
+      "calls": []
+    },
+    {
+      "path": "web/src/index.css",
+      "bytes": 2304,
+      "sha256": "6e419d5b765a0cd46646ea441286558e5706ce37e4aa82495e24a246f5fe943b",
+      "kind": "text",
+      "lines": 63,
+      "entrypoints": [],
+      "calls": []
+    },
+    {
+      "path": "web/src/lib/auth.tsx",
+      "bytes": 2945,
+      "sha256": "d17ccb7c31b39e4274f9881c9c2fa87247379bebae7ecb7dca09daf09ad513ee",
+      "kind": "text",
+      "lines": 98,
+      "entrypoints": [
+        "usernameToEmail",
+        "AuthProvider",
+        "useAuth",
+        "displayName"
+      ],
+      "calls": []
+    },
+    {
+      "path": "web/src/lib/createUserAuthz.test.ts",
+      "bytes": 6458,
+      "sha256": "2ccf27566cdb57bab88f00c3d7d0da144650b60e06acb01680303ec913fb3a7f",
+      "kind": "text",
+      "lines": 178,
+      "entrypoints": [],
+      "calls": []
+    },
+    {
+      "path": "web/src/lib/database.types.test.ts",
+      "bytes": 3241,
+      "sha256": "af0191d115cbc449d42968f7c5997ad27e5ee98f5bdf992fd3352c0d7e6d9323",
+      "kind": "text",
+      "lines": 98,
+      "entrypoints": [],
+      "calls": []
+    },
+    {
+      "path": "web/src/lib/database.types.ts",
+      "bytes": 8032,
+      "sha256": "090a791cd651961312e54335847757d3c26e8b7f65893cb940191db3248343eb",
+      "kind": "text",
+      "lines": 241,
+      "entrypoints": [],
+      "calls": []
+    },
+    {
+      "path": "web/src/lib/licensing.ts",
+      "bytes": 3836,
+      "sha256": "c8e041593e494fdca78f40e43e392f6c6edd8f60520539bc04a2f08f4d541ade",
+      "kind": "text",
+      "lines": 99,
+      "entrypoints": [
+        "useMyLicense",
+        "useStoreId",
+        "useIsPlatformAdminQuery",
+        "useIsPlatformAdmin"
+      ],
+      "calls": [
+        "my_license_state",
+        "auth_store_id",
+        "is_platform_admin"
+      ]
+    },
+    {
+      "path": "web/src/lib/offlineMutations.ts",
+      "bytes": 3914,
+      "sha256": "2ca8ba069ebe51067fc673fd5c48084efec024308b399aa144b5dd8603dffd70",
+      "kind": "text",
+      "lines": 72,
+      "entrypoints": [
+        "isQueuedOffline"
+      ],
+      "calls": []
+    },
+    {
+      "path": "web/src/lib/payments.test.ts",
+      "bytes": 6970,
+      "sha256": "d354b3671a9419282082cbbb7f716bd38174f40ca026f8de19d568d4e07e7285",
+      "kind": "text",
+      "lines": 255,
+      "entrypoints": [],
+      "calls": []
+    },
+    {
+      "path": "web/src/lib/payments.ts",
+      "bytes": 5214,
+      "sha256": "c892b2263b45da88226ec5e45720161d8f4efcc103bc6738b4916795ce6a837f",
+      "kind": "text",
+      "lines": 130,
+      "entrypoints": [
+        "paymentsTotal",
+        "normalizeLines",
+        "setLine",
+        "removeLine",
+        "upsertLine",
+        "clampPaymentLines",
+        "methodSummary",
+        "legacyMethodKey",
+        "methodLabelKey",
+        "sumByMethod"
+      ],
+      "calls": []
+    },
+    {
+      "path": "web/src/lib/platformReportShape.test.ts",
+      "bytes": 2982,
+      "sha256": "0a4388ceeb4224745b005652e4f81253f2c13446ac78b78c13c74359f249d9a0",
+      "kind": "text",
+      "lines": 80,
+      "entrypoints": [],
+      "calls": []
+    },
+    {
+      "path": "web/src/lib/platformReportShape.ts",
+      "bytes": 3045,
+      "sha256": "1230624f0893d75c8900e7015b45eadbed08c89b1fbb9b1795062e1b42d27e36",
+      "kind": "text",
+      "lines": 84,
+      "entrypoints": [
+        "toNumber",
+        "buildPlatformReport"
+      ],
+      "calls": []
+    },
+    {
+      "path": "web/src/lib/posDraft.test.ts",
+      "bytes": 1343,
+      "sha256": "f25382c54ead2dd47e0fa8ac3b3af6348a13a89988b31f30f7da727b36fbe6e7",
+      "kind": "text",
+      "lines": 39,
+      "entrypoints": [],
+      "calls": []
+    },
+    {
+      "path": "web/src/lib/posDraft.ts",
+      "bytes": 1733,
+      "sha256": "eb171d8815bcd8f0cf9bdbfecd211254913a4c6239493e1040f10ec862d927c4",
+      "kind": "text",
+      "lines": 52,
+      "entrypoints": [
+        "readPosDraft",
+        "writePosDraft",
+        "clearPosDraft"
+      ],
+      "calls": []
+    },
+    {
+      "path": "web/src/lib/queryClient.ts",
+      "bytes": 1843,
+      "sha256": "772af84a572f5d3317d6bdb4a5f412864f00b696c88cb5cd26168b4832f479b5",
+      "kind": "text",
+      "lines": 43,
+      "entrypoints": [],
+      "calls": []
+    },
+    {
+      "path": "web/src/lib/schemaVersion.test.ts",
+      "bytes": 5901,
+      "sha256": "17cb4fcfbef3b271a6ec26e07df8e9ed6e21edd4cccbb273bd0850f2cf50c9a3",
+      "kind": "text",
+      "lines": 112,
+      "entrypoints": [],
+      "calls": []
+    },
+    {
+      "path": "web/src/lib/schemaVersion.ts",
+      "bytes": 2756,
+      "sha256": "600179772371d70d356f27d2e93894164719c7ab4d09ecf42c21a94fde0bf6b0",
+      "kind": "text",
+      "lines": 63,
+      "entrypoints": [
+        "toState",
+        "useSchemaVersion"
+      ],
+      "calls": [
+        "schema_version"
+      ]
+    },
+    {
+      "path": "web/src/lib/storage.ts",
+      "bytes": 4034,
+      "sha256": "935fbb9024bdd608978061ebdf2e996dc2c290e4bd5f2f5ecee8d54dc219465d",
+      "kind": "text",
+      "lines": 100,
+      "entrypoints": [
+        "uploadPrescriptionImage",
+        "prescriptionImageUrl",
+        "uploadOrderImage",
+        "removeOrderImage",
+        "findOrderImages"
+      ],
+      "calls": []
+    },
+    {
+      "path": "web/src/lib/storageOrphans.test.ts",
+      "bytes": 3597,
+      "sha256": "afa17b3fd6831e34410e10d6311932cb54184569732707603b45209bf51c699d",
+      "kind": "text",
+      "lines": 108,
+      "entrypoints": [],
+      "calls": []
+    },
+    {
+      "path": "web/src/lib/storageOrphans.ts",
+      "bytes": 4185,
+      "sha256": "acf08ccbc4bd60d6cc22015fd0eabe70f6de09c9a0a7b538bf3c823567c21aeb",
+      "kind": "text",
+      "lines": 100,
+      "entrypoints": [
+        "findOrphanedImages",
+        "orphanBytes"
+      ],
+      "calls": []
+    },
+    {
+      "path": "web/src/lib/suggest.test.ts",
+      "bytes": 2718,
+      "sha256": "4b0511dffc69c0bdbb70d2a5081d51c7e722067844131dd782781e44ac5a9201",
+      "kind": "text",
+      "lines": 77,
+      "entrypoints": [],
+      "calls": []
+    },
+    {
+      "path": "web/src/lib/suggest.ts",
+      "bytes": 1431,
+      "sha256": "73ebaa6602da4dd6c1f363787b7b9d4b1ed72b363151755207d39b8c72b17e65",
+      "kind": "text",
+      "lines": 42,
+      "entrypoints": [
+        "filterOptions"
+      ],
+      "calls": []
+    },
+    {
+      "path": "web/src/lib/supabase.ts",
+      "bytes": 674,
+      "sha256": "1df89b3964173eefac99136c1f4d1f8c7d0e55cde4fda6038f3458dfcdf95893",
+      "kind": "text",
+      "lines": 21,
+      "entrypoints": [],
+      "calls": []
+    },
+    {
+      "path": "web/src/main.tsx",
+      "bytes": 2120,
+      "sha256": "1b7c20e4d7365a8672076d61f97a27d6205e622d8adbec7d1ad394c4e539ca64",
+      "kind": "text",
+      "lines": 49,
+      "entrypoints": [],
+      "calls": []
+    },
+    {
+      "path": "web/src/routes/AppRouter.tsx",
+      "bytes": 6871,
+      "sha256": "c6e64d59017a50bcd2da4629a6546b7bd7e7279f0e44472c35925266693dee70",
+      "kind": "text",
+      "lines": 184,
+      "entrypoints": [
+        "AppRouter"
+      ],
+      "calls": []
+    },
+    {
+      "path": "web/src/routes/nav.ts",
+      "bytes": 977,
+      "sha256": "aed37615f3bcc88030a33524efe20d8348d9d1e32c25e45b70aad3d8a205f1de",
+      "kind": "text",
+      "lines": 18,
+      "entrypoints": [],
+      "calls": []
+    },
+    {
+      "path": "web/src/theme/tokens.ts",
+      "bytes": 901,
+      "sha256": "26634993e43e4fb339c4c29b2a2741096581e2ffd878aed0f27ccb34b8fbd767",
+      "kind": "text",
+      "lines": 34,
+      "entrypoints": [],
+      "calls": []
+    },
+    {
+      "path": "web/supabase/000_base_schema.sql",
+      "bytes": 15168,
+      "sha256": "3b56fa7d10aac75983824952c49198d08360a49082daeb5fe10306c33cb26027",
+      "kind": "text",
+      "lines": 417,
+      "entrypoints": [],
+      "calls": []
+    },
+    {
+      "path": "web/supabase/001_security_rls.sql",
+      "bytes": 2607,
+      "sha256": "9de34cd5e0ae0c5f49ea1a3fc1af1905bb0de9c121decd0348e949e15132b0c0",
+      "kind": "text",
+      "lines": 79,
+      "entrypoints": [],
+      "calls": []
+    },
+    {
+      "path": "web/supabase/002_create_sale_rpc.sql",
+      "bytes": 3419,
+      "sha256": "fea4ce4f50e44f853f89fa832f75c7f49a915eb51bda085c31919e77619dfc1a",
+      "kind": "text",
+      "lines": 81,
+      "entrypoints": [
+        "create_sale_order"
+      ],
+      "calls": [
+        "create_sale_order"
+      ]
+    },
+    {
+      "path": "web/supabase/003_purchase_payments.sql",
+      "bytes": 1994,
+      "sha256": "d9e3bd476e1dad2efe0d02e54d877aacb7d935ad1cfd5068e0bbc712b8d8746e",
+      "kind": "text",
+      "lines": 48,
+      "entrypoints": [],
+      "calls": []
+    },
+    {
+      "path": "web/supabase/004_rbac_notes.sql",
+      "bytes": 6398,
+      "sha256": "0af161b7dc634cc270c1a84f38f3d438f0d92a35a4bac3efa30de9e6ed3ee838",
+      "kind": "text",
+      "lines": 174,
+      "entrypoints": [],
+      "calls": []
+    },
+    {
+      "path": "web/supabase/005_notes_edit.sql",
+      "bytes": 335,
+      "sha256": "b4c0eb20879acd7c86f10852c50c6922ba3b403934533f923d542d745a46f5a5",
+      "kind": "text",
+      "lines": 10,
+      "entrypoints": [],
+      "calls": []
+    },
+    {
+      "path": "web/supabase/006_note_seen.sql",
+      "bytes": 1505,
+      "sha256": "a0c99ae4fd8868ea12832b9e050ee12dd8afc88aaa9d2860d0d394c62f13c539",
+      "kind": "text",
+      "lines": 43,
+      "entrypoints": [],
+      "calls": []
+    },
+    {
+      "path": "web/supabase/007_order_images.sql",
+      "bytes": 618,
+      "sha256": "b7ddedbb184623e3d81898465f825314420347048a3d8fa154b443e78f6bcc44",
+      "kind": "text",
+      "lines": 14,
+      "entrypoints": [],
+      "calls": []
+    },
+    {
+      "path": "web/supabase/008_multi_tenancy.sql",
+      "bytes": 22142,
+      "sha256": "bee82059bbd7537fbae55f3c3c78678ff782b051ceef82e7cd69cd163bd63c82",
+      "kind": "text",
+      "lines": 460,
+      "entrypoints": [
+        "auth_store_id",
+        "license_read_ok",
+        "license_write_ok",
+        "is_platform_admin",
+        "my_license_state",
+        "tenant_fill_store_id"
+      ],
+      "calls": []
+    },
+    {
+      "path": "web/supabase/009_store_licensing.sql",
+      "bytes": 883,
+      "sha256": "a83c4011807a7ff648c99e34f8ef76d7d147854aa6bec22865bb55494a0d0094",
+      "kind": "text",
+      "lines": 21,
+      "entrypoints": [],
+      "calls": []
+    },
+    {
+      "path": "web/supabase/010_metadata_sort.sql",
+      "bytes": 1090,
+      "sha256": "5b9ebd1b512e859469094fd42132a05582b8f6853417863ad7fa39af95561fae",
+      "kind": "text",
+      "lines": 29,
+      "entrypoints": [],
+      "calls": []
+    },
+    {
+      "path": "web/supabase/011_sale_payments.sql",
+      "bytes": 11566,
+      "sha256": "9f6c4172e866598398ea1aec87d9a2c08584334ddfd6e3d8f3c12f1e0a4cd526",
+      "kind": "text",
+      "lines": 249,
+      "entrypoints": [
+        "sync_sale_amount_paid",
+        "create_sale_order"
+      ],
+      "calls": []
+    },
+    {
+      "path": "web/supabase/012_integrity.sql",
+      "bytes": 20652,
+      "sha256": "2f283208a807aba02a3ce08a4254f6165a96cf38aabeeced509d46bc1d0237f4",
+      "kind": "text",
+      "lines": 465,
+      "entrypoints": [
+        "sync_stock_qty",
+        "available_stock",
+        "next_invoice_no",
+        "add_inventory_item",
+        "create_sale_order"
+      ],
+      "calls": []
+    },
+    {
+      "path": "web/supabase/013_void_refunds.sql",
+      "bytes": 34261,
+      "sha256": "aabee7254ca7683c913d80b93087df0de7ac8a8d32f484cc343e1d9a36eafefa",
+      "kind": "text",
+      "lines": 843,
+      "entrypoints": [
+        "normalise_movement_kind",
+        "guard_sale_money",
+        "sync_sale_amount_paid",
+        "price_cart",
+        "update_sale_order",
+        "void_sale",
+        "delete_purchase",
+        "delete_purchase_payment"
+      ],
+      "calls": []
+    },
+    {
+      "path": "web/supabase/014_server_rbac.sql",
+      "bytes": 25556,
+      "sha256": "9b9334c4bec89e83ccb1101ab750b5d6757bfbfe1390fa298884911974c83be1",
+      "kind": "text",
+      "lines": 534,
+      "entrypoints": [
+        "audit_row",
+        "resolve_can",
+        "require_perm",
+        "role_store",
+        "user_store",
+        "auth_store_id",
+        "void_sale",
+        "delete_purchase",
+        "delete_purchase_payment",
+        "auth_uid",
+        "my_store_license"
+      ],
+      "calls": []
+    },
+    {
+      "path": "web/supabase/015_link_staff_ids.sql",
+      "bytes": 8055,
+      "sha256": "f4eb9bb9333dd5e8979a742cec0dfb9da4e18b422da223dc0881e5fe337a8c34",
+      "kind": "text",
+      "lines": 169,
+      "entrypoints": [
+        "link_staff_ids"
+      ],
+      "calls": []
+    },
+    {
+      "path": "web/supabase/016_reporting.sql",
+      "bytes": 14220,
+      "sha256": "a6754be117a659c19d1742a03ac762682334f18c4369cd196dfab8b30310d167",
+      "kind": "text",
+      "lines": 300,
+      "entrypoints": [
+        "report_window",
+        "report_sales_window",
+        "report_top_customers",
+        "report_payment_mix",
+        "report_voided_count",
+        "store_time_zone",
+        "store_day_range",
+        "report_window",
+        "search_text"
+      ],
+      "calls": []
+    },
+    {
+      "path": "web/supabase/017_schema_version.sql",
+      "bytes": 4220,
+      "sha256": "75f59cfd71d153b6a40f20d47bb333dd518cb8b90630980a2674327a93fed8df",
+      "kind": "text",
+      "lines": 86,
+      "entrypoints": [
+        "schema_version",
+        "record_schema_version"
+      ],
+      "calls": []
+    },
+    {
+      "path": "web/supabase/018_purchase_stock.sql",
+      "bytes": 10959,
+      "sha256": "1626fbb1742717f64a1d541cdd40c3d811ade54392aed530e9a3189e56bd81a5",
+      "kind": "text",
+      "lines": 264,
+      "entrypoints": [
+        "receive_purchase",
+        "customer_balance",
+        "customer_debtors"
+      ],
+      "calls": []
+    },
+    {
+      "path": "web/supabase/019_lab_dwell.sql",
+      "bytes": 6927,
+      "sha256": "02f9d79332fa0fc4ccb5881fb57be13777c941502f5990141920e750880d2dfe",
+      "kind": "text",
+      "lines": 151,
+      "entrypoints": [
+        "lab_status_stamp",
+        "lab_queue"
+      ],
+      "calls": []
+    },
+    {
+      "path": "web/supabase/020_version_gate.sql",
+      "bytes": 5281,
+      "sha256": "94974327e7ca9cf37abb7fd4605839944678a339620f01d4978927406585bb37",
+      "kind": "text",
+      "lines": 106,
+      "entrypoints": [
+        "assert_versions_recorded"
+      ],
+      "calls": []
+    },
+    {
+      "path": "web/supabase/021_bootstrap_platform_admin.sql",
+      "bytes": 5922,
+      "sha256": "d590928245fa85b33fcb9dc3fc70d2013373cebb2a2c378333bca56f517115f8",
+      "kind": "text",
+      "lines": 116,
+      "entrypoints": [
+        "bootstrap_platform_admin"
+      ],
+      "calls": []
+    },
+    {
+      "path": "web/supabase/022_sales_kind.sql",
+      "bytes": 14828,
+      "sha256": "8bc90d9dd1fdba1e6edd1d02e98aa157d4b7392e5e6f4164f1832abc185a6642",
+      "kind": "text",
+      "lines": 321,
+      "entrypoints": [
+        "create_sale_order",
+        "report_sales_window"
+      ],
+      "calls": []
+    },
+    {
+      "path": "web/supabase/023_z_report.sql",
+      "bytes": 12299,
+      "sha256": "c2a677ebd88d66d34f5db9c30bf57c50d23e4cb5480ee6da00855d69332c38ef",
+      "kind": "text",
+      "lines": 249,
+      "entrypoints": [
+        "z_report",
+        "close_shift"
+      ],
+      "calls": []
+    },
+    {
+      "path": "web/supabase/024_closing_permission.sql",
+      "bytes": 9345,
+      "sha256": "c89d5ae7c837622b127fe5dcf08df0f693d2acbb8993e870bdd2e86a4a158a77",
+      "kind": "text",
+      "lines": 193,
+      "entrypoints": [
+        "seed_closing_permissions",
+        "close_shift"
+      ],
+      "calls": []
+    },
+    {
+      "path": "web/supabase/025_platform_reports.sql",
+      "bytes": 8804,
+      "sha256": "4524ed1b7e1420d39f4489b4861d84c268ebaabb7df70d20fa4cb55d80a57b05",
+      "kind": "text",
+      "lines": 175,
+      "entrypoints": [
+        "store_time_zone_for",
+        "platform_report_window"
+      ],
+      "calls": []
+    },
+    {
+      "path": "web/supabase/026_license_window.sql",
+      "bytes": 11487,
+      "sha256": "8c9e9a9e9de334b6a37f89056a12853e897332f9c7ede200b3bef2d2e267baba",
+      "kind": "text",
+      "lines": 253,
+      "entrypoints": [
+        "license_read_ok",
+        "license_write_ok",
+        "my_license_state",
+        "set_license_window",
+        "set_license_revoked"
+      ],
+      "calls": []
+    },
+    {
+      "path": "web/supabase/027_plan_features.sql",
+      "bytes": 7991,
+      "sha256": "435c9946f5cfeb4c257eceb40da4fc260422ca870b6dc7537591fce4e52ccfcc",
+      "kind": "text",
+      "lines": 158,
+      "entrypoints": [
+        "license_feature",
+        "platform_report_window"
+      ],
+      "calls": []
+    },
+    {
+      "path": "web/supabase/028_partial_refund.sql",
+      "bytes": 8758,
+      "sha256": "594fecca97a8ebaeb7b54db2970bf7de6754bb0f5de29185d44c7702ed954964",
+      "kind": "text",
+      "lines": 178,
+      "entrypoints": [
+        "seed_refund_permission",
+        "refund_sale"
+      ],
+      "calls": []
+    },
+    {
+      "path": "web/supabase/SETUP.md",
+      "bytes": 38044,
+      "sha256": "e19cb45ba8590a5b74c60732590cad62cef98045da0fe4fb86cb76241b90ef51",
+      "kind": "text",
+      "lines": 753,
+      "entrypoints": [],
+      "calls": []
+    },
+    {
+      "path": "web/supabase/baseline/schema_after_012.sql",
+      "bytes": 110078,
+      "sha256": "0286736d8fd32ca3842be46e0d04cc28a3751f31e7546220f92ff7d2ae73b6b6",
+      "kind": "text",
+      "lines": 3351,
+      "entrypoints": [],
+      "calls": []
+    },
+    {
+      "path": "web/supabase/bench/bench_queries.sql",
+      "bytes": 2381,
+      "sha256": "e22b483a3aa61b47f29857002ac7d62c0cf668fab2dff316605c466d07ec1226",
+      "kind": "text",
+      "lines": 56,
+      "entrypoints": [],
+      "calls": []
+    },
+    {
+      "path": "web/supabase/bench/seed_50k.sql",
+      "bytes": 4337,
+      "sha256": "d5d976d54c02e5b31f3aa56318e23a94369a75a220785311186c718b29b45d2f",
+      "kind": "text",
+      "lines": 97,
+      "entrypoints": [],
+      "calls": []
+    },
+    {
+      "path": "web/supabase/schema.fingerprint",
+      "bytes": 64,
+      "sha256": "d2a19e734384b16a265e6ac392fd65c1b7e0a6287cb77c7aa5d37a4513f8069e",
+      "kind": "text",
+      "lines": 1,
+      "entrypoints": [],
+      "calls": []
+    },
+    {
+      "path": "web/supabase/tests/012_integrity_test.sql",
+      "bytes": 17419,
+      "sha256": "8cf0fbcdc3a20c83c60e021e3f6965ba997b4998432448703639da2ef746af61",
+      "kind": "text",
+      "lines": 341,
+      "entrypoints": [],
+      "calls": []
+    },
+    {
+      "path": "web/supabase/tests/013_void_refunds_test.sql",
+      "bytes": 21284,
+      "sha256": "53cc83e90631dc061a952e722560c497c3d737271cdef098345500d92315cdf1",
+      "kind": "text",
+      "lines": 390,
+      "entrypoints": [],
+      "calls": []
+    },
+    {
+      "path": "web/supabase/tests/014_server_rbac_test.sql",
+      "bytes": 21128,
+      "sha256": "3196bb641ff31b6b59f94eb1d3cc6604947060fae325db9a96aaf3f87bc2484c",
+      "kind": "text",
+      "lines": 402,
+      "entrypoints": [],
+      "calls": []
+    },
+    {
+      "path": "web/supabase/tests/015_link_staff_ids_test.sql",
+      "bytes": 7719,
+      "sha256": "0be6ffe28daade582eb33ed6b7707877fc18e3213d7d90787d836021cf698d44",
+      "kind": "text",
+      "lines": 142,
+      "entrypoints": [],
+      "calls": []
+    },
+    {
+      "path": "web/supabase/tests/016_reporting_test.sql",
+      "bytes": 18084,
+      "sha256": "346ac7a7e75410c8349ea0f321c0e24154ac784d3deb9b71e4e53cb27f2d1cb6",
+      "kind": "text",
+      "lines": 310,
+      "entrypoints": [],
+      "calls": []
+    },
+    {
+      "path": "web/supabase/tests/017_schema_version_test.sql",
+      "bytes": 9435,
+      "sha256": "670aeddb8bd5e5b5b3d5b0e4fd63603ef45cdb2c18af467a81fe744da80d7c38",
+      "kind": "text",
+      "lines": 185,
+      "entrypoints": [],
+      "calls": []
+    },
+    {
+      "path": "web/supabase/tests/018_purchase_stock_test.sql",
+      "bytes": 18486,
+      "sha256": "3bc700871514dfc9ffa483f03fff20eaaed78e3ed7f25e0f0ea1ade40cba6a92",
+      "kind": "text",
+      "lines": 388,
+      "entrypoints": [],
+      "calls": []
+    },
+    {
+      "path": "web/supabase/tests/019_lab_dwell_test.sql",
+      "bytes": 11524,
+      "sha256": "b2bec84a99c0d0b566953a81e97ca7ea2d6a904a41ee81bf675affa703469677",
+      "kind": "text",
+      "lines": 242,
+      "entrypoints": [],
+      "calls": []
+    },
+    {
+      "path": "web/supabase/tests/020_version_gate_test.sql",
+      "bytes": 8423,
+      "sha256": "0d04e2f6c1949d5a0975bf82f245f4fd0fbdea641c4b28fabaf0af84ac2cf752",
+      "kind": "text",
+      "lines": 162,
+      "entrypoints": [],
+      "calls": []
+    },
+    {
+      "path": "web/supabase/tests/021_bootstrap_platform_admin_test.sql",
+      "bytes": 6239,
+      "sha256": "d21670abd71b595f08cdc6f3b3c081b717f063b4440bb17b28ccd8992d2fd1c2",
+      "kind": "text",
+      "lines": 131,
+      "entrypoints": [],
+      "calls": []
+    },
+    {
+      "path": "web/supabase/tests/022_sales_kind_test.sql",
+      "bytes": 18453,
+      "sha256": "c5b563ae212942b3a37cc1722cc11b14f4f05f6d224b242fc3986671ff5f16bf",
+      "kind": "text",
+      "lines": 316,
+      "entrypoints": [],
+      "calls": []
+    },
+    {
+      "path": "web/supabase/tests/023_z_report_test.sql",
+      "bytes": 19446,
+      "sha256": "190f6e8b4bee8e1686464f18e99c3143b8ae209044662ae63df55c5349990094",
+      "kind": "text",
+      "lines": 334,
+      "entrypoints": [],
+      "calls": []
+    },
+    {
+      "path": "web/supabase/tests/024_closing_permission_test.sql",
+      "bytes": 14216,
+      "sha256": "ea7d9865f016bc9488bcacc4c34acf1119b4cd5593f8baa9c2ac545da430ada9",
+      "kind": "text",
+      "lines": 272,
+      "entrypoints": [],
+      "calls": []
+    },
+    {
+      "path": "web/supabase/tests/025_platform_reports_test.sql",
+      "bytes": 13559,
+      "sha256": "bc1790614d55f9f0cf0050cc6c4df1bb502a39b2e35188d6f3bb05798aad6fba",
+      "kind": "text",
+      "lines": 250,
+      "entrypoints": [],
+      "calls": []
+    },
+    {
+      "path": "web/supabase/tests/026_license_window_test.sql",
+      "bytes": 10832,
+      "sha256": "d48004b2d84fb030206072d3269c962ded41b04d6d1d2954d5cfebf67e5e4c2c",
+      "kind": "text",
+      "lines": 196,
+      "entrypoints": [],
+      "calls": []
+    },
+    {
+      "path": "web/supabase/tests/027_plan_features_test.sql",
+      "bytes": 8622,
+      "sha256": "29951c9c5bd30090dca1c10eb510aef656d4e242628196f8482d5a403fddbc63",
+      "kind": "text",
+      "lines": 163,
+      "entrypoints": [],
+      "calls": []
+    },
+    {
+      "path": "web/supabase/tests/028_partial_refund_test.sql",
+      "bytes": 10153,
+      "sha256": "db22d52cde97c22d7f9e092f396469c4cf167e76c45c14e98c4e7798808e1254",
+      "kind": "text",
+      "lines": 201,
+      "entrypoints": [],
+      "calls": []
+    },
+    {
+      "path": "web/supabase/tests/_shim.sql",
+      "bytes": 4490,
+      "sha256": "26616f51d5f9122a1a025d0db07475c391d7d39d4df094dc228b0f473afe019b",
+      "kind": "text",
+      "lines": 104,
+      "entrypoints": [],
+      "calls": []
+    },
+    {
+      "path": "web/tsconfig.app.json",
+      "bytes": 642,
+      "sha256": "61ab483a94a0556e57ea95cc7353bb07b9f3084c0691364070bbf853910646e8",
+      "kind": "text",
+      "lines": 26,
+      "entrypoints": [],
+      "calls": []
+    },
+    {
+      "path": "web/tsconfig.json",
+      "bytes": 126,
+      "sha256": "ad28d132ee48d6e23917cf5827cace785d0fc01a44ca68b0dda51cc8c3fd3f52",
+      "kind": "text",
+      "lines": 8,
+      "entrypoints": [],
+      "calls": []
+    },
+    {
+      "path": "web/tsconfig.node.json",
+      "bytes": 601,
+      "sha256": "c0291de00031d4c7b2c975dfd4d7a5ce6b3b1357a10ab868cc59abb0dc0a138c",
+      "kind": "text",
+      "lines": 24,
+      "entrypoints": [],
+      "calls": []
+    },
+    {
+      "path": "web/vite.config.ts",
+      "bytes": 1626,
+      "sha256": "2d73ab7383fee6d03994768e0c76f083b816f8750db49d27c5103f184e3c3148",
+      "kind": "text",
+      "lines": 49,
+      "entrypoints": [],
+      "calls": []
+    },
+    {
+      "path": "web/vitest.config.ts",
+      "bytes": 474,
+      "sha256": "30d1ac0565463adc863d51aa1e5cf7e53e19c2cf3efdc183b422fb3cf3bea438",
+      "kind": "text",
+      "lines": 13,
+      "entrypoints": [],
+      "calls": []
+    }
+  ]
+}

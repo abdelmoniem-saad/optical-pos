@@ -75,7 +75,7 @@ function MetaList({
 
   async function submit() {
     const v = name.trim()
-    if (!v) return
+    if (!v || !canEdit) return
     // In custom view a new entry goes LAST.
     const nextOrder =
       view === 'custom'
@@ -168,7 +168,7 @@ function MetaList({
               <span className="min-w-0 flex-1 truncate">{r.name}</span>
               <button
                 onClick={() => del.mutate(r.id)}
-                disabled={del.isPending}
+                disabled={!canEdit || del.isPending}
                 className="text-faint transition hover:text-danger disabled:opacity-40"
                 title={t('Delete')}
               >
@@ -183,7 +183,7 @@ function MetaList({
       {/* add row: min-w-0 + shrink-0 so the button is never cropped */}
       <div className="flex flex-wrap gap-2 border-t border-line/40 p-3">
         <input
-          value={name}
+          disabled={!canEdit} value={name}
           onChange={(e) => setName(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && submit()}
           placeholder={`${t('Add')}...`}
@@ -191,7 +191,7 @@ function MetaList({
         />
         <button
           onClick={submit}
-          disabled={add.isPending || !name.trim()}
+          disabled={!canEdit || add.isPending || !name.trim()}
           className="shrink-0 rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
         >
           {add.isPending ? '...' : t('Add')}

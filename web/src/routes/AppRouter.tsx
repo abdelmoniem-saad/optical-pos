@@ -2,7 +2,7 @@ import { lazy, type ReactNode } from 'react'
 import { Navigate, createBrowserRouter, RouterProvider } from 'react-router-dom'
 import { AppLayout } from '../components/AppLayout'
 import { LoginPage } from '../features/auth/LoginPage'
-import { usePermissions } from '../data/permissions'
+import { PermissionsProvider, usePermissions } from '../data/permissions'
 import { useI18n } from '../i18n/LanguageContext'
 import { NAV_ITEMS } from './nav'
 
@@ -75,7 +75,7 @@ function IndexGate() {
 const router = createBrowserRouter([
   { path: '/login', element: <LoginPage /> },
   // Standalone mobile upload page: own minimal layout, own login gate.
-  { path: '/m-upload', element: <MUploadPage /> },
+  { path: '/m-upload', element: <PermissionsProvider><MUploadPage /></PermissionsProvider> },
   {
     path: '/',
     element: <AppLayout />,

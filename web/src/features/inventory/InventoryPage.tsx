@@ -139,10 +139,12 @@ function ProductModal({
 function ProductsTab() {
   const { t } = useI18n()
   const perms = usePermissions()
-  const [params] = useSearchParams()
+  const [params, setParams] = useSearchParams()
   const inv = useInventory()
   const adjust = useAdjustStock()
-  const [term, setTerm] = useState(params.get('q') ?? '')
+  const term = params.get('q') ?? ''
+  const productId = params.get('product')
+  const setTerm = (q: string) => setParams({ q }, { replace: true })
   const [modal, setModal] = useState<{ open: boolean; editing: Product | null }>({
     open: false,
     editing: null,
@@ -150,7 +152,7 @@ function ProductsTab() {
 
   const products = useMemo(() => {
     const tt = term.trim().toLowerCase()
-    const list = inv.data ?? []
+    const list = (inv.data ?? []).filter(p => !productId || p.id===productId)
     if (!tt) return list
     return list.filter(
       (p) =>
@@ -158,7 +160,7 @@ function ProductsTab() {
         (p.sku ?? '').toLowerCase().includes(tt) ||
         (p.barcode ?? '').toLowerCase().includes(tt),
     )
-  }, [inv.data, term])
+  }, [inv.data, term, productId])
 
   async function quickAdjust(p: Product, delta: number) {
     await adjust.mutateAsync({ productId: p.id, qtyChange: delta, note: 'Manual adjustment' })

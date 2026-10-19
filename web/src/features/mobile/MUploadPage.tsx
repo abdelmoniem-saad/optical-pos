@@ -4,6 +4,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../lib/auth'
 import { useI18n } from '../../i18n/LanguageContext'
+import { usePermissions } from '../../data/permissions'
 import { useIsAdmin } from '../../data/staff'
 import { useSetOrderImage } from '../../data/sales'
 import { prescriptionImageUrl, uploadOrderImage } from '../../lib/storage'
@@ -25,13 +26,14 @@ export function MUploadPage() {
   const [invInput, setInvInput] = useState(params.get('inv') ?? '')
   const [inv, setInv] = useState((params.get('inv') ?? '').trim())
   const isAdmin = useIsAdmin()
+  const access = usePermissions()
   const { data: storeId } = useStoreId()
   const setImg = useSetOrderImage()
   const qc = useQueryClient()
 
   const saleQ = useQuery({
     queryKey: ['m-order', inv],
-    enabled: !!session && inv.length >= 3,
+    enabled: !!session && access.can('history.view') && inv.length >= 3,
     queryFn: async (): Promise<Sale | null> => {
       const { data, error } = await supabase
         .from('sales')
@@ -51,7 +53,7 @@ export function MUploadPage() {
   const [uploaded, setUploaded] = useState<Partial<Record<'rx' | 'frame', string>>>({})
 
   async function handleFile(slot: 'rx' | 'frame', file: File | undefined) {
-    if (!file) return
+    if (!file || !access.can('history.edit')) return
     setBusySlot(slot)
     setErr(null)
     try {
@@ -122,7 +124,7 @@ export function MUploadPage() {
               const path = dbPath ?? uploaded[slot]
               const label = slot === 'rx' ? t('Rx paper photo') : t('Frame photo')
               const isBusy = busySlot === slot
-              const canReplace = isAdmin || !dbPath
+              const canReplace = access.can('history.edit') && (isAdmin || !dbPath)
               return (
                 <div key={slot} className="mb-4">
                   <div className="mb-1 text-sm font-semibold text-brand-dark">{label}</div>

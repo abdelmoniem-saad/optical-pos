@@ -106,6 +106,6 @@ describe('schema version', () => {
     // nothing. The mechanism held again: this test is what noticed.
     // 028 (partial refund) is the fifth: refund_sale() returns PART of a live
     // sale on one tender, where void_sale (013/014) reverses the whole thing.
-    expect(EXPECTED_SCHEMA_VERSION).toBe(28)
+    expect(EXPECTED_SCHEMA_VERSION).toBe(29)
   })
 })

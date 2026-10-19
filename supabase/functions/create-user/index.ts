@@ -28,13 +28,13 @@
 // Deploy:  supabase functions deploy create-user --project-ref qhbprvavoudetjbyxrsn
 // (SUPABASE_URL, SUPABASE_ANON_KEY and SUPABASE_SERVICE_ROLE_KEY are injected.)
 //
-// Requires migration 014 (resolve_can / auth_uid / my_store_license). Before it
-// is applied those functions do not exist and every create is refused with a
-// message naming 014 - fail closed, never open.
+// Requires migration 029 (checked role assignment), plus the earlier RPCs. Before it
+// is applied the required functions do not exist and creation fails closed.
 
 import { createClient } from 'jsr:@supabase/supabase-js@2'
 import {
   authorizeCreateUser,
+  rpcValue,
   type CreateUserCaller,
 } from './authz.ts'
 
@@ -65,15 +65,15 @@ Deno.serve(async (req) => {
       { global: { headers: { authorization: token } } },
     )
 
-    const uid = (await asCaller.rpc('auth_uid')) as string | null
-    const storeId = (await asCaller.rpc('auth_store_id')) as string | null
-    const isPlatformAdmin = Boolean(await asCaller.rpc('is_platform_admin'))
-    const canCreateStaff = Boolean(
-      await asCaller.rpc('resolve_can', { p_code: 'staff.create' }),
-    )
-    const canAssignRoles = Boolean(
-      await asCaller.rpc('resolve_can', { p_code: 'staff.edit' }),
-    )
+    const uid = rpcValue(await asCaller.rpc('auth_uid')) as string | null
+    if (!uid) return json({ error: 'not signed in' }, 401)
+    const storeId = rpcValue(await asCaller.rpc('auth_store_id')) as string | null
+    const isPlatformAdmin = rpcValue(await asCaller.rpc('is_platform_admin')) === true
+    const canCreateStaff = rpcValue(await asCaller.rpc('resolve_can', { p_code: 'staff.create' })) === true
+    const canAssignRoles = rpcValue(await asCaller.rpc('resolve_can', { p_code: 'staff.edit' })) === true
+    if (!isPlatformAdmin && rpcValue(await asCaller.rpc('license_write_ok', { p_store: storeId })) !== true) {
+      return json({ error: 'Store licence does not allow writes' }, 403)
+    }
 
     const caller: CreateUserCaller = {
       uid: uid ?? null,
@@ -84,27 +84,28 @@ Deno.serve(async (req) => {
     }
 
     // --- 2. the plan's seat limit, counted in SQL ----------------------
-    // Counted here, not in the browser, so two open tabs cannot race past it.
+    // Server-side quota check. Concurrent onboarding still needs a database
+    // reservation if strict atomic seat limits become a requirement.
     let plan: { maxStaff: number | null; currentStaff: number } | undefined
     if (storeId) {
-      const { data: licences } = await asCaller.rpc('my_store_license')
+      const licences = rpcValue(await asCaller.rpc('my_store_license'))
       const row = (licences ?? [])[0] as { max_staff: number | null } | undefined
-      const { count } = await asCaller
+      const { count, error: countError } = await asCaller
         .from('users')
         .select('id', { count: 'exact', head: true })
+        .eq('store_id', storeId)
+      if (countError) throw countError
       plan = { maxStaff: row?.max_staff ?? null, currentStaff: count ?? 0 }
     }
 
     const domain = Deno.env.get('AUTH_EMAIL_DOMAIN') ?? 'lensypos.local'
     const verdict = authorizeCreateUser(caller, body, { domain, plan })
     if (!verdict.ok) {
-      // A refusal caused by a missing 014 must not read as a permissions
-      // problem, so the message names the migration.
-      const hint = /insufficient permission/.test(verdict.error)
-        ? ' (run web/supabase/014_server_rbac.sql)'
-        : ''
-      return json({ error: verdict.error + hint }, verdict.status)
+      return json({ error: verdict.error }, verdict.status)
     }
+    if (verdict.roleId && rpcValue(await asCaller.rpc('can_assign_role', {
+      p_role: verdict.roleId, p_store: verdict.storeId,
+    })) !== true) return json({ error: 'Cannot assign this position' }, 403)
 
     // --- 3. only now, with the service-role key -------------------------
     const admin = createClient(

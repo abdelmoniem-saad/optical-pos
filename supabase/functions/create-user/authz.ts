@@ -62,6 +62,12 @@ export type CreateUserDecision =
 
 const MIN_PASSWORD = 6
 
+/** Supabase RPCs return an envelope; Boolean(envelope) is always true. */
+export function rpcValue<T>(result: { data: T; error: { message: string } | null }): T {
+  if (result.error) throw new Error(result.error.message)
+  return result.data
+}
+
 /**
  * Decide whether this caller may create this account, and pin the values the
  * row will be written with.
@@ -82,6 +88,9 @@ export function authorizeCreateUser(
   const username = (req.username ?? '').trim()
   if (!username) {
     return { ok: false, status: 400, error: 'username is required' }
+  }
+  if (username.toLowerCase().split('@')[0] === 'superadmin') {
+    return { ok: false, status: 403, error: 'This username is reserved' }
   }
   const password = req.password ?? ''
   if (password.length < MIN_PASSWORD) {
