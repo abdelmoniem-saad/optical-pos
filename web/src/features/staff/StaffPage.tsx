@@ -1,542 +1,220 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
-import {
-  ACTIONS,
-  RESOURCES,
-  code,
-  isBypassRoleName,
-  isSuperUsername,
-  useRoleGrants,
-  useSetUserOverride,
-  useToggleRoleGrant,
-  useUserOverrides,
-} from '../../data/permissions'
+import { ACTIONS, RESOURCES, code, isBypassRoleName, isSuperUsername, resolveCan,
+  usePermissions, useRoleGrants, useUserOverrides, useToggleRoleGrant, useSetUserOverride } from '../../data/permissions'
 import { useCurrentUser, useUpdateUserRole, useUsers } from '../../data/staff'
 import { useRoles } from '../../data/metadata'
+import { invalidateAccess } from '../../data/refresh'
 import { supabase } from '../../lib/supabase'
-import { useAuth } from '../../lib/auth'
 import { useI18n } from '../../i18n/LanguageContext'
-import { usePermissions } from '../../data/permissions'
-import { useConfirm } from '../../components/Feedback'
-import type { NamedRow } from '../../data/metadata'
+import { useToast, useConfirm } from '../../components/Feedback'
+
+const field = 'rounded-lg border border-line bg-white px-3 py-2 text-sm outline-none focus:border-brand disabled:opacity-50'
+const button = 'rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white disabled:opacity-50'
+const message = (error: unknown) => error && typeof error === 'object' && 'message' in error ? String(error.message) : String(error)
+const actionLabels: Record<string,string> = { view:'view', create:'create', edit:'edit', delete:'delete', void:'void', refund:'Refund' }
 
 function AddUserForm({ onClose, storeId }: { onClose: () => void; storeId: string | null }) {
   const { t } = useI18n()
+  const perms = usePermissions()
   const qc = useQueryClient()
   const roles = useRoles()
-  const [f, setF] = useState({ username: '', full_name: '', password: '', role_id: '' })
-  const [err, setErr] = useState<string | null>(null)
+  const [f, setF] = useState({ username:'', full_name:'', password:'', role_id:'' })
   const [busy, setBusy] = useState(false)
-  const cls = 'w-full rounded-lg border border-line px-3 py-2 text-sm outline-none focus:border-brand'
-  const roleId = f.role_id || roles.data?.[0]?.id || ''
-
-  async function submit() {
-    setErr(null)
-    if (!f.username.trim() || f.password.length < 6) {
-      setErr(t('Username is required') + ' · ' + t('Password must be at least 6 characters'))
-      return
-    }
-    setBusy(true)
+  const [error, setError] = useState<string | null>(null)
+  async function submit(e: React.FormEvent) {
+    e.preventDefault()
+    if (busy || !perms.can('staff.create')) return
+    setBusy(true); setError(null)
     try {
-      const { data, error } = await supabase.functions.invoke('create-user', {
-        body: {
-          username: f.username.trim(),
-          password: f.password,
-          full_name: f.full_name.trim(),
-          role_id: roleId || null,
-          store_id: storeId,
-        },
+      const { data, error: failure } = await supabase.functions.invoke('create-user', {
+        body: { ...f, username:f.username.trim(), role_id:f.role_id || null, store_id:storeId },
       })
-      if (error) {
-        let detail = error.message
-        const ctx = (error as { context?: Response }).context
-        if (ctx && typeof ctx.json === 'function') {
-          try {
-            const b = await ctx.json()
-            if (b?.error) detail = b.error
-          } catch {
-            /* body wasn't JSON */
-          }
-        }
-        throw new Error(detail)
+      if (failure) {
+        const response = (failure as { context?: Response }).context
+        const detail = response ? await response.json().catch(() => null) : null
+        throw new Error(detail?.error ?? failure.message)
       }
       if (data?.error) throw new Error(data.error)
-      await qc.invalidateQueries({ queryKey: ['users'] })
-      onClose()
-    } catch (e) {
-      setErr(e instanceof Error ? e.message : 'Failed')
-    } finally {
-      setBusy(false)
-    }
+      await invalidateAccess(qc); onClose()
+    } catch (e) { setError(message(e)) } finally { setBusy(false) }
   }
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="w-full max-w-md rounded-2xl bg-white p-5 shadow-xl">
-        <h2 className="mb-3 text-lg font-semibold text-brand-dark">{t('New User')}</h2>
-        <div className="space-y-2">
-          <input className={cls} placeholder={t('Username')} value={f.username} onChange={(e) => setF({ ...f, username: e.target.value })} />
-          <input className={cls} placeholder={t('Full Name')} value={f.full_name} onChange={(e) => setF({ ...f, full_name: e.target.value })} />
-          <input className={cls} placeholder={t('Password')} type="password" value={f.password} onChange={(e) => setF({ ...f, password: e.target.value })} />
-          <select className={cls} value={roleId} onChange={(e) => setF({ ...f, role_id: e.target.value })}>
-            {(roles.data ?? []).map((r) => (
-              <option key={r.id} value={r.id}>{r.name}</option>
-            ))}
-          </select>
-        </div>
-        {err && <div className="mt-2 rounded-lg bg-warning-bg px-3 py-2 text-sm text-warning">{t(err)}</div>}
-        <div className="mt-4 flex justify-end gap-2">
-          <button onClick={onClose} className="rounded-lg border border-line px-4 py-2 text-muted hover:bg-surface">{t('Cancel')}</button>
-          <button onClick={submit} disabled={busy} className="rounded-lg bg-brand px-4 py-2 font-semibold text-white disabled:opacity-60">{busy ? t('Saving…') : t('Save')}</button>
-        </div>
-      </div>
-    </div>
-  )
+  return <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+    <form onSubmit={submit} className="w-full max-w-md space-y-3 rounded-2xl bg-white p-5 shadow-xl">
+      <h2 className="text-lg font-semibold text-brand-dark">{t('New User')}</h2>
+      {(['username','full_name','password'] as const).map((key,i) => <label key={key} className="block text-sm">
+        {t(['Username','Full Name','Password'][i])}
+        <input className={`${field} mt-1 w-full`} type={key==='password' ? 'password':'text'}
+          required={key!=='full_name'} minLength={key==='password' ? 6:undefined}
+          autoComplete={key==='password' ? 'new-password':'off'} value={f[key]}
+          onChange={e => setF({ ...f,[key]:e.target.value })}/>
+      </label>)}
+      <label className="block text-sm">{t('Position')}
+        <select className={`${field} mt-1 w-full`} value={f.role_id} disabled={!perms.can('staff.edit') || roles.isPending || roles.isError}
+          onChange={e => setF({ ...f,role_id:e.target.value })}>
+          <option value="">{t('No position — no access')}</option>
+          {(roles.data ?? []).filter(r => perms.isAdmin || !isBypassRoleName(r.name)).map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+        </select>
+      </label>
+      <p className="text-xs text-muted">{t('A position is required before this person can use the shop.')}</p>
+      {error && <p role="alert" className="text-sm text-danger">{t(error)}</p>}
+      <div className="flex justify-end gap-2"><button type="button" className={field} onClick={onClose}>{t('Cancel')}</button>
+        <button className={button} disabled={busy}>{t(busy ? 'Saving…':'Save')}</button></div>
+    </form>
+  </div>
 }
 
-/** Codes that could lock the editor out of this very page. */
-const SENSITIVE_CODES = ['staff.view', 'staff.edit']
-
-/** Checkbox cell for a position's grant. */
-function GrantCell({
-  granted,
-  disabled,
-  onToggle,
-}: {
-  granted: boolean | undefined
-  disabled?: boolean
-  onToggle: (next: boolean) => void
-}) {
-  return (
-    <input
-      type="checkbox"
-      checked={!!granted}
-      disabled={disabled}
-      onChange={(e) => onToggle(e.target.checked)}
-      className="h-4 w-4 accent-[#1976d2] disabled:opacity-50"
-    />
-  )
-}
-
-/**
- * Tri-state cell for a person: - inherit · ✓ allowed · ✕ denied.
- * The background always shows the EFFECTIVE result after combining the
- * position default with this exception (green = can, red = cannot).
- */
-function OverrideCell({
-  state,
-  effective,
-  disabled,
-  onCycle,
-}: {
-  state: boolean | undefined
-  effective: boolean
-  disabled?: boolean
-  onCycle: () => void
-}) {
-  const { t } = useI18n()
-  // Inherit renders EMPTY - the green/red background already tells whether the
-  // person can actually do this. No dash glyphs anywhere.
-  const glyph =
-    state === undefined ? '' : state ? '✓' : '✕'
-  const glyphCls =
-    state === undefined
-      ? 'text-faint'
-      : state
-        ? 'font-bold text-success'
-        : 'font-bold text-danger'
-  const title =
-    (state === undefined
-      ? `${t('Inherit')} → `
-      : state
-        ? `${t('Allowed')} → `
-        : `${t('Denied')} → `) + (effective ? t('Allowed') : t('Denied'))
-  return (
-    <button
-      onClick={onCycle}
-      disabled={disabled}
-      title={title}
-      className={`mx-auto flex h-6 w-9 items-center justify-center rounded-md border ${
-        effective ? 'border-success/40 bg-success-bg' : 'border-danger/30 bg-danger/10'
-      } ${glyphCls} ${disabled ? 'opacity-60' : 'hover:brightness-95'}`}
-    >
-      {glyph}
-    </button>
-  )
-}
-
-function PermissionMatrix({
-  grants,
-  overrides,
-  roleGrantsForEffective,
-  disabled,
-  onToggleGrant,
-  onCycleOverride,
-}: {
-  grants?: Set<string> | string[]
-  overrides?: Record<string, boolean>
-  /** Position grants of the SELECTED PERSON - used to tint effective results. */
-  roleGrantsForEffective?: string[]
-  disabled?: boolean
-  onToggleGrant?: (permCode: string, next: boolean) => void
-  onCycleOverride?: (permCode: string) => void
-}) {
-  const { t } = useI18n()
-  const isRoleMatrix = !!onToggleGrant
-
-  const roleHas = (c: string) =>
-    grants ? (grants instanceof Set ? grants.has(c) : grants.includes(c)) : false
-
-  return (
-    <div className="overflow-x-auto rounded-xl border border-line bg-white">
-      <table className="w-full min-w-[560px] text-sm">
-        <thead className="bg-surface text-muted">
-          <tr>
-            <th className="px-3 py-2 text-start font-medium">{t('Staff')}</th>
-            {ACTIONS.map((a) => (
-              <th key={a} className="px-3 py-2 text-center font-medium">{t(a)}</th>
-            ))}
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-line/40">
-          {RESOURCES.map((r) => (
-            <tr key={r.key}>
-              <td className="px-3 py-1.5">{t(r.label)}</td>
-              {ACTIONS.map((a) => {
-                const c = code(r.key, a)
-                if (isRoleMatrix) {
-                  return (
-                    <td key={a} className="px-3 py-1.5 text-center">
-                      <GrantCell
-                        granted={roleHas(c)}
-                        disabled={disabled}
-                        onToggle={(next) => onToggleGrant?.(c, next)}
-                      />
-                    </td>
-                  )
-                }
-                const state = overrides?.[c]
-                const effective = state !== undefined ? state : roleGrantsForEffective?.includes(c) ?? false
-                return (
-                  <td key={a} className="px-3 py-1.5 text-center">
-                    <OverrideCell
-                      state={state}
-                      effective={effective}
-                      disabled={disabled}
-                      onCycle={() => onCycleOverride?.(c)}
-                    />
-                  </td>
-                )
-              })}
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  )
-}
-
-/** Per-position grant editor + per-person override editor. */
 function AccessControl() {
   const { t } = useI18n()
+  const perms = usePermissions()
   const qc = useQueryClient()
   const roles = useRoles()
   const users = useUsers()
   const me = useCurrentUser()
-  const { user } = useAuth()
-
-  const [selectedRoleId, setSelectedRoleId] = useState<string | null>(null)
-  const [selectedUserId, setSelectedUserId] = useState<string | null>(null)
-  const [newPosition, setNewPosition] = useState('')
-  const [err, setErr] = useState<string | null>(null)
-
-  // The reserved super-admin account and YOUR OWN row are never editable here.
-  // Exclusion matches by id AND username, so it holds even while the staff
-  // record lookup is still resolving (or if it links through a legacy row).
-  const myUsername = user?.email?.split('@')[0]?.toLowerCase() ?? ''
-  const isSelfRow = (u: { id: string; username: string | null }) =>
-    (me.data?.id && u.id === me.data.id) ||
-    (!!myUsername && (u.username ?? '').toLowerCase() === myUsername)
-  const editableUsers = (users.data ?? []).filter(
-    (u) => !isSelfRow(u) && !isSuperUsername(u.username),
-  )
-
-  const roleId = selectedRoleId ?? roles.data?.[0]?.id ?? null
-  const userId = selectedUserId ?? editableUsers[0]?.id ?? null
-
-  const selectedRole = roles.data?.find((r) => r.id === roleId)
-  // Each card depends ONLY on its own selection:
-  //   card 1 disables when the selected POSITION bypasses,
-  //   card 2 when the selected EMPLOYEE is an owner/admin or the super admin.
-  const bypass = isBypassRoleName(selectedRole?.name)
-
-  const grants = useRoleGrants(roleId)
-  const overrides = useUserOverrides(userId)
-
-  // The selected person's position defaults - needed to show effective colors.
-  const selUser = users.data?.find((u) => u.id === userId)
-  const userRoleGrants = useRoleGrants(selUser?.role_id ?? null)
-  const empBypass =
-    !!selUser && (isBypassRoleName(selUser.roles?.name) || isSuperUsername(selUser.username))
-
-  const toggleGrant = useToggleRoleGrant()
-  const setOverride = useSetUserOverride()
-  const confirm = useConfirm()
-
-  const editingSelfRole = !!me.data?.role_id && roleId === me.data.role_id
-
-  /** Guard: warn before an action could lock the editor out of THIS page. */
-  async function guardSelfLockout(permCode: string, willDeny: boolean): Promise<boolean> {
-    if (!willDeny || !SENSITIVE_CODES.includes(permCode)) return true
-    if (editingSelfRole && roleId === me.data?.role_id) {
-      return confirm(t('This may lock you out of the Staff page. Continue?'))
-    }
-    return true
+  const toggle = useToggleRoleGrant()
+  const override = useSetUserOverride()
+  const [mode, setMode] = useState<'position'|'employee'>('position')
+  const [roleSelection, setRoleSelection] = useState('')
+  const [userSelection, setUserSelection] = useState('')
+  const [newName, setNewName] = useState('')
+  const [creating, setCreating] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [saved, setSaved] = useState(false)
+  const editable = (users.data ?? []).filter(u => u.id !== me.data?.id && !isSuperUsername(u.username))
+  const roleId = roleSelection || roles.data?.find(r => !isBypassRoleName(r.name))?.id || roles.data?.[0]?.id || null
+  const userId = userSelection || editable[0]?.id || null
+  const person = editable.find(u => u.id===userId)
+  const role = roles.data?.find(r => r.id===(mode==='position' ? roleId:person?.role_id))
+  const grants = useRoleGrants(mode==='position' ? roleId:person?.role_id ?? null)
+  const overrides = useUserOverrides(mode==='employee' ? userId:null)
+  const bypass = isBypassRoleName(role?.name)
+  const granted = new Set(grants.data ?? [])
+  const ov = mode==='employee' ? overrides.data ?? {} : {}
+  const busy = creating || toggle.isPending || override.isPending
+  const unavailable = roles.isPending || users.isPending || grants.isLoading ||
+    (mode==='employee' && overrides.isLoading) || roles.isError || users.isError || grants.isError ||
+    (mode==='employee' && overrides.isError)
+  const disabled = !perms.can('staff.edit') || bypass || busy || unavailable ||
+    (mode==='position' ? !roleId:!person?.role_id || person?.is_active===false)
+  async function save(c: string, value: boolean | null) {
+    if (disabled) return
+    setError(null); setSaved(false)
+    try {
+      if (mode==='position' && roleId) await toggle.mutateAsync({ roleId,permCode:c,granted:value===true })
+      if (mode==='employee' && userId) await override.mutateAsync({ userId,permCode:c,allow:value })
+      setSaved(true)
+    } catch (e) { setError(message(e)) }
   }
-
-  async function addPosition() {
-    const name = newPosition.trim()
-    if (!name) return
-    setErr(null)
-    const { data, error } = await supabase.from('roles').insert({ name }).select().single<NamedRow>()
-    if (error) {
-      setErr(error.message)
-      return
-    }
-    await qc.invalidateQueries({ queryKey: ['roles'] })
-    setNewPosition('')
-    setSelectedRoleId(data.id)
+  async function add(e: React.FormEvent) {
+    e.preventDefault()
+    if (!newName.trim() || creating) return
+    setCreating(true); setError(null); setSaved(false)
+    try {
+      const { data,error } = await supabase.rpc('create_staff_role',{ p_name:newName.trim() })
+      if (error) throw error
+      await invalidateAccess(qc); setRoleSelection(data.id); setNewName(''); setMode('position'); setSaved(true)
+    } catch (e) { setError(message(e)) } finally { setCreating(false) }
   }
-
-  const selCls = 'rounded-lg border border-line bg-white px-3 py-2 text-sm outline-none focus:border-brand'
-
-  return (
-    <div className="space-y-8">
-      {/* ---- position grants (the DEFAULTS) ---- */}
-      <section>
-        <div className="mb-2 flex flex-wrap items-center gap-2">
-          <h3 className="font-semibold text-brand-dark">{t('Position')}</h3>
-          <select className={selCls} value={roleId ?? ''} onChange={(e) => setSelectedRoleId(e.target.value)}>
-            {(roles.data ?? []).map((r) => (
-              <option key={r.id} value={r.id}>{r.name}</option>
-            ))}
-          </select>
-          <input
-            value={newPosition}
-            onChange={(e) => setNewPosition(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && addPosition()}
-            placeholder={t('+ Add Position')}
-            className="w-44 rounded-lg border border-line bg-white px-3 py-2 text-sm outline-none focus:border-brand"
-          />
-          <button
-            onClick={addPosition}
-            disabled={!newPosition.trim()}
-            className="rounded-lg border border-line px-3 py-2 text-sm text-muted hover:bg-surface disabled:opacity-50"
-          >
-            {t('Add')}
-          </button>
-        </div>
-
-        {bypass && (
-          <div className="mb-2 rounded-lg bg-brand-bg px-3 py-2 text-xs font-semibold text-brand-dark">
-            {t('Owner/admin positions always have full access.')}
-          </div>
-        )}
-        <p className="mb-2 text-xs text-muted">{t('Defaults for everyone in this position.')}</p>
-
-        <PermissionMatrix
-          grants={grants.data}
-          disabled={bypass}
-          onToggleGrant={async (permCode, next) => {
-            if (!(await guardSelfLockout(permCode, !next))) return
-            if (roleId) toggleGrant.mutate({ roleId, permCode, granted: next })
-          }}
-        />
-        {grants.isError && (
-          <p className="mt-2 rounded-lg bg-warning-bg px-3 py-2 text-xs text-warning">
-            {String(grants.error)}
-          </p>
-        )}
-      </section>
-
-      {/* ---- per-person EXCEPTIONS ---- */}
-      <section>
-        <div className="mb-2 flex flex-wrap items-center gap-2">
-          <h3 className="font-semibold text-brand-dark">{t('Employee')}</h3>
-          {editableUsers.length === 0 ? (
-            <span className="text-sm text-faint">{t('No staff.')}</span>
-          ) : (
-            <select className={selCls} value={userId ?? ''} onChange={(e) => setSelectedUserId(e.target.value)}>
-              {editableUsers.map((u) => (
-                <option key={u.id} value={u.id}>
-                  {u.full_name || u.username} - {u.username}
-                </option>
-              ))}
-            </select>
-          )}
-        </div>
-
-        {empBypass ? (
-          <div className="mb-2 rounded-lg bg-brand-bg px-3 py-2 text-xs font-semibold text-brand-dark">
-            {t(
-              'This person is an owner/admin, they always have full access, so there is nothing to configure.',
-            )}
-          </div>
-        ) : (
-          <>
-            <p className="mb-2 text-xs text-muted">
-              {t(
-                'Exceptions for this person, click to cycle: follow position → allowed (✓) → blocked (✕).',
-              )}
-            </p>
-
-            <PermissionMatrix
-              overrides={overrides.data}
-              roleGrantsForEffective={userRoleGrants.data}
-              onCycleOverride={(permCode) => {
-                if (!userId) return
-                const current = overrides.data?.[permCode]
-                const next: boolean | null =
-                  current === undefined ? true : current === true ? false : null
-                setOverride.mutate({ userId, permCode, allow: next })
-              }}
-            />
-          </>
-        )}
-        {overrides.isError && (
-          <p className="mt-2 rounded-lg bg-warning-bg px-3 py-2 text-xs text-warning">
-            {String(overrides.error)}
-          </p>
-        )}
-      </section>
-
-      {err && <p className="rounded-lg bg-warning-bg px-3 py-2 text-sm text-warning">{t(err)}</p>}
+  return <div className="space-y-4">
+    <p className="text-sm text-muted">{t('Position permissions apply to everyone in that position. Employee exceptions override them.')}</p>
+    <div className="flex flex-wrap items-end gap-3">
+      <label className="text-sm">{t('Edit access for')}
+        <select className={`${field} ms-2`} value={mode} onChange={e => { setMode(e.target.value as typeof mode); setSaved(false); setError(null) }}>
+          <option value="position">{t('Position')}</option><option value="employee">{t('Employee')}</option>
+        </select>
+      </label>
+      <label className="text-sm">{t(mode==='position' ? 'Position':'Employee')}
+        <select className={`${field} ms-2`} value={(mode==='position' ? roleId:userId) ?? ''} disabled={busy}
+          onChange={e => { (mode==='position' ? setRoleSelection:setUserSelection)(e.target.value); setSaved(false); setError(null) }}>
+          {mode==='position' ? (roles.data ?? []).map(r => <option key={r.id} value={r.id}>{r.name}</option>) :
+            editable.map(u => <option key={u.id} value={u.id}>{u.full_name || u.username} · {u.roles?.name || t('No position')}</option>)}
+        </select>
+      </label>
     </div>
-  )
+    {bypass && <p className="rounded-lg bg-brand-bg p-3 text-sm">{t('Owner/admin positions always have full access.')}</p>}
+    {mode==='employee' && (!person?.role_id || person.is_active===false) &&
+      <p className="rounded-lg bg-warning-bg p-3 text-sm">{t('Assign an active position in Employees before setting exceptions.')}</p>}
+    <p className="text-xs text-muted">{t('View is required for actions in the same area. Removing View blocks those actions without erasing their settings.')}</p>
+    <p className="text-xs text-muted">{t('Staff edit manages access. Staff delete activates or deactivates employees. Customer creation and editing also apply during checkout.')}</p>
+    <div className="overflow-x-auto rounded-xl border border-line bg-white">
+      <table className="w-full min-w-[700px] text-sm"><thead className="bg-surface"><tr>
+        <th className="p-3 text-start">{t('Area')}</th>{ACTIONS.map(a => <th key={a} className="p-2">{t(actionLabels[a])}</th>)}
+      </tr></thead><tbody className="divide-y divide-line/40">
+        {RESOURCES.map(r => <tr key={r.key}><th className="p-3 text-start font-medium">{t(r.label)}</th>
+          {ACTIONS.map(a => {
+            if (!(r.actions as readonly string[]).includes(a)) return <td key={a} className="p-2 text-center text-faint">—</td>
+            const c=code(r.key,a)
+            const enabledPerson = mode === 'position' || (person?.is_active === true && !!person.role_id)
+            const effective = !unavailable && enabledPerson && (bypass || resolveCan(granted,ov,c))
+            const selfLock = mode==='position' && roleId===me.data?.role_id && ['staff.view','staff.edit'].includes(c)
+            return <td key={a} className="p-2 text-center">
+              {mode==='position' ? <input type="checkbox" aria-label={`${t(r.label)}: ${t(actionLabels[a])}`}
+                checked={bypass || granted.has(c)} disabled={disabled || selfLock} onChange={e => void save(c,e.target.checked)}
+                className="h-4 w-4 accent-blue-600 disabled:opacity-50"/> :
+                <select aria-label={`${t(r.label)}: ${t(actionLabels[a])}`} className="max-w-28 rounded border border-line bg-white p-1 text-xs disabled:opacity-50"
+                  value={ov[c]===undefined ? 'inherit':ov[c] ? 'allow':'deny'} disabled={disabled}
+                  onChange={e => void save(c,e.target.value==='inherit' ? null:e.target.value==='allow')}>
+                  <option value="inherit">{t('Inherit')}</option><option value="allow">{t('Allowed')}</option><option value="deny">{t('Denied')}</option>
+                </select>}
+              <div className={`mt-1 text-[10px] ${effective ? 'text-success':'text-faint'}`}>{t(effective ? 'Allowed':'Denied')}</div>
+            </td>
+          })}
+        </tr>)}
+      </tbody></table>
+    </div>
+    {(error || unavailable) && <p role="alert" className="text-sm text-danger">{error ? t(error):t('Loading or unavailable permissions. Changes are disabled.')}</p>}
+    <p role="status" className="text-sm text-success">{busy ? t('Saving…'):saved ? t('Saved'):''}</p>
+    <form onSubmit={add} className="flex flex-wrap gap-2">
+      <input aria-label={t('+ Add Position')} className={field} value={newName} onChange={e => setNewName(e.target.value)} placeholder={t('+ Add Position')}/>
+      <button className={button} disabled={busy || !newName.trim()}>{t('Add')}</button>
+    </form>
+  </div>
 }
 
 export function StaffPage() {
   const { t } = useI18n()
-  const users = useUsers()
-  const roles = useRoles()
-  const me = useCurrentUser()
-  const updateRole = useUpdateUserRole()
-    const perms = usePermissions()
-  const [params, setParams] = useSearchParams()
-  const [adding, setAdding] = useState(false)
-  const [tab, setTab] = useState<'people' | 'access'>(
-    params.get('tab') === 'access' ? 'access' : 'people',
-  )
-
-  // Keep the sub-tab in the URL so it survives tab switches and refreshes.
-  useEffect(() => {
-    const next = new URLSearchParams()
-    if (tab === 'access') next.set('tab', 'access')
-    setParams(next, { replace: true })
-  }, [tab, setParams])
-
-  // The reserved super-admin account is infrastructure, not an employee row.
-  const people = (users.data ?? []).filter((u) => !isSuperUsername(u.username))
-  const canEditStaff = perms.isAdmin || perms.can('staff.edit' as never)
-
-  const tabBtn = (key: 'people' | 'access', label: string) => (
-    <button
-      key={key}
-      onClick={() => setTab(key)}
-      className={`rounded-lg px-4 py-2 text-sm font-semibold transition ${
-        tab === key ? 'bg-brand text-white' : 'bg-surface text-muted hover:bg-line/30'
-      }`}
-    >
-      {label}
-    </button>
-  )
-
-  return (
-    <div className="mx-auto max-w-5xl p-6">
-      <div className="mb-1 flex items-center justify-between">
-        <h1 className="text-2xl font-semibold text-brand-dark">{t('Staff')}</h1>
-        {canEditStaff && (
-          <button onClick={() => setAdding(true)} className="rounded-lg bg-brand px-4 py-2.5 font-semibold text-white">
-            {t('+ Add Staff')}
-          </button>
-        )}
-      </div>
-
-      <div className="mb-5 mt-3 flex gap-2">
-        {tabBtn('people', t('Employees'))}
-        {canEditStaff && tabBtn('access', t('Access Control'))}
-      </div>
-
-      {tab === 'people' ? (
-        <>
-          <p className="mb-4 text-sm text-muted">
-            {users.data ? `${people.length} ${t('users')}` : t('Loading…')}
-          </p>
-
-          {users.isError && (
-            <div className="rounded-lg bg-warning-bg px-3 py-2 text-sm text-warning">
-              {t("Couldn't load staff:")} {String(users.error)}
-            </div>
-          )}
-
-          <div className="overflow-hidden rounded-xl border border-line bg-white">
-            <table className="w-full text-sm">
-              <thead className="bg-surface text-start text-muted">
-                <tr>
-                  <th className="px-4 py-2">{t('Username')}</th>
-                  <th className="px-4 py-2">{t('Full Name')}</th>
-                  <th className="px-4 py-2">{t('Role')}</th>
-                  <th className="px-4 py-2 text-center">{t('Active')}</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-line/40">
-                {people.length === 0 && !users.isLoading && (
-                  <tr>
-                    <td colSpan={4} className="px-4 py-6 text-center text-faint">
-                      {t('No staff.')}
-                    </td>
-                  </tr>
-                )}
-                {people.map((u) => (
-                  <tr key={u.id}>
-                    <td className="px-4 py-2 font-medium">{u.username}</td>
-                    <td className="px-4 py-2 text-muted">{u.full_name ?? '-'}</td>
-                    <td className="px-4 py-2">
-                      <select
-                        value={u.role_id ?? ''}
-                        disabled={!canEditStaff || u.id === me.data?.id}
-                        title={
-                          u.id === me.data?.id
-                            ? t('You are changing your own access, be careful!')
-                            : undefined
-                        }
-                        onChange={(e) => updateRole.mutate({ id: u.id, role_id: e.target.value || null })}
-                        className="rounded-lg border border-line bg-white px-2 py-1 text-sm outline-none focus:border-brand disabled:opacity-60"
-                      >
-                        {(roles.data ?? []).map((r) => (
-                          <option key={r.id} value={r.id}>{r.name}</option>
-                        ))}
-                      </select>
-                    </td>
-                    <td className="px-4 py-2 text-center">
-                      {u.is_active === false ? (
-                        <span className="text-faint">{t('Inactive')}</span>
-                      ) : (
-                        <span className="text-success">{t('Active')}</span>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </>
-      ) : (
-        <AccessControl />
-      )}
-
-      {adding && <AddUserForm onClose={() => setAdding(false)} storeId={me.data?.store_id ?? null} />}
+  const users=useUsers(), roles=useRoles(), me=useCurrentUser(), update=useUpdateUserRole()
+  const perms=usePermissions(), notify=useToast(), confirm=useConfirm()
+  const [params,setParams]=useSearchParams()
+  const [adding,setAdding]=useState(false)
+  const canEdit=perms.can('staff.edit')
+  const access=params.get('tab')==='access' && canEdit
+  async function change(u: NonNullable<typeof users.data>[number], role: string | null, active: boolean) {
+    if (isBypassRoleName(roles.data?.find(r=>r.id===role)?.name) && role!==u.role_id &&
+      !await confirm(t('This position gives full administrator access. Continue?'))) return
+    if (active!==u.is_active && !await confirm(t(active ? 'Activate this employee?':'Deactivate this employee?'))) return
+    try { await update.mutateAsync({ id:u.id,role_id:role,is_active:active }); notify(t('Saved'), 'success') }
+    catch(e) { notify(message(e)) }
+  }
+  return <div className="mx-auto max-w-5xl p-6">
+    <div className="mb-4 flex items-center justify-between"><h1 className="text-2xl font-semibold text-brand-dark">{t('Staff')}</h1>
+      {perms.can('staff.create') && <button className={button} onClick={()=>setAdding(true)}>{t('+ Add Staff')}</button>}
     </div>
-  )
+    <div className="mb-5 flex gap-2"><button className={access ? field:button} onClick={()=>setParams({})}>{t('Employees')}</button>
+      {canEdit && <button className={access ? button:field} onClick={()=>setParams({tab:'access'})}>{t('Access Control')}</button>}
+    </div>
+    {users.isError && <p role="alert" className="text-danger">{t("Couldn't load staff:")} {message(users.error)}</p>}
+    {access ? <AccessControl/> : <div className="overflow-x-auto rounded-xl border border-line bg-white">
+      <table className="w-full text-sm"><thead className="bg-surface"><tr>
+        {['Username','Full Name','Position','Active'].map(h=><th key={h} className="p-3 text-start">{t(h)}</th>)}
+      </tr></thead><tbody className="divide-y divide-line/40">
+        {(users.data ?? []).filter(u=>!isSuperUsername(u.username)).map(u=>{
+          const locked=!canEdit || u.id===me.data?.id || update.isPending || roles.isPending || roles.isError ||
+            (!perms.isAdmin && isBypassRoleName(u.roles?.name))
+          return <tr key={u.id}><td className="p-3 font-medium">{u.username}</td><td className="p-3">{u.full_name}</td>
+            <td className="p-3"><select aria-label={`${t('Position')}: ${u.username}`} className={field} value={u.role_id ?? ''} disabled={locked}
+              onChange={e=>void change(u,e.target.value || null,u.is_active===true)}>
+              <option value="">{t('No position — no access')}</option>
+              {(roles.data ?? []).filter(r=>perms.isAdmin || r.id===u.role_id || !isBypassRoleName(r.name)).map(r=><option key={r.id} value={r.id}>{r.name}</option>)}
+            </select></td>
+            <td className="p-3"><label className="flex items-center gap-2"><input type="checkbox" aria-label={`${t('Active')}: ${u.username}`}
+              checked={u.is_active===true} disabled={locked || !perms.can('staff.delete')}
+              onChange={e=>void change(u,u.role_id,e.target.checked)}/>{t(u.is_active ? 'Active':'Inactive')}</label></td>
+          </tr>
+        })}
+      </tbody></table>
+    </div>}
+    {adding && perms.can('staff.create') && <AddUserForm storeId={me.data?.store_id ?? null} onClose={()=>setAdding(false)}/>}
+  </div>
 }

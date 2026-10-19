@@ -1,8 +1,8 @@
 import { useState } from 'react'
 import { useI18n } from '../../i18n/LanguageContext'
 import { usePermissions } from '../../data/permissions'
-import { useSalePayments, useAddSalePayments } from '../../data/salesPayments'
-import { useToast } from '../../components/Feedback'
+import { useSalePayments, useAddSalePayments, useRefundSale } from '../../data/salesPayments'
+import { useToast, useConfirm } from '../../components/Feedback'
 import {
   PAYMENT_METHODS,
   clampPaymentLines,
@@ -37,12 +37,29 @@ export function SalePayments({ sale, balance }: { sale: Sale; balance: number })
   const notify = useToast()
   const query = useSalePayments(sale.id)
   const addPayments = useAddSalePayments()
+  const refund = useRefundSale()
+  const confirm = useConfirm()
+  const [refundOpen, setRefundOpen] = useState(false)
+  const [refundMethod, setRefundMethod] = useState('cash')
+  const [refundAmount, setRefundAmount] = useState('')
+  const [reason, setReason] = useState('')
 
   const [open, setOpen] = useState(false)
   const [lines, setLines] = useState<PaymentLine[]>([])
   const [busy, setBusy] = useState(false)
 
   const rows = query.data ?? []
+  const refundable = round2(rows.filter(r => r.method === refundMethod).reduce((sum,r) => sum + Number(r.amount), 0))
+  const canRefund = !sale.voided_at && perms.can('history.refund') && !query.isError && !query.isPending
+  async function recordRefund() {
+    const amount = round2(Number(refundAmount))
+    if (!canRefund || refund.isPending || !Number.isFinite(amount) || amount <= 0 || amount > refundable || !reason.trim()) return
+    if (!await confirm(`${t('Refund')} ${money(amount)} · ${t(methodLabelKey(refundMethod))}?`)) return
+    try {
+      await refund.mutateAsync({ saleId: sale.id, amount, method: refundMethod, reason: reason.trim() })
+      setRefundOpen(false); setRefundAmount(''); setReason(''); notify(t('Saved'), 'success')
+    } catch (e) { notify(e && typeof e === 'object' && 'message' in e ? String(e.message) : String(e)) }
+  }
   // A voided invoice is closed: no more money may be taken against it, and
   // its ledger only grows if the void is itself reversed in the future.
   const canPay =
@@ -55,6 +72,7 @@ export function SalePayments({ sale, balance }: { sale: Sale; balance: number })
     round2(Math.max(0, balance - paymentsTotal(lines.filter((l) => l.method !== method))))
 
   async function record() {
+    if (!canPay || busy) return
     // Clamp to what is still owed: you can never overpay an invoice.
     const clean = clampPaymentLines(normalizeLines(lines), balance)
     if (!clean.length) return
@@ -65,7 +83,7 @@ export function SalePayments({ sale, balance }: { sale: Sale; balance: number })
       )
       setLines([])
       setOpen(false)
-      notify(`✓ ${t('Payment recorded.')}`)
+      notify(t('Payment recorded.'), 'success')
     } catch (e) {
       // Includes the translated "ledger missing - run 011" message.
       notify(e instanceof Error ? e.message : String(e))
@@ -88,6 +106,20 @@ export function SalePayments({ sale, balance }: { sale: Sale; balance: number })
           </button>
         )}
       </div>
+
+      {canRefund && <button type="button" className="my-1 text-xs text-danger hover:underline" onClick={() => setRefundOpen(v => !v)}>{t('Refund')}</button>}
+      {refundOpen && canRefund && <div className="my-2 space-y-2 rounded-lg border border-line p-3">
+        <p className="text-xs text-muted">{t('Refunding money keeps this invoice open and increases its remaining balance. Use Void for a cancelled sale.')}</p>
+        <div className="flex flex-wrap gap-2">
+          <select aria-label={t('Payment method')} className="rounded border border-line p-2 text-xs" value={refundMethod} onChange={e => setRefundMethod(e.target.value)}>
+            {PAYMENT_METHODS.map(m => <option key={m} value={m}>{t(methodLabelKey(m))}</option>)}
+          </select>
+          <input aria-label={t('Refund amount')} className="w-28 rounded border border-line p-2 text-xs" type="number" min="0.01" max={refundable} step="0.01" value={refundAmount} onChange={e => setRefundAmount(e.target.value)}/>
+          <span className="text-xs">{t('Available to refund')}: {money(Math.max(0,refundable))}</span>
+        </div>
+        <input aria-label={t('Reason')} placeholder={t('Reason')} className="w-full rounded border border-line p-2 text-xs" value={reason} onChange={e => setReason(e.target.value)}/>
+        <button type="button" className="rounded bg-danger px-3 py-2 text-xs text-white disabled:opacity-50" disabled={refund.isPending || !reason.trim() || !(Number(refundAmount)>0) || Number(refundAmount)>refundable} onClick={() => void recordRefund()}>{t(refund.isPending ? 'Saving…':'Refund')}</button>
+      </div>}
 
       {query.isError ? (
         <div className="rounded bg-warning-bg px-2 py-1 text-xs text-warning">

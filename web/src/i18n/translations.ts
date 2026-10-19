@@ -7,6 +7,27 @@
 export type Lang = 'ar' | 'en'
 
 export const ar: Record<string, string> = {
+  'Payment method': 'طريقة الدفع',
+  'Refund amount': 'مبلغ الاسترداد',
+  'Available to refund': 'المتاح للاسترداد',
+  'Refunding money keeps this invoice open and increases its remaining balance. Use Void for a cancelled sale.': 'استرداد المبلغ يُبقي الفاتورة مفتوحة ويزيد رصيدها المستحق. استخدم الإلغاء لإلغاء البيع.',
+  'Activate this employee?': 'هل تريد تفعيل هذا الموظف؟',
+  'Deactivate this employee?': 'هل تريد تعطيل هذا الموظف؟',
+  void: 'إلغاء الفاتورة',
+  'A position is required before this person can use the shop.': 'يجب تعيين وظيفة قبل أن يتمكن هذا الموظف من استخدام المتجر.',
+  Area: 'القسم',
+  'Assign an active position in Employees before setting exceptions.': 'عيّن وظيفة وفعّل الموظف من قائمة الموظفين قبل تحديد الاستثناءات.',
+  'Edit access for': 'تعديل صلاحيات',
+  'Loading or unavailable permissions. Changes are disabled.': 'الصلاحيات قيد التحميل أو غير متاحة. التعديل معطّل.',
+  'No position': 'بلا وظيفة',
+  'No position — no access': 'بلا وظيفة — بلا صلاحيات',
+  'Open invoice': 'فتح الفاتورة',
+  'Position permissions apply to everyone in that position. Employee exceptions override them.': 'صلاحيات الوظيفة تنطبق على جميع موظفيها، واستثناءات الموظف لها الأولوية.',
+  'Staff edit manages access. Staff delete activates or deactivates employees. Customer creation and editing also apply during checkout.': 'تعديل الموظفين يتيح إدارة الصلاحيات. حذف الموظفين يتيح التفعيل والتعطيل. صلاحيات إنشاء وتعديل العملاء تنطبق أيضاً أثناء البيع.',
+  'This position gives full administrator access. Continue?': 'هذه الوظيفة تمنح صلاحيات المدير الكاملة. هل تريد المتابعة؟',
+  'View is required for actions in the same area. Removing View blocks those actions without erasing their settings.': 'العرض مطلوب لتنفيذ إجراءات القسم. إلغاء العرض يمنع الإجراءات دون حذف إعداداتها.',
+  'You do not have access to this action.': 'ليست لديك صلاحية لتنفيذ هذا الإجراء.',
+  'Could not load permissions.': 'تعذّر تحميل الصلاحيات.',
   // Auth
   Welcome: 'مرحباً',
   Username: 'اسم المستخدم',

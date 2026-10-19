@@ -343,14 +343,14 @@ select is(public.resolve_can('history.view'), true,
 
 -- Owner position bypasses everything.
 select _as('aaaaaaaa-aaaa-4aaa-8aaa-000000000003'::uuid);
-select is(public.resolve_can('settings.delete'), true,
+select is(public.resolve_can('settings.edit'), true,
   'G-C6 the owner position bypasses the matrix');
-select is(public.resolve_can('anything.at.all'), true,
-  'G-C7 the owner position bypasses codes that do not even exist');
+select is(public.resolve_can('anything.at.all'), false,
+  'G-C7 unknown codes are denied even for owners');
 
 -- Vendor (platform admin) bypasses everything.
 select _as('aaaaaaaa-aaaa-4aaa-8aaa-000000000006'::uuid);
-select is(public.resolve_can('settings.delete'), true,
+select is(public.resolve_can('settings.edit'), true,
   'G-C8 a platform admin bypasses the matrix');
 
 -- =========================================================================

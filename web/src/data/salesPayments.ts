@@ -1,3 +1,4 @@
+import { invalidateSales } from './refresh'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import type { SalePayment, SalePaymentInsert } from '../lib/database.types'
@@ -9,6 +10,17 @@ import type { SalePayment, SalePaymentInsert } from '../lib/database.types'
 // ledger is the single source of truth.
 
 const KEY = ['sale_payments'] as const
+
+export function useRefundSale() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ saleId, amount, method, reason }: { saleId: string; amount: number; method: string; reason: string }) => {
+      const { error } = await supabase.rpc('refund_sale', { p_sale_id: saleId, p_amount: amount, p_method: method, p_reason: reason })
+      if (error) throw error
+    },
+    onSuccess: () => invalidateSales(qc),
+  })
+}
 
 /** True when the ledger table isn't created yet (011_sale_payments.sql not run). */
 export function isMissingPaymentLedger(
@@ -64,16 +76,16 @@ export function useAddSalePayments() {
         kind: r.kind ?? 'payment',
         paid_at: r.paid_at ?? now,
       }))
-      const { data, error } = await supabase
-        .from('sale_payments')
-        .insert(stamped)
-        .select()
-        .returns<SalePayment[]>()
+      if (rows.some(r => r.sale_id !== rows[0].sale_id)) throw new Error('Payments must belong to one invoice')
+      const { error } = await supabase.rpc('collect_sale_payment', {
+        p_sale: rows[0].sale_id, p_lines: stamped.map(r => ({ amount: r.amount, method: r.method })),
+      })
       if (isMissingPaymentLedger(error)) throw paymentLedgerMissingError()
       if (error) throw error
-      return data ?? []
+      return []
     },
     onSuccess: () => {
+      void invalidateSales(qc)
       qc.invalidateQueries({ queryKey: KEY })
       // History badges (paid / due) read sales.amount_paid, which the DB
       // trigger just recomputed behind our back.

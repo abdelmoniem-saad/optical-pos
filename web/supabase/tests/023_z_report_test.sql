@@ -107,7 +107,7 @@ on conflict (code) do nothing;
 -- reason that has nothing to do with 023.
 insert into public.user_permissions (user_id, permission_id, allow)
 select 'eeeeeeee-eeee-4eee-8eee-000000000041', p.id, true
-  from public.permissions p where p.code in ('reports.edit', 'closing.edit')
+  from public.permissions p where p.code in ('reports.edit', 'closing.view', 'closing.edit')
 on conflict (user_id, permission_id) do nothing;
 
 -- The day's money. 1000 cash on Z1, then 500 cash + 500 wallet on Z2, then a

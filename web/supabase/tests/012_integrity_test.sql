@@ -95,6 +95,13 @@ language sql stable as $$
 $$;
 
 -- ===== impersonate the signed-in cashier =====================================
+-- 029: provision explicit positions for these legacy workflow fixtures.
+insert into public.roles(name,store_id)
+select 'gate_012_' || u.store_id::text,u.store_id from public.users u where u.role_id is null group by u.store_id;
+update public.users u set role_id=r.id from public.roles r where u.role_id is null and r.name='gate_012_' || u.store_id::text;
+insert into public.role_permissions(role_id,permission_id)
+select r.id,p.id from public.roles r cross join public.permissions p
+where r.name like 'gate_012_%' and p.code=any(public.supported_permissions()) on conflict do nothing;
 set role authenticated;
 do $$ begin
   perform set_config('request.jwt.claim.sub', 'aaaaaaaa-aaaa-4aaa-8aaa-000000000001', false);
@@ -181,7 +188,7 @@ select is((select err from _cap where k = 't9'), 'payment exceeds net amount',
 select _checkout('t10',
   '{"total_amount": 500, "discount": 0, "net_amount": 500, "amount_paid": 500}'::jsonb,
   '[{"product_id": "99999999-9999-4999-8999-999999999999", "qty": 1, "unit_price": 500, "total_price": 500, "name": "Ghost"}]'::jsonb);
-select is((select err from _cap where k = 't10'), 'unknown product in cart',
+select is((select err from _cap where k = 't10'), 'Product not found in this store',
   'T10 an unknown product is rejected');
 
 -- T11 negative net rejected.

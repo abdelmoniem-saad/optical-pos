@@ -121,31 +121,7 @@ export function CustomersPage() {
       await del.mutateAsync({ id })
     } catch (e) {
       if (e instanceof CustomerHasRelatedRecordsError) {
-        // The customer has orders and/or prescriptions. Explain the impact
-        // and let the user confirm a cascading delete - otherwise the row
-        // can never be removed because of the sales FK.
-        const parts: string[] = []
-        if (e.orderCount > 0) {
-          parts.push(`${e.orderCount} ${t('orders')}`)
-        }
-        if (e.prescriptionCount > 0) {
-          parts.push(`${e.prescriptionCount} ${t('prescriptions')}`)
-        }
-        const summary = parts.join(' ' + t('and') + ' ')
-        const message =
-          t('This customer has') +
-          ' ' +
-          summary +
-          '. ' +
-          t(
-            'Deleting the customer will also permanently delete their orders and prescriptions. Continue?',
-          )
-        if (!(await confirm(message))) return
-        try {
-          await del.mutateAsync({ id, cascade: true })
-        } catch (err) {
-          notify(err instanceof Error ? err.message : String(err))
-        }
+        notify(t('Cannot delete this customer because they have existing orders or prescriptions.'))
         return
       }
       notify(e instanceof Error ? e.message : String(e))

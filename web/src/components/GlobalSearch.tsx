@@ -1,3 +1,4 @@
+import { usePermissions } from '../data/permissions'
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useGlobalSearch, type SearchResults } from '../data/search'
@@ -91,6 +92,8 @@ function ResultList({
   go: (path: string) => void
 }) {
   const { t } = useI18n()
+  const perms = usePermissions()
+  data = data ? { customers: perms.can('customers.view') ? data.customers : [], products: perms.can('inventory.view') ? data.products : [], sales: perms.can('history.view') ? data.sales : [] } : undefined
   const empty =
     data && data.customers.length === 0 && data.products.length === 0 && data.sales.length === 0
 
@@ -102,7 +105,7 @@ function ResultList({
       {!!data?.customers.length && (
         <Group title={t('Customers')}>
           {data.customers.map((c) => (
-            <button key={c.id} onMouseDown={() => go(`/customers?q=${encodeURIComponent(c.name)}`)} className="block w-full px-3 py-2 text-start text-sm hover:bg-surface">
+            <button key={c.id} onClick={() => go(`/customers/${c.id}`)} className="block w-full px-3 py-2 text-start text-sm hover:bg-surface">
               <span className="font-medium">{c.name}</span> <span className="text-faint">{c.phone || ''}</span>
             </button>
           ))}
@@ -112,7 +115,7 @@ function ResultList({
       {!!data?.products.length && (
         <Group title={t('Products')}>
           {data.products.map((p) => (
-            <button key={p.id} onMouseDown={() => go(`/inventory?q=${encodeURIComponent(p.name)}`)} className="block w-full px-3 py-2 text-start text-sm hover:bg-surface">
+            <button key={p.id} onClick={() => go(`/inventory?product=${p.id}`)} className="block w-full px-3 py-2 text-start text-sm hover:bg-surface">
               <span className="font-medium">{p.name}</span> <span className="text-faint">{p.sku || ''} · {Number(p.sale_price ?? 0).toFixed(2)}</span>
             </button>
           ))}
@@ -122,7 +125,7 @@ function ResultList({
       {!!data?.sales.length && (
         <Group title={t('Invoices')}>
           {data.sales.map((s) => (
-            <button key={s.id} onMouseDown={() => go(`/history?q=${encodeURIComponent(s.invoice_no)}`)} className="block w-full px-3 py-2 text-start text-sm hover:bg-surface">
+            <button key={s.id} onClick={() => go(`/history?sale=${s.id}`)} className="block w-full px-3 py-2 text-start text-sm hover:bg-surface">
               <span className="font-medium">#{s.invoice_no}</span> <span className="text-faint">{Number(s.net_amount ?? 0).toFixed(2)}</span>
             </button>
           ))}

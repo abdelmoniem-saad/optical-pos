@@ -1,3 +1,4 @@
+import { invalidateSales } from './refresh'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import type { OrderExamination, Sale } from '../lib/database.types'
@@ -33,23 +34,11 @@ export function useReplaceOrderExaminations(saleId: string) {
     mutationFn: async (
       exams: Omit<OrderExamination, 'id' | 'sale_id'>[],
     ): Promise<void> => {
-      const { error: delErr } = await supabase
-        .from('order_examinations')
-        .delete()
-        .eq('sale_id', saleId)
-      if (delErr) throw delErr
-      if (exams.length) {
-        const rows = exams.map((e) => ({ ...e, sale_id: saleId }))
-        let { error: insErr } = await supabase.from('order_examinations').insert(rows)
-        if (insErr && (insErr.code === '42703' || /image_path/i.test(insErr.message ?? ''))) {
-          const stripped = rows.map(({ image_path: _unused, ...rest }: any) => rest)
-          const retry = await supabase.from('order_examinations').insert(stripped)
-          insErr = retry.error
-        }
-        if (insErr) throw insErr
-      }
+      const { error } = await supabase.rpc('replace_order_examinations', { p_sale: saleId, p_exams: exams })
+      if (error) throw error
     },
     onSuccess: () => {
+      void invalidateSales(qc)
       qc.invalidateQueries({ queryKey: ['order_examinations', saleId] })
       qc.invalidateQueries({ queryKey: ['customer-orders'] })
       qc.invalidateQueries({ queryKey: ['past_examinations'] })

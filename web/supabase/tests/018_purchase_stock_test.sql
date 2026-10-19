@@ -122,6 +122,13 @@ insert into public.users (id, username, password_hash, store_id, is_active)
 values ('ffffffff-ffff-4fff-8fff-000000000191', 'receiver', '-', _rstore(), true)
 on conflict (id) do nothing;
 
+-- 029: provision explicit positions for these legacy workflow fixtures.
+insert into public.roles(name,store_id)
+select 'gate_018_' || u.store_id::text,u.store_id from public.users u where u.role_id is null group by u.store_id;
+update public.users u set role_id=r.id from public.roles r where u.role_id is null and r.name='gate_018_' || u.store_id::text;
+insert into public.role_permissions(role_id,permission_id)
+select r.id,p.id from public.roles r cross join public.permissions p
+where r.name like 'gate_018_%' and p.code=any(public.supported_permissions()) on conflict do nothing;
 set role authenticated;
 do $$ begin
   perform set_config('request.jwt.claim.sub', 'ffffffff-ffff-4fff-8fff-000000000191', false);

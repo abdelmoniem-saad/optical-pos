@@ -76,12 +76,12 @@ function NoteCard({
 
   async function save() {
     const body = draft.trim()
-    if (!body) return
+    if (!body || !canEdit) return
     await upd.mutateAsync({ id: note.id, body })
     setEditing(false)
   }
 
-  if (editing) {
+  if (editing && canEdit) {
     return (
       <div className="rounded-lg border border-brand-faint bg-white p-3 text-sm">
         <textarea
@@ -218,10 +218,10 @@ export function NotesPage() {
 
   // Deletion: the author for their own notes; ONLY an admin for notes
   // addressed to everyone else.
-  const canDelete = (n: Note) => perms.isAdmin || n.created_by === meId
+  const canDelete = (n: Note) => perms.can('notes.delete') && (perms.isAdmin || n.created_by === meId)
   // Editing is for the AUTHOR only (admins keep deletion, not rewriting other
   // people's words). Edited notes show an edited tag.
-  const canEdit = (n: Note) => n.created_by === meId
+  const canEdit = (n: Note) => perms.can('notes.edit') && n.created_by === meId
 
   const cls = 'rounded-xl border border-line bg-surface/40 p-4'
 

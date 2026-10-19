@@ -26,11 +26,12 @@ export function SettingsPage() {
   }, [settings.data])
 
   async function save() {
+    if (!canEdit || setSetting.isPending) return
     setSaved(false)
-    await Promise.all(
-      FIELDS.map((f) => setSetting.mutateAsync({ key: f.key, value: form[f.key] ?? '' })),
-    )
-    setSaved(true)
+    try {
+      await Promise.all(FIELDS.map((f) => setSetting.mutateAsync({ key: f.key, value: form[f.key] ?? '' })))
+      setSaved(true)
+    } catch { /* The mutation error is displayed below. */ }
   }
 
   const cls = 'w-full rounded-lg border border-line bg-white px-3 py-2.5 outline-none focus:border-brand'
@@ -48,6 +49,7 @@ export function SettingsPage() {
             <span className="mb-1 block text-sm font-medium text-muted">{t(f.label)}</span>
             {f.multiline ? (
               <textarea
+                readOnly={!canEdit}
                 className={cls}
                 rows={2}
                 value={form[f.key] ?? ''}
@@ -55,6 +57,7 @@ export function SettingsPage() {
               />
             ) : (
               <input
+                readOnly={!canEdit}
                 className={cls}
                 value={form[f.key] ?? ''}
                 onChange={(e) => setForm((s) => ({ ...s, [f.key]: e.target.value }))}
@@ -64,6 +67,7 @@ export function SettingsPage() {
         ))}
 
         <div className="flex items-center gap-3">
+          {setSetting.isError && <p role="alert" className="text-sm text-danger">{String(setSetting.error.message)}</p>}
           <button
             onClick={save}
             disabled={setSetting.isPending || !canEdit}

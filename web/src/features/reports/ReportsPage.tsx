@@ -1,3 +1,4 @@
+import { usePermissions } from '../../data/permissions'
 import { useQuery } from '@tanstack/react-query'
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
@@ -53,6 +54,7 @@ function Kpi({
 
 export function ReportsPage() {
   const { t } = useI18n()
+  const perms = usePermissions()
   // Lean header-only feed: Reports aggregates totals, it never needs the
   // (payload-heavy) line items, so this stays cheap as data grows.
   const sales = useSalesSummary()
@@ -209,14 +211,14 @@ export function ReportsPage() {
       </div>
 
       <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <Kpi label={t('Total Revenue')} value={shown(m(r.totalRevenue))} color="#388e3c" to="/history" />
+        <Kpi label={t('Total Revenue')} value={shown(m(r.totalRevenue))} color="#388e3c" to={perms.can('history.view') ? '/history':undefined} />
         <Kpi label={t('Total Paid')} value={shown(m(r.totalPaid))} color="#00796b" />
         <Kpi label={t('Balance Due')} value={shown(m(r.balanceDue))} color="#d32f2f" />
         <Kpi label={t('Total Orders')} value={shown(String(r.orderCount))} color="#1976d2" to="/history" />
-        <Kpi label={t("Today's Revenue")} value={shown(m(r.todayRevenue))} color="#f57c00" sub={`${r.todayOrders} ${t('orders')}`} to="/history?range=today" />
-        <Kpi label={t('This Month')} value={shown(m(r.monthRevenue))} color="#7b1fa2" sub={`${r.monthOrders} ${t('orders')}`} to="/history?range=month" />
-        <Kpi label={t('Pending Lab')} value={shown(String(r.pendingLab))} color="#f57c00" to="/lab" />
-        <Kpi label={t('Ready for Pickup')} value={shown(String(r.readyLab))} color="#388e3c" to="/lab" />
+        <Kpi label={t("Today's Revenue")} value={shown(m(r.todayRevenue))} color="#f57c00" sub={`${r.todayOrders} ${t('orders')}`} to={perms.can('history.view') ? '/history?range=today':undefined} />
+        <Kpi label={t('This Month')} value={shown(m(r.monthRevenue))} color="#7b1fa2" sub={`${r.monthOrders} ${t('orders')}`} to={perms.can('history.view') ? '/history?range=month':undefined} />
+        <Kpi label={t('Pending Lab')} value={shown(String(r.pendingLab))} color="#f57c00" to={perms.can('lab.view') ? '/lab?status=Pending':undefined} />
+        <Kpi label={t('Ready for Pickup')} value={shown(String(r.readyLab))} color="#388e3c" to={perms.can('lab.view') ? '/lab?status=Ready':undefined} />
       </div>
 
       {/* A void is excluded from every number above - correctly, since its
@@ -240,7 +242,7 @@ export function ReportsPage() {
             <ul className="space-y-1 text-sm">
               {r.lowStock.slice(0, 10).map((p) => (
                 <li key={p.id} className="flex justify-between">
-                  <span>{p.name}</span>
+                  {perms.can('inventory.view') ? <Link className="hover:underline" to={`/inventory?product=${p.id}`}>{p.name}</Link>:<span>{p.name}</span>}
                   <span className="font-semibold text-danger">{p.stock_qty ?? 0} {t('left')}</span>
                 </li>
               ))}

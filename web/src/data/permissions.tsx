@@ -1,290 +1,92 @@
-import {
-  createContext,
-  useContext,
-  useMemo,
-  type ReactNode,
-} from 'react'
+import { createContext, useContext, useEffect, useMemo, type ReactNode } from 'react'
+/* eslint-disable react-refresh/only-export-components */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/auth'
-import { useCurrentUser } from './staff'
+import { readEffectiveAccess } from './permissionModel'
+import { invalidateAccess } from './refresh'
+export * from './permissionModel'
 
-// Co-locating provider + hook (same pattern as POSContext/auth).
-/* eslint-disable react-refresh/only-export-components */
-
-// ---- permission universe -------------------------------------------------
-
-/** Every gated area of the app, in sidebar order. */
-export const RESOURCES = [
-  { key: 'pos', label: 'New Sale' },
-  { key: 'customers', label: 'Customers' },
-  { key: 'inventory', label: 'Inventory' },
-  { key: 'lab', label: 'Lab' },
-  { key: 'history', label: 'History' },
-  { key: 'reports', label: 'Reports' },
-  // 024: closing the till is its own resource so it can be granted to a
-  // cashier without handing them Reports. Seeding copies it from reports.edit.
-  { key: 'closing', label: 'Close the shift' },
-  { key: 'suppliers', label: 'Suppliers' },
-  { key: 'notes', label: 'Notes' },
-  { key: 'staff', label: 'Staff' },
-  { key: 'settings', label: 'Settings' },
-] as const
-
-// 'void' (migration 013) is separate from 'delete': voiding is an audited
-// EVENT that keeps every row, whereas delete was the destructive verb we
-// revoked. A shop manager who may correct a mis-keyed invoice should not
-// thereby gain the ability to erase history - so they get their own code.
-export const ACTIONS = ['view', 'create', 'edit', 'delete', 'void'] as const
-export type Action = (typeof ACTIONS)[number]
-
-/** Positions whose members ALWAYS have full access regardless of the matrix.
- *  Kept as data so the UI can explain (and disable) the matrix for them. */
-export const BYPASS_ROLE_NAMES = ['admin', 'owner'] as const
-
-export function isBypassRoleName(name: string | null | undefined): boolean {
-  return BYPASS_ROLE_NAMES.includes((name ?? '').toLowerCase() as never)
-}
-
-/**
- * Reserved account for break-glass access. Whoever logs in with this username
- * sees and may do EVERYTHING, is never listed among employees, and can never
- * be edited through the app. Create the matching Supabase Auth user once
- * (e.g. superadmin@your-domain) and the app links it automatically.
- */
-export const SUPERADMIN_USERNAME = 'superadmin'
-
-export function isSuperUsername(username: string | null | undefined): boolean {
-  return (username ?? '').trim().toLowerCase() === SUPERADMIN_USERNAME
-}
-
-export function code(resource: string, action: Action): string {
-  return `${resource}.${action}`
-}
-
-/**
- * Effective answer for a single `<resource>.<action>` code:
- * an explicit per-person override ALWAYS wins (allow or deny), otherwise the
- * answer is exactly what the person's position grants. Pure function so the
- * rule is unit-testable and stated in exactly one place.
- */
-export function resolveCan(
-  granted: ReadonlySet<string>,
-  overrides: Record<string, boolean>,
-  c: string,
-): boolean {
-  const o = overrides[c]
-  if (o !== undefined) return o
-  return granted.has(c)
-}
-
-export const ALL_CODES: string[] = RESOURCES.flatMap((r) =>
-  ACTIONS.map((a) => code(r.key, a)),
-)
-
-// ---- queries -------------------------------------------------------------
-
-/** Codes granted to a role (ticked boxes in the Access Control matrix). */
 export function useRoleGrants(roleId: string | null) {
   return useQuery({
-    queryKey: ['role_permissions', roleId],
-    enabled: !!roleId,
+    queryKey: ['role_permissions', roleId], enabled: !!roleId,
     queryFn: async (): Promise<string[]> => {
-      const { data, error } = await supabase
-        .from('role_permissions')
-        .select('permissions(code)')
-        .eq('role_id', roleId as string)
-        .returns<{ permissions: { code: string } | null }[]>()
+      const { data, error } = await supabase.from('role_permissions').select('permissions(code)')
+        .eq('role_id', roleId!).returns<{ permissions: { code: string } | null }[]>()
       if (error) throw error
-      return (data ?? [])
-        .map((r) => r.permissions?.code)
-        .filter((c): c is string => !!c)
+      return (data ?? []).flatMap(r => r.permissions ? [r.permissions.code] : [])
     },
   })
 }
-
-/** Per-user overrides: code -> allow true/false (absent = inherit role). */
 export function useUserOverrides(userId: string | null) {
   return useQuery({
-    queryKey: ['user_permissions', userId],
-    enabled: !!userId,
+    queryKey: ['user_permissions', userId], enabled: !!userId,
     queryFn: async (): Promise<Record<string, boolean>> => {
-      const { data, error } = await supabase
-        .from('user_permissions')
-        .select('allow, permissions(code)')
-        .eq('user_id', userId as string)
-        .returns<{ allow: boolean | null; permissions: { code: string } | null }[]>()
+      const { data, error } = await supabase.from('user_permissions').select('allow, permissions(code)')
+        .eq('user_id', userId!).returns<{ allow: boolean | null; permissions: { code: string } | null }[]>()
       if (error) throw error
-      const map: Record<string, boolean> = {}
-      for (const r of data ?? []) {
-        const c = r.permissions?.code
-        if (c) map[c] = r.allow !== false
-      }
-      return map
+      return Object.fromEntries((data ?? []).flatMap(r => r.permissions ? [[r.permissions.code, r.allow === true]] : []))
     },
   })
 }
-
-// ---- mutations -----------------------------------------------------------
-
-async function permissionIdByCode(codeStr: string): Promise<string> {
-  const { data, error } = await supabase
-    .from('permissions')
-    .select('id')
-    .eq('code', codeStr)
-    .maybeSingle<{ id: string }>()
-  if (error) throw error
-  if (!data) {
-    // Unknown code (migration 004 not run / newer app) - create it on the fly.
-    const { data: created, error: insErr } = await supabase
-      .from('permissions')
-      .insert({ code: codeStr })
-      .select()
-      .single<{ id: string }>()
-    if (insErr) throw insErr
-    return created.id
-  }
-  return data.id
-}
-
 export function useToggleRoleGrant() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: async ({
-      roleId,
-      permCode,
-      granted,
-    }: {
-      roleId: string
-      permCode: string
-      granted: boolean
-    }) => {
-      const pid = await permissionIdByCode(permCode)
-      if (granted) {
-        const { error } = await supabase
-          .from('role_permissions')
-          .upsert(
-            { role_id: roleId, permission_id: pid },
-            { onConflict: 'role_id,permission_id' },
-          )
-        if (error) throw error
-      } else {
-        const { error } = await supabase
-          .from('role_permissions')
-          .delete()
-          .eq('role_id', roleId)
-          .eq('permission_id', pid)
-        if (error) throw error
-      }
+    mutationFn: async ({ roleId, permCode, granted }: { roleId: string; permCode: string; granted: boolean }) => {
+      const { error } = await supabase.rpc('set_role_permission', { p_role: roleId, p_code: permCode, p_granted: granted })
+      if (error) throw error
     },
-    onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ['role_permissions'] })
-      void qc.invalidateQueries({ queryKey: ['my-permissions'] })
-    },
+    onSuccess: () => invalidateAccess(qc),
   })
 }
-
-/**
- * Set/clear a per-user override. `allow === null` removes the override so the
- * user inherits their position's grant again.
- */
 export function useSetUserOverride() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: async ({
-      userId,
-      permCode,
-      allow,
-    }: {
-      userId: string
-      permCode: string
-      allow: boolean | null
-    }) => {
-      const pid = await permissionIdByCode(permCode)
-      if (allow === null) {
-        const { error } = await supabase
-          .from('user_permissions')
-          .delete()
-          .eq('user_id', userId)
-          .eq('permission_id', pid)
-        if (error) throw error
-        return
-      }
-      const { error } = await supabase.from('user_permissions').upsert(
-        { user_id: userId, permission_id: pid, allow },
-        { onConflict: 'user_id,permission_id' },
-      )
+    mutationFn: async ({ userId, permCode, allow }: { userId: string; permCode: string; allow: boolean | null }) => {
+      const { error } = await supabase.rpc('set_user_permission', { p_user: userId, p_code: permCode, p_allow: allow })
       if (error) throw error
     },
-    onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ['user_permissions'] })
-      void qc.invalidateQueries({ queryKey: ['my-permissions'] })
-    },
+    onSuccess: () => invalidateAccess(qc),
   })
 }
-
-// ---- effective permissions for the signed-in user ------------------------
-
 type PermsState = {
-  loading: boolean
-  isAdmin: boolean
-  /** True when the current user holds this `<resource>.<action>` code. */
-  can: (c: string) => boolean
-  /** True when no position/staff record could be resolved, so the app is
-   *  running WITHOUT access control (deliberate break-glass). Surfaced in the
-   *  sidebar so a mis-provisioned account is visible instead of silently
-   *  all-powerful. */
-  openAccess: boolean
+  loading: boolean; isAdmin: boolean; can: (c: string) => boolean
+  openAccess: boolean; error: string | null; active: boolean
 }
-
 const Ctx = createContext<PermsState | undefined>(undefined)
-
 export function PermissionsProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth()
-  const me = useCurrentUser()
-  const roleId = me.data?.role_id ?? null
-  const grants = useRoleGrants(roleId)
-  const overrides = useUserOverrides(user?.id ?? null)
-
-  const roleName = me.data?.roles?.name?.toLowerCase() ?? ''
-  const isAdmin = roleName === 'admin' || roleName === 'owner'
-
+  const qc = useQueryClient()
+  const access = useQuery({
+    queryKey: ['my-permissions', user?.id], enabled: !!user,
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc('my_permissions')
+      if (error) throw error
+      return readEffectiveAccess(data)
+    },
+    staleTime: 0, refetchOnMount: 'always', refetchOnWindowFocus: 'always',
+    refetchInterval: 15_000, retry: false,
+  })
+  useEffect(() => {
+    if (!access.data) return
+    void qc.invalidateQueries({ queryKey: ['my-license'] })
+    void qc.invalidateQueries({ queryKey: ['my-store-id'] })
+  }, [qc, access.data])
   const value = useMemo<PermsState>(() => {
-    // Super admin + admin/owner positions bypass everything.
-    if (isAdmin || isSuperUsername(me.data?.username)) {
-      return { loading: false, isAdmin: true, openAccess: false, can: () => true }
-    }
-
-    if (!user) return { loading: false, isAdmin: false, openAccess: false, can: () => false }
-
-    // While loading stay permissive so the UI doesn't flash locked; this is a
-    // UI-level gate by design (the DB keeps its authenticated-trust model).
-    if (me.isLoading || grants.isLoading || overrides.isLoading) {
-      return { loading: true, isAdmin: false, openAccess: false, can: () => true }
-    }
-
-    // Break-glass #1: no staff record could be resolved for this account
-    // (lookup failure / never linked). Never brick a login over bookkeeping.
-    // Break-glass #2: an account WITHOUT any position is treated as fully
-    // trusted too - access control applies to people actually placed in a
-    // position by the admin.
-    if (!me.data || me.isError || !me.data.role_id) {
-      return { loading: false, isAdmin: false, openAccess: true, can: () => true }
-    }
-
-    const granted = new Set(grants.data ?? [])
-    const ov = overrides.data ?? {}
+    const v = access.data
+    const ready = !!user && !access.isError && !!v && v.active && v.assigned
+    const codes = new Set(ready ? v.codes : [])
     return {
-      loading: false,
-      isAdmin: false,
-      openAccess: false,
-      can: (c) => resolveCan(granted, ov, c),
+      loading: !!user && access.isPending,
+      isAdmin: ready && v.is_admin,
+      openAccess: !!v && !v.assigned,
+      active: v?.active ?? false,
+      error: access.isError ? 'Could not load permissions.' : null,
+      can: c => ready && codes.has(c),
     }
-  }, [isAdmin, user, me.isLoading, me.isError, me.data, grants.isLoading, grants.data, overrides.isLoading, overrides.data])
-
+  }, [user, access.data, access.isError, access.isPending])
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>
 }
-
 export function usePermissions(): PermsState {
   const ctx = useContext(Ctx)
   if (!ctx) throw new Error('usePermissions must be used within <PermissionsProvider>')

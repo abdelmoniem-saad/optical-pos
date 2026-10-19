@@ -1,0 +1,543 @@
+== 1/4 harness shims (plain-Postgres objects: roles, auth/, storage/, pgtap)
+== 2/4 migrations must record their own version (drift check)
+PASS: every migration from 17 onward records its own version
+== 3/4 apply every migration from scratch (database must be empty)
+     - 000_base_schema.sql
+     - 001_security_rls.sql
+     - 002_create_sale_rpc.sql
+     - 003_purchase_payments.sql
+     - 004_rbac_notes.sql
+     - 005_notes_edit.sql
+     - 006_note_seen.sql
+     - 007_order_images.sql
+     - 008_multi_tenancy.sql
+     - 009_store_licensing.sql
+     - 010_metadata_sort.sql
+     - 011_sale_payments.sql
+     - 012_integrity.sql
+     - 013_void_refunds.sql
+     - 014_server_rbac.sql
+     - 015_link_staff_ids.sql
+     - 016_reporting.sql
+     - 017_schema_version.sql
+
+     - 018_purchase_stock.sql
+     - 019_lab_dwell.sql
+     - 020_version_gate.sql
+
+
+
+     - 021_bootstrap_platform_admin.sql
+
+     - 022_sales_kind.sql
+
+     - 023_z_report.sql
+
+     - 024_closing_permission.sql
+4
+
+     - 025_platform_reports.sql
+
+     - 026_license_window.sql
+
+     - 027_plan_features.sql
+
+     - 028_partial_refund.sql
+0
+
+     - 029_effective_permissions.sql
+
+== 4/4 pgTAP gates
+--- 012_integrity_test.sql
+1..26
+
+ok 1 - T1 checkout with catalog prices succeeds
+ok 2 - T2 line stored at the catalog price
+ok 3 - T3 header totals recomputed, amount_paid from the ledger
+
+ok 4 - T4 negotiated net survives; the gap becomes an explicit discount
+
+ok 5 - T5 round-up total is preserved (store-favouring)
+
+ok 6 - T6 free order stores a full discount, net 0
+
+ok 7 - T7 tampered line price is rejected (G1)
+ok 8 - T7b a rejected checkout writes nothing
+
+ok 9 - T8 zero/negative quantities are rejected
+
+ok 10 - T9 payments may never exceed the net amount
+
+ok 11 - T10 an unknown product is rejected
+
+ok 12 - T11 a negative net amount is rejected
+
+ok 13 - T12a overselling is ALLOWED by default (per-store switch, default on)
+ok 14 - T12b stock went to -1 and the read model followed
+
+ok 15 - T13 with the switch OFF an oversell is rejected (G2)
+ok 16 - G3 two counter draws yield two different invoice numbers
+ok 17 - G3b drawn numbers keep the zero-padded 6-digit format
+
+
+ok 18 - G4 replaying the same key returns the SAME sale
+ok 19 - G4b exactly one sale exists for the idempotency key
+ok 20 - G4c the replay does not error
+ok 21 - G5 stock_qty equals sum(stock_movements) after seeded sales
+ok 22 - G5b available_stock() reads the same number as the read model
+ok 23 - add_inventory_item() returns the created product
+ok 24 - opening stock is live in stock_qty immediately
+ok 25 - opening stock wrote a real ledger movement
+ok 26 - money constraints exist and are VALIDATED (not left NOT VALID)
+--- 013_void_refunds_test.sql
+1..54
+ok 1 - S1 sales.voided_at records WHEN a sale was voided
+ok 2 - S2 sales.voided_by records WHO voided it
+ok 3 - S3 sales.void_reason records WHY
+ok 4 - S4 sale_payments.kind separates a payment from a refund
+ok 5 - S5 sale_items.discount carries a line-level discount
+ok 6 - S6 sale_items.discount_reason carries its reason
+ok 7 - S7 stock_movements.kind replaces the free-text vocabulary
+ok 8 - S8 paid_at is a timestamptz, so two payments on one day differ
+
+ok 9 - S9 seeded checkout succeeds
+ok 10 - S10 the sale drew 2 off the shelf (5 -> 3)
+ok 11 - S11 amount_paid is 1000 from the ledger
+ok 12 - G3a DELETE cannot remove a sale_items row
+ok 13 - G3b DELETE cannot remove a payment-ledger row
+ok 14 - G3c DELETE cannot remove the sale header
+ok 15 - G3d DELETE cannot remove a stock movement
+ok 16 - G3e no delete policy on sales
+ok 17 - G3f no delete policy on sale_items
+ok 18 - G3g no delete policy on sale_payments
+ok 19 - G3h no delete policy on stock_movements
+ok 20 - G3i no delete policy on purchases
+ok 21 - G3j no delete policy on purchase_items
+ok 22 - G3k no delete policy on purchase_payments
+
+ok 23 - G4a a direct write to sales.amount_paid is refused
+
+ok 24 - G4b a direct write to sales.net_amount is refused
+
+ok 25 - G4c a direct write to sales.total_amount is refused
+
+ok 26 - G4d a direct write to sales.discount is refused
+
+ok 27 - G1a void_sale succeeds
+ok 28 - G1b the sale header is still there (void is an event, not a delete)
+ok 29 - G1c the line items are still there
+ok 30 - G1d voided_at is stamped
+ok 31 - G1e voided_by is the signed-in cashier
+ok 32 - G1f the reason is recorded verbatim
+ok 33 - G2a voiding with restock puts the 2 units back on the shelf
+ok 34 - G2b the customer's money is fully returned (amount_paid back to 0)
+ok 35 - G6a the refund is a negative ledger row tagged kind=refund
+ok 36 - G6b payments and refunds cancel to exactly zero
+ok 37 - G6c the restock movement is a first-class kind, not free text
+
+ok 38 - G1g voiding an already-voided sale is refused
+
+ok 39 - G1h a second seeded checkout succeeds
+
+ok 40 - G1i voiding without restock succeeds
+ok 41 - G2c without restock the unit stays off the shelf (5 - 1)
+
+ok 42 - G5g the sale we re-checkout is created
+ok 43 - G5h it drew 1 off the shelf (4 - 1)
+
+ok 44 - G5i a voided sale can no longer be edited
+
+ok 45 - G5a re-checkout with a tampered line price is refused
+ok 46 - G5b the stored line price is untouched by the refused re-checkout
+
+ok 47 - G5c an honest re-checkout succeeds
+ok 48 - G5d the lines are replaced, not appended to
+ok 49 - G5e the payment ledger is replaced too
+ok 50 - G5f stock follows the replaced lines: 1 became 2, so 3 - 1 = 2
+
+ok 51 - G7a a line-level discount is accepted
+ok 52 - G7b the line discount is stored on the item
+ok 53 - G8a the cashier can still READ their sales (s1, s2, s3, d1)
+
+ok 54 - G8b an ordinary (non-money) header edit still works
+--- 014_server_rbac_test.sql
+1..33
+ok 1 - S1 resolve_can(code, user) exists - the SQL mirror of resolveCan()
+ok 2 - S2 require_perm(code) exists - the guard privileged RPCs call
+ok 3 - S3 audit_log exists, so this phase's own changes are reviewable
+ok 4 - S4 the world-writable policy on permissions is gone
+
+ok 5 - G-S1 a cashier resolves to their own store by auth id
+
+ok 6 - G-S2 a staff row wins over another user's matching username (id beats the fallback)
+
+ok 7 - G-S3 an unprovisioned identity matching someone else's username resolves to NO store
+
+ok 8 - G-S4 an unknown identity resolves to no store
+
+ok 9 - G-R1 the permission catalogue is still readable by staff (the matrix needs it)
+ok 10 - G-R2 a cashier cannot INSERT a permission code
+ok 11 - G-R3 a cashier cannot UPDATE the permission catalogue
+ok 12 - G-R4 a cashier cannot grant themselves a code through role_permissions
+ok 13 - G-R5 a cashier cannot grant themselves an override through user_permissions
+ok 14 - G-R6 a cashier cannot DELETE grants (the supervisor's four survive)
+ok 15 - G-R7 store A staff cannot see store B's roles
+ok 16 - G-R7b ...while their own store's roles are visible
+ok 17 - G-R8 no role grant from another store is readable
+ok 18 - G-R8b ...while their own store's grants are readable
+
+ok 19 - G-C1 a granted code is allowed
+ok 20 - G-C2 a code the position does not hold is refused
+
+ok 21 - G-C3 an explicit deny beats a position grant
+ok 22 - G-C4 an explicit allow beats a missing position grant
+ok 23 - G-C5 a code with no override falls through to the position grant
+
+ok 24 - G-C6 the owner position bypasses the matrix
+ok 25 - G-C7 unknown codes are denied even for owners
+
+ok 26 - G-C8 a platform admin bypasses the matrix
+
+ok 27 - G-X1 an account with no position is refused by the DATABASE, even though the UI allows it
+ok 28 - G-X2 ...for every code, not just the ungranted ones
+
+
+ok 29 - G-P1 require_perm refuses a code the caller does not hold
+ok 30 - G-P2 the error names the missing code, so the failure is diagnosable
+
+ok 31 - G-P3 require_perm passes silently for a held code
+
+ok 32 - G-P4 void_sale refuses a caller without history.void (fails before anything is written)
+ok 33 - G-P5 void_sale refuses on a permission ground, named in the error
+--- 015_link_staff_ids_test.sql
+1..13
+ok 1 - G0 the fixture really is mismatched before the repair runs
+ok 2 - G1 the unambiguous mismatch is re-pointed
+ok 3 - G2 the staff row now carries the login id, with its store intact
+ok 4 - G3a notes.user_id followed the re-pointed id
+ok 5 - G3b notes.created_by followed the re-pointed id
+ok 6 - G3c the note itself survived
+ok 7 - G3d all six foreign keys onto users.id are intact
+ok 8 - G4 an ambiguous name is NOT re-pointed - two logins could mean either
+ok 9 - G5 a login with no staff row got one (done by the first call, in G1)
+ok 10 - G5b ...at a store that really exists, never an invented one
+ok 11 - G5c ...with no usable password, so the owner must set one
+ok 12 - G6 re-running repairs nothing
+ok 13 - G7 the problem view lists the ambiguous clash, and nothing that was repaired
+--- 016_reporting_test.sql
+1..30
+ok 1 - G-R1 revenue counts the live sales and excludes the void
+ok 2 - G-R2 paid is the live sales only (and the 011 sync trigger set it)
+ok 3 - G-R2b balance due excludes the voided 5000 entirely
+ok 4 - G-R3 the order count excludes the voided sale
+ok 5 - G-R4 the voided Ready job is not counted as ready
+ok 6 - G-R4b the In Lab job is counted once
+ok 7 - G-R5 the top-customer list excludes the voided customer
+ok 8 - G-R5b the highest-spender live customer is first
+ok 9 - G-R5c the limit is honoured
+ok 10 - G-R6 no customer from another store appears
+ok 11 - G-R7 a 10:00 payment on the end date is inside the window
+ok 12 - G-R8 the refund nets against the cash it reversed (1570-400)
+ok 13 - G-R8b the untouched tender is unaffected
+ok 14 - G-R9 the void summary counts the one voided sale
+ok 15 - G-R9b ...and the value it excluded, so the UI can show it
+ok 16 - G-R10 the partial index over live sales exists
+ok 17 - G-R10b ...and its predicate is the void exclusion, so the filter is free
+ok 18 - G-T1 the Cairo day starts at 21:00 UTC the day before
+ok 19 - G-T1b ...and ends 24 hours later, exclusive
+ok 20 - G-T2 the 22:00-02:00 sale is NOT counted on the 21st, whatever UTC says
+ok 21 - G-T2b ...it IS counted on the 22nd, the day the shopkeeper means
+ok 22 - G-T3 the 23:30 UTC cash payment lands on the 22nd, net of that day's refund
+ok 23 - G-T3b the 21st keeps only its own 500; the 23:30 UTC row is not counted there
+ok 24 - G-S1 a name containing parentheses is found, not silently dropped
+ok 25 - G-S1b a name containing an apostrophe and a comma is found
+ok 26 - G-S2 another store's identical name never appears
+ok 27 - G-S3 the search is case-insensitive
+ok 28 - G-S3b ...and finds both Ahmed fixtures, not just one
+ok 29 - G-S4 a one-character term returns nothing instead of everything
+ok 30 - G-S5 a trigram index per searchable column exists
+--- 017_schema_version_test.sql
+1..14
+ok 1 - G-S1 the ledger table exists
+ok 2 - G-S2 schema_version() exists
+ok 3 - G-S3 record_schema_version() exists
+ok 4 - G-S4 an empty ledger reads 0
+ok 5 - G-S5 the applied version is 17
+ok 6 - G-S12 applied_at is recorded
+
+ok 7 - G-S6 re-stamping the same version adds no second row
+ok 8 - G-S6 the original note survives a re-stamp
+ok 9 - G-S7 only the newest version counts
+ok 10 - G-S8 the ledger has RLS enabled
+ok 11 - G-S11 a signed-in user cannot select the ledger directly
+ok 12 - G-S9 anon may read the version (banner shows before sign-in)
+ok 13 - G-S10 a signed-in user cannot stamp a version
+ok 14 - G-S3b record_schema_version declares two arguments
+--- 018_purchase_stock_test.sql
+1..19
+ok 1 - G-P0 the product starts empty, so the movement below is unambiguous
+ok 2 - G-P1 receiving our own purchase reports one line received
+ok 3 - G-P1b stock_qty rose by the received quantity
+ok 4 - G-P2 the movement carries the 013 kind vocabulary, not free text
+ok 5 - G-P3 re-receiving the same purchase reports nothing left to receive
+ok 6 - G-P3b and the stock is unchanged - not doubled
+ok 7 - G-P4 cost_price takes the purchase cost when the shelf was empty
+1
+ok 8 - G-P4b cost_price is the WEIGHTED AVERAGE (4.67), not simply the newest price (6)
+ok 9 - G-P4c the second delivery still added its stock
+ok 10 - G-P6 another store's purchase is refused
+ok 11 - G-P7 a non-positive quantity is refused
+ok 12 - G-P8 an unknown purchase is refused rather than silently doing nothing
+ok 13 - G-C1 balance_due is the live net (1000) minus what was paid (600); the voided 5000 is not counted
+ok 14 - G-C1b lifetime excludes the voided invoice as well
+ok 15 - G-C3 a refund nets against the balance: 1000 - (600 - 200) = 600
+ok 16 - G-C4 another store's customer is invisible, not merely zero
+ok 17 - G-C5 the debtor list contains nobody who does not actually owe
+ok 18 - G-C5b Nadia is listed with the balance the single-customer query reported
+ok 19 - G-C6 an unknown customer yields no row instead of raising
+--- 019_lab_dwell_test.sql
+1..14
+ok 1 - G-L1a lab_status_changed_at exists
+ok 2 - G-L1b lab_started_at exists
+ok 3 - G-L1c lab_ready_at exists
+ok 4 - G-L1d the column is nullable, so existing rows are not forced through a backfill
+ok 5 - G-L2 a status change stamps lab_status_changed_at
+ok 6 - G-L3 writing the SAME status again does not clear the stamp, and nothing is reset by an unrelated write
+ok 7 - G-L4 leaving Not Started stamps lab_started_at
+ok 8 - G-L5a a job already Ready has lab_ready_at
+ok 9 - G-L5b re-opening a job does NOT move lab_ready_at - the original Ready time survives
+ok 10 - G-L5c the same re-opening DOES move lab_status_changed_at, so the two columns are independent
+ok 11 - G-L6 a sale with no lab job gets no timestamps - the column defaults to 'Not Started', and inventing one would create phantom work
+ok 12 - G-L7 another store's lab job never appears in the queue
+ok 13 - G-L8 every listed job has a measured wait, not a NULL placeholder
+ok 14 - G-L8b the status filter is honoured, so a filter that matched everything would fail
+--- 020_version_gate_test.sql
+1..10
+ok 1 - G-V1 the drift guard exists, so a missing stamp fails loudly instead of silently
+ok 2 - G-V3 the guard raises when a migration in the list has not recorded its version
+ok 3 - G-V4 the message names the missing file, so it says which file is at fault
+ok 4 - G-V2 the guard does not raise when the ledger is complete
+ok 5 - G-V7 an empty migration list is rejected rather than silently passing
+ok 6 - G-V5a 018 is recorded - 020 backfilled what it forgot to write itself
+ok 7 - G-V5b 019 is recorded too
+ok 8 - G-V5c 020 records itself, the way every migration from 017 onward must
+ok 9 - G-V6 re-recording a version adds no duplicate row
+ok 10 - G-V6b schema_version() is at least the guard's own version, so the drift check is live
+--- 021_bootstrap_platform_admin_test.sql
+1..10
+ok 1 - G0 no platform admin exists yet, so the guard has something to protect
+ok 2 - G1 an email with no Supabase login is refused - it grants a role, it does not create a credential
+ok 3 - G2 and the message names the address that was not found
+ok 4 - G3 a blank email is refused rather than matching every login
+ok 5 - G4 the first call succeeds and reports the uid it granted
+ok 6 - G5 and the platform admin row is really there
+ok 7 - G6 a SECOND call is refused: once one platform admin exists this function can never add another
+ok 8 - G7 and the refusal wrote nothing - the count is still exactly one
+ok 9 - G8 execute is revoked from authenticated, so a client cannot bootstrap anybody
+ok 10 - G9 021 recorded itself, so the drift check can see it was applied
+--- 022_sales_kind_test.sql
+1..18
+ok 1 - G-K1 sales.kind exists, so a prescription can declare what it is
+ok 2 - G-K2 a row that says nothing about its kind is stored as a sale
+ok 3 - G-K2b the kind constraint is validated, not left NOT VALID
+ok 4 - G-K3 create_sale_order still exists under its 5-argument signature
+
+
+ok 5 - G-K4 an ordinary checkout is stored as kind = sale (absent means sale)
+
+ok 6 - G-K5 a standalone prescription is stored as kind = prescription
+ok 7 - G-K5b the prescription still carries its exam - it is a real record, not a stub
+
+ok 8 - G-K6 an invented kind is stored as sale, not as sent
+ok 9 - G-K6b and the checkout still SUCCEEDS - an unknown kind is not an error
+
+ok 10 - G-K7 claiming prescription on an order that HAS items still stores sale
+ok 11 - G-K8 the prescription is excluded from order_count (k1, k3, k4 are the sales)
+ok 12 - G-K9 the prescription is STILL counted as a pending lab job - not over-corrected
+ok 13 - G-K10 revenue is unchanged: 400 (k1) + 400 (k4) + 0 (prescription) + 0 (k3)
+ok 14 - G-K10b paid is unchanged at the two real checkouts only
+ok 15 - G-K11 a direct UPDATE cannot invent a third kind - the constraint holds even without the RPC
+
+ok 16 - G-K12 the other store's prescription does not appear in this store's order count
+ok 17 - G-K12b ...nor in its lab queue
+ok 18 - G-K13 022 recorded its own version, so the drift banner can fire
+--- 023_z_report_test.sql
+1..21
+
+ok 1 - G-Z1 z_report exists, so the drawer question is answerable
+ok 2 - G-Z2 expected cash is net of refunds, and the refund came off CASH specifically
+ok 3 - G-Z2b expected total includes the wallet tender the drawer will not hold
+ok 4 - G-Z2c refunds are reported as a positive figure (1300 = 400 plus the 900 void reversal)
+ok 5 - G-Z3 a voided 900 cash sale leaves the drawer at 1100 - the reversal cancelled it
+ok 6 - G-Z3b and the void is still REPORTED, not silently dropped - a mistaken void must not look like a quiet day
+ok 7 - G-Z4 the prescription is not counted as an order
+ok 8 - G-Z4b ...but it is counted separately, so it is visible rather than invisible
+
+ok 9 - G-Z5 a drawer that matches the ledger gives zero variance
+
+ok 10 - G-Z6 a 50 EGP shortage reads as -50, counted minus expected
+ok 11 - G-Z7 the close stored the expected figure as it stood at the time
+ok 12 - G-Z7b and its counters, so a close is a summary and not only a cash figure
+
+ok 13 - G-Z8 the same window cannot be closed twice
+ok 14 - G-Z8b the refusal wrote nothing - there are still exactly two closes
+
+ok 15 - G-Z9 a close with no counted drawer is refused - a shift is not closed by not knowing
+
+ok 16 - G-Z10 a window that does not run forwards is refused
+ok 17 - G-Z11 another store's 7777 is invisible to this store's drawer
+
+
+ok 18 - G-Z12 a caller without reports.edit is refused
+ok 19 - G-Z12b and the refusal wrote NO row - the check is enforcement, not a message
+ok 20 - G-Z13 a direct INSERT is refused - a close is written only by close_shift
+ok 21 - G-Z14 023 recorded its own version, so the drift banner can fire
+--- 024_closing_permission_test.sql
+1..14
+ok 1 - G-P1 both closing codes are in the catalogue, so the matrix can show them
+ok 2 - G-P2 the seed creates exactly the grants it should: two for p_both's role and two for pdirect, and nothing for anyone who lacks reports.edit
+ok 3 - G-P2b a role holding reports.edit ends up with BOTH closing codes
+ok 4 - G-P3 a role holding only reports.view is given NEITHER closing code
+ok 5 - G-P4 a person granted reports.edit directly keeps the capability
+
+
+ok 6 - G-P5 a caller holding BOTH reports.edit and the seeded closing.edit can close
+
+ok 7 - G-P6 reports.edit alone is REFUSED - closing the till is a separate decision
+ok 8 - G-P6b and the refusal wrote NO row - the check is enforcement, not a message
+
+
+ok 9 - G-P7 a cashier with closing.edit and NO reports permission can close the till
+ok 10 - G-P7b and the row is really there
+
+
+ok 11 - G-P8 a caller with only closing.view is refused - seeing is not committing
+ok 12 - G-P9 closing.view does not confer closing.edit - the two are distinct acts
+ok 13 - G-P10 a second run re-grants exactly the two grants G-P6 removed, and nothing else - so re-seeding is safe and useful
+ok 14 - G-P11 024 recorded its own version, so the drift banner can fire
+--- 025_platform_reports_test.sql
+1..14
+
+ok 1 - G-A1 a shop admin is refused the cross-store report
+
+ok 2 - G-A2 the refusal names the reason, so it is the gate and not a crash
+ok 3 - G-A3 the shop admin still gets their own store report - the block is narrow
+
+
+ok 4 - G-A4 the platform admin gets a row for each of the two fixture stores
+ok 5 - G-A5 a void is not revenue in the platform report either
+ok 6 - G-A6a the UTC store counts the 22:00 sale on its own 20th
+ok 7 - G-A6b ...and the Cairo store does not, because its day had ended
+ok 8 - G-A7 the rows are disjoint and their total is their sum
+ok 9 - G-A8a the Cairo row carries the Cairo zone
+ok 10 - G-A8b the UTC row carries the UTC zone
+ok 11 - G-A9 refunds net into paid, and the void contributes nothing
+ok 12 - G-A10 a date-leading index on sales(order_date) exists for the cross-store scan
+ok 13 - G-A11 anon cannot execute it at all, so the refusal is not only in the body
+ok 14 - G-A12 025 recorded its own version, so the drift banner can fire
+--- 026_license_window_test.sql
+1..19
+ok 1 - G-L1 a licence that has not STARTED yet does not permit writes
+ok 2 - G-L2 ...and does not permit reads either - a future licence is not a licence
+
+ok 3 - G-L3 the app is told PENDING, not told the shop is trading early
+ok 4 - G-L4 set_license_window exists - the browser no longer writes this column
+ok 5 - G-L5 set_license_revoked exists, so revoking is its own decision
+
+ok 6 - G-L6 a SHOP ADMIN cannot write their own licence
+ok 7 - G-L7 ...nor revoke their own
+
+ok 8 - G-L8 a PLATFORM ADMIN can set the window
+ok 9 - G-L9 the start date is the START of that day in the SHOP's zone
+ok 10 - G-L10 the expiry is the EXCLUSIVE end, so the shop keeps its last day
+ok 11 - G-L11 max_staff is settable - create-user already enforces it, nothing could edit it
+ok 12 - G-L12 expiry before start is refused, naming both dates
+ok 13 - G-L13 a perpetual licence (no expiry) is still expressible
+ok 14 - G-L14 a platform admin can revoke
+ok 15 - G-L15 a revoked licence permits no writes
+ok 16 - G-L16 setting new dates on a revoked licence still succeeds
+ok 17 - G-L17 ...but it stayed REVOKED - editing dates is not revoking, and revoking is not editing dates
+ok 18 - G-L18 a store that was never licensed says so, rather than "no such store"
+ok 19 - G-L19 026 recorded its own version, so the drift banner can fire
+--- 027_plan_features_test.sql
+1..7
+ok 1 - G-F1 license_feature(text) exists - features is no longer a dead column
+
+ok 2 - G-F2 an ABSENT flag reads allowed - pasting 027 does not revoke the report
+ok 3 - G-F2b an unknown feature reads allowed too - the default is opt-out
+
+ok 4 - G-F3 a platform admin whose plan excludes the feature is refused, in SQL
+
+ok 5 - G-F4 with the flag on, both fixture stores appear - the refusal was the flag
+
+ok 6 - G-F5 a non-admin is refused as admin-only, not as feature-off - the gates are independent
+ok 7 - G-F9 027 recorded its own version, so the drift banner can fire
+--- 028_partial_refund_test.sql
+1..11
+1
+ok 1 - G-R1 refund_sale(uuid, numeric, text, text) exists - a live sale can be partly refunded
+
+ok 2 - G-R2 the seed granted history.refund to the history.void holder - not a dead permission
+
+ok 3 - G-R3 a caller without history.refund is refused, naming the code
+
+
+ok 4 - G-R4 a 100 cash refund drops amount_paid to 600 - the header follows the ledger
+ok 5 - G-R4b ...and the sale is NOT voided - a refund is not a void, the invoice stays
+ok 6 - G-R4c the refund is a NEGATIVE cash row, so cash-up per tender stays truthful
+ok 7 - G-R5 refunding more CASH than was paid in cash is refused - the ceiling is per-tender
+ok 8 - G-R6 the refused refund wrote no row - the check is enforcement, not a message
+ok 9 - G-R6b ...and amount_paid is unmoved, so the header did not drift on a refusal
+
+ok 10 - G-R7 a voided sale is not refundable - void_sale already returned the money
+ok 11 - G-R8 028 recorded its own version, so the drift banner can fire
+--- 029_effective_permissions_test.sql
+
+ok 1 - position grant works with View
+ok 2 - view-only lab user cannot edit
+ok 3 - authority identifies active staff
+ok 4 - lab write rejected on server
+ok 5 - authorized collection succeeds
+ok 6 - ledger refreshes invoice
+ok 7 - overpayment refused
+ok 8 - refund cannot bypass refund action
+ok 9 - direct self promotion refused
+ok 10 - revoked grants cannot be reseeded by staff
+ok 11 - closing grants cannot be reseeded by staff
+ok 12 - cashier cannot edit overrides
+
+ok 13 - manager cannot assign administrator
+ok 14 - administrator escalation refused
+ok 15 - reserved role spelling cannot bypass checks
+ok 16 - explicit Deny saves
+ok 17 - Deny overrides position
+ok 18 - Inherit removes exception
+ok 19 - inherited grant restored
+ok 20 - Allow exception saves
+ok 21 - Allow overrides missing grant
+ok 22 - View can be removed
+ok 23 - removing View blocks dependent actions
+
+ok 24 - revocation takes effect with same JWT
+ok 25 - lab exception enables only lab action
+
+ok 26 - position removal saves
+ok 27 - unassigned user cannot retain Allow exception
+
+ok 28 - unassigned user loses tenant access
+ok 29 - authority reports no assignment
+
+ok 30 - deactivation saves
+
+ok 31 - inactive staff are denied with same JWT
+ok 32 - inactive staff have no effective codes
+
+ok 33 - owner has supported refund action
+ok 34 - unsupported actions stay unsupported
+ok 35 - self lockout refused
+ok 36 - administrator bypass is explicit and immutable
+ok 37 - platform can create a second store Admin role
+
+ok 38 - role assignment cannot cross stores
+1..38
+PASS: all pgTAP assertions green

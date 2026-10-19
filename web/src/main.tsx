@@ -1,3 +1,5 @@
+import { defaultShouldDehydrateQuery } from '@tanstack/react-query'
+import { ACCESS_READS } from './data/refresh'
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client'
@@ -18,6 +20,8 @@ createRoot(document.getElementById('root')!).render(
         persistOptions={{
           persister,
           maxAge: PERSIST_MAX_AGE,
+          buster: 'access-029',
+          dehydrateOptions: { shouldDehydrateQuery: q => !ACCESS_READS.includes(String(q.queryKey[0]) as never) && defaultShouldDehydrateQuery(q) },
           // The persister writes BOTH queries and mutations to the same key, but
           // the library's default dehydrate filter keeps only PAUSED mutations -
           // so a checkout rung up while offline is persisted, survives a page

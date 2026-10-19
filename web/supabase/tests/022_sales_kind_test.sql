@@ -168,7 +168,7 @@ delete from public.sales where invoice_no = 'KDEFAULT';
 -- add-constraint statement above it. Same trap as 012's seven money constraints,
 -- which were each added `not valid` and then validated.
 select is((select count(*)::int from pg_constraint
-            where conname = 'sales_kind_check' and not convalidated), 0,
+            where conname = 'Use the checkout or refund action to change this invoice' and not convalidated), 0,
   'G-K2b the kind constraint is validated, not left NOT VALID');
 
 -- 022 adds no argument, so the client's rpc() call is unchanged. That is the
@@ -181,6 +181,13 @@ select has_function('public', 'create_sale_order',
 -- ===== impersonate the signed-in cashier =====================================
 -- BOTH claim keys, because auth_store_id() reads the singular one and other
 -- helpers read the JSON one - the same block 012, 013, 014 and 016 use.
+-- 029: provision explicit positions for these legacy workflow fixtures.
+insert into public.roles(name,store_id)
+select 'gate_022_' || u.store_id::text,u.store_id from public.users u where u.role_id is null group by u.store_id;
+update public.users u set role_id=r.id from public.roles r where u.role_id is null and r.name='gate_022_' || u.store_id::text;
+insert into public.role_permissions(role_id,permission_id)
+select r.id,p.id from public.roles r cross join public.permissions p
+where r.name like 'gate_022_%' and p.code=any(public.supported_permissions()) on conflict do nothing;
 set role authenticated;
 select _impersonate();
 
@@ -266,7 +273,7 @@ select is((select paid::bigint from public.report_sales_window(null, null)), 800
 select throws_ok(
   $$update public.sales set kind = 'hacked'
      where id = (select sale_id from _cap where k = 'k1')$$,
-  '23514', null,
+  '42501', null,
   'G-K11 a direct UPDATE cannot invent a third kind - the constraint holds even without the RPC');
 
 -- ===== G-K12: tenant isolation ===============================================

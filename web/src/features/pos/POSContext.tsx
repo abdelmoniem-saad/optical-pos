@@ -1,3 +1,4 @@
+import { usePermissions } from '../../data/permissions'
 import {
   createContext,
   useContext,
@@ -248,6 +249,7 @@ export function POSProvider({ children }: { children: ReactNode }) {
   const hydrated = useRef(false)
   const { user } = useAuth()
   const { t } = useI18n()
+  const perms = usePermissions()
 
   // Mirror every change into the module-level snapshot (tab-switch survival).
   useEffect(() => {
@@ -319,7 +321,7 @@ export function POSProvider({ children }: { children: ReactNode }) {
     const draft = { ...ref.current.customerDraft, ...p }
     patch({ customerDraft: draft })
     const c = ref.current.customer
-    if (!c) return
+    if (!c || !perms.can('customers.edit')) return
     const changes: Partial<CustomerInsert> = {}
     const name = p.name?.trim()
     if (name && name !== c.name) changes.name = name
@@ -381,12 +383,13 @@ export function POSProvider({ children }: { children: ReactNode }) {
         if ((customer.city ?? '') !== form.city) changes.city = form.city
         if ((customer.email ?? '') !== form.email) changes.email = form.email
         if ((customer.address ?? '') !== form.address) changes.address = form.address
-        if (Object.keys(changes).length) {
+        if (Object.keys(changes).length && perms.can('customers.edit')) {
           await updateCustomer.mutateAsync({ id: customer.id, patch: changes })
           customer = { ...customer, ...form } as Customer
         }
       } else {
         // Different/edited name → treat as a new customer (existing behaviour).
+        if (!perms.can('customers.create')) throw new Error('You do not have permission to create customers.')
         customer = await addCustomer.mutateAsync({
           name,
           phone: form.phone ?? '',
@@ -449,6 +452,7 @@ export function POSProvider({ children }: { children: ReactNode }) {
         .returns<Product[]>()
       if (anyExisting && anyExisting.length) return anyExisting[0]
 
+      if (!perms.can('inventory.create')) return null
       const { data: created, error } = await supabase
         .from('inventory')
         .insert({ name: clean, category: 'Frame', sale_price: 0, cost_price: 0 })
@@ -541,6 +545,8 @@ export function POSProvider({ children }: { children: ReactNode }) {
   // ---- checkout ----
   async function finishOrder() {
     const s = ref.current
+    if (s.busy) return
+    if (!(s.savedSale ? perms.can('pos.edit') || perms.can('history.edit') : perms.can('pos.create'))) { patch({error: t('You do not have access to this action.')}); return }
     if (!s.cartItems.length && !s.examinations.length) {
       patch({ error: 'Cart is empty and no examinations. Cannot checkout.' })
       return
@@ -560,7 +566,7 @@ export function POSProvider({ children }: { children: ReactNode }) {
       // Settings sync (lens types / frame colors used by this order) happens
       // HERE at confirmation - typing during the wizard never touches them.
       // Missing frame products are created by addNewFramesFromExams above.
-      await addMissingOrderMetadata(s.examinations)
+      if (perms.can('inventory.edit')) await addMissingOrderMetadata(s.examinations)
       const t = computeTotals(cartItems, {
         discount: s.discount,
         amountPaid: paymentsTotal(s.payments),

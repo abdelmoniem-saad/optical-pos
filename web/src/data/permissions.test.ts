@@ -7,20 +7,21 @@ import { describe, expect, it, vi } from 'vitest'
 vi.mock('../lib/supabase', () => ({ supabase: {} }))
 
 import {
-  ACTIONS,
   ALL_CODES,
   RESOURCES,
   code,
   isBypassRoleName,
   isSuperUsername,
   resolveCan,
-} from './permissions'
+  readEffectiveAccess,
+} from './permissionModel'
 
 describe('permission universe', () => {
   it('builds one code per resource/action pair', () => {
     expect(code('pos', 'view')).toBe('pos.view')
-    expect(ALL_CODES).toContain('settings.delete')
-    expect(ALL_CODES).toHaveLength(RESOURCES.length * ACTIONS.length)
+    expect(ALL_CODES).not.toContain('settings.delete')
+    expect(ALL_CODES).toContain('history.refund')
+    expect(new Set(ALL_CODES).size).toBe(ALL_CODES.length)
   })
 
   it('keeps the sidebar order: New Sale first, Settings last', () => {
@@ -49,6 +50,20 @@ describe('isBypassRoleName', () => {
 
 describe('resolveCan', () => {
   const granted = new Set(['history.view'])
+
+  it('blocks actions when view is removed, without erasing the action grant', () => {
+    const grants = new Set(['history.view', 'history.edit'])
+    expect(resolveCan(grants, { 'history.view': false }, 'history.edit')).toBe(false)
+    expect(resolveCan(grants, {}, 'history.edit')).toBe(true)
+    expect(resolveCan(grants, { 'settings.delete': true }, 'settings.delete')).toBe(false)
+  })
+
+  it('rejects missing and malformed authority responses', () => {
+    for (const value of [null, {}, { codes: ['history.edit'] }, { is_admin: 'false', active: true, assigned: true, codes: [] }]) {
+      expect(() => readEffectiveAccess(value)).toThrow('Could not load permissions.')
+    }
+    expect(readEffectiveAccess({ is_admin: false, active: false, assigned: false, codes: [] }).active).toBe(false)
+  })
 
   it('falls back to exactly what the position grants', () => {
     expect(resolveCan(granted, {}, 'history.view')).toBe(true)

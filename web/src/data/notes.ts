@@ -69,6 +69,7 @@ export function useUpdateNote() {
         .from('notes')
         .update({ body: body.trim(), updated_at: new Date().toISOString() })
         .eq('id', id)
+        .select('id').single()
       if (error) throw error
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: KEY }),
@@ -115,7 +116,7 @@ export function useDeleteNote() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: async (id: string): Promise<void> => {
-      const { error } = await supabase.from('notes').delete().eq('id', id)
+      const { error } = await supabase.from('notes').delete().eq('id', id).select('id').single()
       if (error) throw error
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: KEY }),

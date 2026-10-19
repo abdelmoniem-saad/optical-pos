@@ -1,3 +1,4 @@
+import { invalidateSales } from './refresh'
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import {
@@ -286,10 +287,10 @@ export type SaleCursor = { order_date: string; id: string }
  * range, invoice-number match, or customer-name match resolved to ids), so
  * the browser never downloads the whole table.
  */
-export function useInfiniteSales(range: SalesRange, term: string) {
+export function useInfiniteSales(range: SalesRange, term: string, saleId: string | null = null) {
   const t = sanitizeTerm(term)
   return useInfiniteQuery({
-    queryKey: [...KEY, 'paged', range, t],
+    queryKey: [...KEY, 'paged', range, t, saleId],
     // A CURSOR, not an offset. With OFFSET, a sale rung up while the cashier is
     // reading page 2 shifts every later row down by one, so they see the same
     // invoice twice and one goes missing. Two registers selling at once makes
@@ -305,14 +306,15 @@ export function useInfiniteSales(range: SalesRange, term: string) {
       let q = supabase
         .from('sales')
         .select(
-          'id, invoice_no, customer_id, user_id, total_amount, discount, net_amount, amount_paid, payment_method, order_date, delivery_date, doctor_name, lab_status, rx_image_path, frame_image_path, users(full_name, username), customers(name)',
+          'id, invoice_no, customer_id, user_id, total_amount, discount, net_amount, amount_paid, payment_method, order_date, delivery_date, doctor_name, lab_status, rx_image_path, frame_image_path, voided_at, void_reason, users(full_name, username), customers(name)',
           { count: 'exact' },
         )
         .order('order_date', { ascending: false })
         // Deterministic tiebreak, so "page 2" is the same page 2 on every fetch.
         .order('id', { ascending: false })
 
-      if (range === 'today') q = q.gte('order_date', `${localDate()}T00:00:00`)
+      if (saleId) q = q.eq('id', saleId)
+      else if (range === 'today') q = q.gte('order_date', `${localDate()}T00:00:00`)
       else if (range === 'month') q = q.gte('order_date', `${localDate().slice(0, 8)}01T00:00:00`)
 
       if (cursor) {
@@ -324,7 +326,7 @@ export function useInfiniteSales(range: SalesRange, term: string) {
         )
       }
 
-      if (t) {
+      if (t && !saleId) {
         const { data: custs } = await supabase
           .from('customers')
           .select('id')
@@ -344,14 +346,13 @@ export function useInfiniteSales(range: SalesRange, term: string) {
       if (error) throw error
       return { rows: data ?? [], count: count ?? 0 }
     },
-    // `last` (the newest page) is unused: the walk stops on a SHORT page, not on a
-    // running count, so only `all` matters here. The count cannot be trusted for
+    // The walk stops on a SHORT final page, not on the accumulated count. The count cannot be trusted for
     // this - it is taken AFTER the search filter, so it can disagree with a cursor
     // walk that also filters server-side, and using it yields either an empty
     // extra page or an infinite walk. A short page is an honest end-of-data.
     getNextPageParam: (_last, all) => {
       const rows = all.flatMap((p) => p.rows)
-      if (rows.length < SALES_PAGE) return undefined
+      if (_last.rows.length < SALES_PAGE) return undefined
       const lastRow = rows[rows.length - 1]
       if (!lastRow?.order_date) return undefined
       return { order_date: lastRow.order_date, id: lastRow.id }
@@ -360,9 +361,9 @@ export function useInfiniteSales(range: SalesRange, term: string) {
 }
 
 /** Paged lab feed: only orders that have a lab status, filtered in Postgres. */
-export function useInfiniteLabSales(status: string) {
+export function useInfiniteLabSales(status: string, saleId: string | null = null) {
   return useInfiniteQuery({
-    queryKey: [...KEY, 'lab', status],
+    queryKey: [...KEY, 'lab', status, saleId],
     initialPageParam: 0,
     queryFn: async ({ pageParam }): Promise<{ rows: Sale[]; count: number }> => {
       const offset = (pageParam as number) * SALES_PAGE
@@ -373,9 +374,12 @@ export function useInfiniteLabSales(status: string) {
           { count: 'exact' },
         )
         .not('lab_status', 'is', null)
+        .is('voided_at', null)
         .order('order_date', { ascending: false })
         .range(offset, offset + SALES_PAGE - 1)
-      if (status !== 'All') q = q.eq('lab_status', status)
+      if (saleId) q = q.eq('id', saleId)
+      if (status === 'Pending') q = q.in('lab_status', ['Not Started','In Lab','In Progress'])
+      else if (status !== 'All') q = q.eq('lab_status', status)
       const { data, error, count } = await q.returns<Sale[]>()
       if (error) throw error
       return { rows: data ?? [], count: count ?? 0 }
@@ -780,6 +784,7 @@ export function useCreateSale() {
       throw lastError
     },
     onSuccess: () => {
+      void invalidateSales(qc)
       qc.invalidateQueries({ queryKey: KEY })
       qc.invalidateQueries({ queryKey: ['inventory'] })
     },
@@ -956,6 +961,7 @@ export function useUpdateSaleFull() {
       return sale
     },
     onSuccess: () => {
+      void invalidateSales(qc)
       qc.invalidateQueries({ queryKey: KEY })
       qc.invalidateQueries({ queryKey: ['inventory'] })
       qc.invalidateQueries({ queryKey: ['customer-orders'] })
@@ -967,13 +973,10 @@ export function useUpdateLabStatus() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: async ({ id, status }: { id: string; status: string }) => {
-      const { error } = await supabase
-        .from('sales')
-        .update({ lab_status: status })
-        .eq('id', id)
+      const { error } = await supabase.rpc('set_lab_status', { p_sale: id, p_status: status })
       if (error) throw error
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: KEY }),
+    onSuccess: () => invalidateSales(qc),
   })
 }
 
@@ -998,7 +1001,7 @@ export function useSetOrderImage() {
       const { error } = await supabase.from('sales').update(patch).eq('id', saleId)
       if (error) throw error
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: KEY }),
+    onSuccess: () => invalidateSales(qc),
   })
 }
 
@@ -1137,10 +1140,11 @@ export function useUpdateSale() {
       void _d
       void _n
       void _a
-      const { error } = await supabase.from('sales').update(clean).eq('id', id)
+      const { error } = await supabase.from('sales').update(clean).eq('id', id).select('id').single()
       if (error) throw error
     },
     onSuccess: (_data, vars) => {
+      void invalidateSales(qc)
       qc.invalidateQueries({ queryKey: KEY })
       qc.invalidateQueries({ queryKey: ['customer-orders'] })
       void vars
@@ -1180,10 +1184,11 @@ export function useVoidSale() {
       return data as Sale
     },
     onSuccess: (voided) => {
+      void invalidateSales(qc)
       qc.invalidateQueries({ queryKey: KEY })
       qc.invalidateQueries({ queryKey: ['inventory'] })
       qc.invalidateQueries({ queryKey: ['customer-orders'] })
-      qc.invalidateQueries({ queryKey: ['sale-payments'] })
+      qc.invalidateQueries({ queryKey: ['sale_payments'] })
       // A voided invoice's photos are dead weight in the bucket. The DB cannot
       // reach the storage API, so this is the client's job - and it is best
       // effort: a failed delete must never turn a successful void into an error.
@@ -1230,6 +1235,7 @@ export function useAddStandalonePrescription() {
       })
     },
     onSuccess: () => {
+      void invalidateSales(qc)
       qc.invalidateQueries({ queryKey: KEY })
       qc.invalidateQueries({ queryKey: ['customer-orders'] })
       qc.invalidateQueries({ queryKey: ['past_examinations'] })

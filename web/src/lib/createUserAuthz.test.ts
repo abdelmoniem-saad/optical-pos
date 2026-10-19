@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest'
 // 	sc -b, so these rules stay type-checked with the rest of the app.
 import {
   authorizeCreateUser,
+  rpcValue,
   type CreateUserCaller,
 } from '../../../supabase/functions/create-user/authz'
 
@@ -39,6 +40,11 @@ const req = { username: 'newperson', password: 'secret123' }
 const opts = { domain: 'lensypos.local' }
 
 describe('authorizeCreateUser', () => {
+  it('unwraps false authority values instead of treating response envelopes as truthy', () => {
+    expect(rpcValue({ data: false, error: null })).toBe(false)
+    expect(() => rpcValue({ data: null, error: { message: 'denied' } })).toThrow('denied')
+    expect(authorizeCreateUser(manager, { ...req, username: 'superadmin@other.test' }, opts).ok).toBe(false)
+  })
   it('lets a manager create a login in their own store', () => {
     const d = authorizeCreateUser(manager, req, opts)
     expect(d.ok).toBe(true)
