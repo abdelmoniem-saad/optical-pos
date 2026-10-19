@@ -24,6 +24,15 @@ short on purpose: an item here is a decision with a reason, not a task list.
 
 ## Known, measured, not yet acted on
 
+- **Production security-advisor follow-up (2026-10-19).** The connected project
+  reports anonymous access to the legacy `staff_id_problems` auth diagnostic
+  view, missing RLS on `contact_lens_types`, and mutable search paths on seven
+  existing functions. Review and restrict these with regression tests in the
+  next database hardening change. The advisor also flags executable definer
+  functions; inspect their internal authorization rather than treating every
+  intentional RPC as an exposure. This release does not claim a clean security
+  audit or strict per-module read isolation.
+
 - **`platform_report_window` is the one slow report.** Measured at 50k-row scale
   (`npm run bench:db`): every single-store report is 20–55 ms, but the 025
   cross-store report is ~305 ms and touches ~151k shared buffers for a ONE-DAY

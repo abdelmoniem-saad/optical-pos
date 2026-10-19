@@ -56,6 +56,8 @@ as test data. Record exact validation results and any deployment blockers here.
 2. Update `web/supabase/schema.fingerprint` from the trusted CI step summary,
    as required by `DEFERRED.md`. The old fingerprint is intentionally unchanged;
    this branch must not be described as fully CI-green before that step.
+   Release update: the fingerprint is now recorded from PR #1 CI run 39321408088;
+   production migration 029 and create-user version 5 were verified via Supabase.
 3. Define and implement data visibility separately from screen/action access.
    Current module View grants control navigation and prerequisite actions;
    existing same-store read policies and some reporting/search RPCs still expose

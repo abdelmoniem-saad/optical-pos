@@ -1,7 +1,11 @@
 # Release 029
 
-Production Supabase has NOT been changed by this work. Tests ran in disposable
-local Postgres databases. Pushing code does not apply SQL or deploy Edge Functions.
+Release status (2026-10-19): production migration 029 is applied and the deployed
+create-user function (version 5) contains the updated index.ts and authz.ts.
+Both were verified through the connected Supabase project. The instructions below
+are retained for reference; do not repeat completed deployment steps.
+Tests ran in disposable local Postgres databases. Pushing code does not apply
+SQL or deploy Edge Functions.
 
 ## Supabase SQL Editor
 
@@ -48,7 +52,9 @@ Migration 029 changes the expected schema fingerprint. After a CI run for this
 change, copy its stable `actual` hash from the **CI step summary** into
 `web/supabase/schema.fingerprint`, commit it, and rerun CI. Do not use an old
 artifact or the live schema-baseline workflow for this hash. See `DEFERRED.md`.
-The fingerprint remains unchanged until that trusted result is available.
+The 029 fingerprint was recorded from CI run 39321408088 (PR #1), whose migration
+tests passed and whose fingerprint was stable across two calculations. The run
+summary's reported actual value was used, not a downloaded artifact.
 
 Local verification: production build, 260 frontend tests, 365 pgTAP assertions.
 Module View currently controls screens and prerequisite actions; strict isolation
