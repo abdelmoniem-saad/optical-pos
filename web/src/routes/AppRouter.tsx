@@ -1,9 +1,10 @@
 import { lazy, type ReactNode } from 'react'
-import { createBrowserRouter, RouterProvider } from 'react-router-dom'
+import { createBrowserRouter, Navigate, RouterProvider } from 'react-router-dom'
 import { AppLayout } from '../components/AppLayout'
 import { LoginPage } from '../features/auth/LoginPage'
 import { usePermissions } from '../data/permissions'
 import { useI18n } from '../i18n/LanguageContext'
+import { IS_LOCAL, READ_ONLY } from '../lib/config'
 
 // Lazy-load each screen so the initial bundle stays small and navigation only
 // fetches the code for the screen being opened. The login + shell stay eager.
@@ -25,6 +26,7 @@ const StaffPage = named(() => import('../features/staff/StaffPage'), 'StaffPage'
 const SettingsPage = named(() => import('../features/settings/SettingsPage'), 'SettingsPage')
 const MUploadPage = named(() => import('../features/mobile/MUploadPage'), 'MUploadPage')
 const PlatformPage = named(() => import('../features/platform/PlatformPage'), 'PlatformPage')
+const SetupPage = named(() => import('../features/local/SetupPage'), 'SetupPage')
 
 /** Route-level permission gate. Renders a friendly notice instead of the page
  *  when the signed-in user lacks `<resource>.view`. */
@@ -43,6 +45,8 @@ function RequirePermission({ resource, children }: { resource: string; children:
 
 const router = createBrowserRouter([
   { path: '/login', element: <LoginPage /> },
+  // Shop PC first run (local mode): link to the store + initial download.
+  ...(IS_LOCAL ? [{ path: '/setup', element: <SetupPage /> }] : []),
   // Standalone mobile upload page: own minimal layout, own login gate.
   { path: '/m-upload', element: <MUploadPage /> },
   {
@@ -51,7 +55,10 @@ const router = createBrowserRouter([
     children: [
       {
         index: true,
-        element: (
+        // The read-only phone view has no till: it opens on Reports instead.
+        element: READ_ONLY ? (
+          <Navigate to="/reports" replace />
+        ) : (
           <RequirePermission resource="pos">
             <POSPage />
           </RequirePermission>

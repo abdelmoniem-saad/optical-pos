@@ -1,12 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
-import { supabase } from '../lib/supabase'
-import type { Customer, Product, Sale } from '../lib/database.types'
+import { getRepo } from '../lib/repository'
 
-export type SearchResults = {
-  customers: Customer[]
-  products: Product[]
-  sales: Sale[]
-}
+export type { SearchResults } from '../lib/repository'
 
 /** Cross-entity search (customers, products, invoices) - the "giga search"
  *  from the Flet top bar. Runs once the term is >= 2 chars. */
@@ -15,28 +10,6 @@ export function useGlobalSearch(term: string) {
   return useQuery({
     queryKey: ['global-search', q],
     enabled: q.length >= 2,
-    queryFn: async (): Promise<SearchResults> => {
-      const [c, p, s] = await Promise.all([
-        supabase
-          .from('customers')
-          .select('*')
-          .or(`name.ilike.%${q}%,phone.ilike.%${q}%`)
-          .limit(6)
-          .returns<Customer[]>(),
-        supabase
-          .from('inventory')
-          .select('*')
-          .or(`name.ilike.%${q}%,sku.ilike.%${q}%`)
-          .limit(6)
-          .returns<Product[]>(),
-        supabase
-          .from('sales')
-          .select('*')
-          .ilike('invoice_no', `%${q}%`)
-          .limit(6)
-          .returns<Sale[]>(),
-      ])
-      return { customers: c.data ?? [], products: p.data ?? [], sales: s.data ?? [] }
-    },
+    queryFn: () => getRepo().globalSearch(q),
   })
 }

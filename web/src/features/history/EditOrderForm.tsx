@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { useI18n } from '../../i18n/LanguageContext'
 import { useUpdateSale, LAB_STATUSES } from '../../data/sales'
 import {
@@ -30,6 +31,7 @@ const small =
  */
 export function EditOrderForm({ sale, onDone }: { sale: Sale; onDone: () => void }) {
   const { t } = useI18n()
+  const qc = useQueryClient()
   const update = useUpdateSale()
   const replaceExams = useReplaceOrderExaminations(sale.id)
   const examsQ = useOrderExaminations(sale.id)
@@ -98,6 +100,10 @@ export function EditOrderForm({ sale, onDone }: { sale: Sale; onDone: () => void
           oldRows: examsQ.data ?? [],
           newRows: rows,
         })
+        // The repository performs the sync but doesn't own the query cache.
+        qc.invalidateQueries({ queryKey: ['inventory'] })
+        qc.invalidateQueries({ queryKey: ['lens_types'] })
+        qc.invalidateQueries({ queryKey: ['frame_colors'] })
       }
       onDone()
     } catch (e) {

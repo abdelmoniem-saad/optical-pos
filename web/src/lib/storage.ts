@@ -1,8 +1,15 @@
 import { supabase } from './supabase'
+import { IS_LOCAL } from './config'
+import { IMAGES, getAll, putImage, type StoredImage } from './local/db'
+import { localMeta } from './local/state'
 
 // Supabase Storage bucket for prescription/reading images. Create it once in the
 // dashboard (Storage -> New bucket -> name "prescriptions", Public) - see
 // web/supabase/SETUP.md.
+//
+// Local mode (shop PC): uploads are kept in IndexedDB and queued; the sync
+// engine pushes them to the same bucket path later. The PC shows its own copy
+// (blob URL) so photos display with no internet.
 const BUCKET = 'prescriptions'
 
 /** Upload a prescription image and return its storage path. */
@@ -17,8 +24,21 @@ export async function uploadPrescriptionImage(file: File): Promise<string> {
   return path
 }
 
-/** Public URL for a stored prescription image (bucket must be public). */
+// path -> blob URL for images this PC holds locally (local mode only).
+const localUrls = new Map<string, string>()
+
+/** Load the PC's stored photos so they render offline. Call once at startup. */
+export async function initLocalImages(): Promise<void> {
+  for (const img of await getAll<StoredImage>(IMAGES)) {
+    if (!localUrls.has(img.path)) localUrls.set(img.path, URL.createObjectURL(img.blob))
+  }
+}
+
+/** URL for a stored prescription image: the PC's local copy when it has one,
+ *  else the public bucket URL (bucket must be public). */
 export function prescriptionImageUrl(path: string): string {
+  const local = localUrls.get(path)
+  if (local) return local
   return supabase.storage.from(BUCKET).getPublicUrl(path).data.publicUrl
 }
 
@@ -53,11 +73,25 @@ export async function uploadOrderImage(
   slot: 'rx' | 'frame',
   storeId: string | null | undefined,
 ): Promise<string> {
-  if (!storeId) throw new Error('no-store')
+  const store = storeId ?? (IS_LOCAL ? localMeta().storeId : null)
+  if (!store) throw new Error('no-store')
   const safe = invoiceNo.replace(/[^\w-]/g, '') || 'order'
   const compressed = await downscaleImage(file)
   const ext = (compressed.name.split('.').pop() || 'jpg').toLowerCase()
-  const path = `store/${storeId}/orders/${safe}-${slot}-${Date.now().toString(36)}.${ext}`
+  const path = `store/${store}/orders/${safe}-${slot}-${Date.now().toString(36)}.${ext}`
+  if (IS_LOCAL) {
+    // Same path the cloud will use; the sync engine uploads it when online.
+    await putImage({
+      path,
+      blob: compressed,
+      contentType: compressed.type || 'image/jpeg',
+      createdAt: new Date().toISOString(),
+      uploaded: 0,
+    })
+    localUrls.set(path, URL.createObjectURL(compressed))
+    void import('./local/sync').then((m) => m.syncNow())
+    return path
+  }
   const { error } = await supabase.storage.from(BUCKET).upload(path, compressed, {
     cacheControl: '3600',
     upsert: false,
@@ -72,28 +106,61 @@ export async function removeOrderImage(path: string): Promise<void> {
   if (error) throw error
 }
 
-/**
- * Find mobile-uploaded photos for an invoice that were stored BEFORE the sale
- * row existed (pre-checkout QR flow uploads to storage only, keyed by the
- * invoice number). Checkout adopts them into the sales columns.
- */
-export async function findOrderImages(
+function latestBySlot(names: string[], safe: string, dir: string) {
+  const bySlot = (slot: 'rx' | 'frame'): string | undefined => {
+    const files = names.filter((n) => n.includes(`${safe}-${slot}-`)).sort()
+    const last = files[files.length - 1]
+    return last ? `${dir}/${last}` : undefined
+  }
+  return { rx: bySlot('rx'), frame: bySlot('frame') }
+}
+
+/** Photos for an invoice in CLOUD storage (uploaded from the phone). */
+export async function findCloudOrderImages(
   storeId: string,
   invoiceNo: string,
 ): Promise<{ rx?: string; frame?: string }> {
   const safe = invoiceNo.replace(/[^\w-]/g, '') || 'order'
   const dir = `store/${storeId}/orders`
-  const { data, error } = await supabase.storage
-    .from(BUCKET)
-    .list(dir, { limit: 30, search: `${safe}-` })
+  const { data, error } = await supabase.storage.from(BUCKET).list(dir, { limit: 30, search: `${safe}-` })
   if (error || !data) return {}
-  const bySlot = (slot: 'rx' | 'frame'): string | undefined => {
-    const files = data
-      .filter((f) => f.name.includes(`${safe}-${slot}-`))
-      .map((f) => f.name)
-      .sort()
-    const last = files[files.length - 1]
-    return last ? `${dir}/${last}` : undefined
+  return latestBySlot(
+    data.map((f) => f.name),
+    safe,
+    dir,
+  )
+}
+
+/**
+ * Find mobile-uploaded photos for an invoice that were stored BEFORE the sale
+ * row existed (pre-checkout QR flow uploads to storage only, keyed by the
+ * invoice number). Checkout adopts them into the sales columns.
+ * On the shop PC, photos held locally count too, and the cloud is only asked
+ * when online.
+ */
+export async function findOrderImages(
+  storeId: string,
+  invoiceNo: string,
+): Promise<{ rx?: string; frame?: string }> {
+  if (!IS_LOCAL) return findCloudOrderImages(storeId, invoiceNo)
+  const store = storeId || localMeta().storeId || ''
+  const safe = invoiceNo.replace(/[^\w-]/g, '') || 'order'
+  const dir = `store/${store}/orders`
+  const local = latestBySlot(
+    [...localUrls.keys()].filter((p) => p.startsWith(`${dir}/`)).map((p) => p.slice(dir.length + 1)),
+    safe,
+    dir,
+  )
+  if (local.rx && local.frame) return local
+  if (!navigator.onLine || !store) return local
+  try {
+    // A flaky connection must never hold up checkout: give the cloud 4s.
+    const cloud = await Promise.race([
+      findCloudOrderImages(store, invoiceNo),
+      new Promise<{ rx?: string; frame?: string }>((resolve) => setTimeout(() => resolve({}), 4000)),
+    ])
+    return { rx: local.rx ?? cloud.rx, frame: local.frame ?? cloud.frame }
+  } catch {
+    return local
   }
-  return { rx: bySlot('rx'), frame: bySlot('frame') }
 }

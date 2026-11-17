@@ -1,14 +1,14 @@
 import { useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { supabase } from '../../lib/supabase'
+import { getRepo } from '../../lib/repository'
 import { useAuth } from '../../lib/auth'
 import { useI18n } from '../../i18n/LanguageContext'
 import { useIsAdmin } from '../../data/staff'
 import { useSetOrderImage } from '../../data/sales'
 import { prescriptionImageUrl, uploadOrderImage } from '../../lib/storage'
 import { useStoreId } from '../../lib/licensing'
-import type { Sale } from '../../lib/database.types'
+import { READ_ONLY } from '../../lib/config'
 
 /**
  * Mobile upload page: open it on the phone (or scan the QR shown on the
@@ -32,15 +32,7 @@ export function MUploadPage() {
   const saleQ = useQuery({
     queryKey: ['m-order', inv],
     enabled: !!session && inv.length >= 3,
-    queryFn: async (): Promise<Sale | null> => {
-      const { data, error } = await supabase
-        .from('sales')
-        .select('id, invoice_no, rx_image_path, frame_image_path, order_date')
-        .eq('invoice_no', inv)
-        .maybeSingle<Sale>()
-      if (error) throw error
-      return data
-    },
+    queryFn: () => getRepo().getSaleByInvoiceNo(inv),
   })
 
   const sale = saleQ.data ?? null
@@ -58,7 +50,9 @@ export function MUploadPage() {
       const path = await uploadOrderImage(file, inv, slot, storeId)
       setUploaded((prev) => ({ ...prev, [slot]: path }))
       // Confirmed order? Link directly. Otherwise checkout adopts the file.
-      if (sale) {
+      // Read-only view: never write the sale row - the shop computer adopts
+      // the photo from storage on its next sync.
+      if (sale && !READ_ONLY) {
         await setImg.mutateAsync({ saleId: sale.id, slot, path })
         await qc.invalidateQueries({ queryKey: ['m-order', inv] })
       }
@@ -102,16 +96,19 @@ export function MUploadPage() {
             {String(saleQ.error)}
           </div>
         )}
-        {inv.length >= 3 && !saleQ.isFetching && !sale && (
-          <p className="text-sm text-faint">{t('Invoice not found')}</p>
-        )}
-
-        {sale && (
+        {/* Shown for unconfirmed invoices too: the order may still be open on
+            the shop computer (or not synced yet) - checkout adopts the photos. */}
+        {(sale || (inv.length >= 3 && !saleQ.isFetching && !saleQ.isError)) && (
           <div className="rounded-xl border border-line bg-white p-4">
             <div className="mb-3 flex items-center justify-between">
-              <span className="rcpt-num font-semibold text-brand-dark">#{sale.invoice_no}</span>
-              <span className="text-xs text-faint">{(sale.order_date ?? '').slice(0, 10)}</span>
+              <span className="rcpt-num font-semibold text-brand-dark">#{sale?.invoice_no ?? inv}</span>
+              <span className="text-xs text-faint">{(sale?.order_date ?? '').slice(0, 10)}</span>
             </div>
+            {READ_ONLY && Object.keys(uploaded).length > 0 && (
+              <p className="mb-3 rounded-lg bg-success-bg px-3 py-2 text-xs text-success">
+                {t('Photo saved. It attaches to the order on the shop computer automatically.')}
+              </p>
+            )}
 
             {err && (
               <div className="mb-3 rounded-lg bg-warning-bg px-3 py-2 text-sm text-warning">{err}</div>

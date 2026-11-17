@@ -66,7 +66,11 @@ export function enterMovesNext(e: KeyboardEvent<HTMLElement>): void {
 
   const target = e.target
   if (target instanceof HTMLInputElement) {
-    if (target.disabled || target.readOnly) return
+    if (target.disabled) return
+    // Picker fields (readonly + data-picker) DO take focus on Enter - their
+    // onFocus opens the selection popup.
+    const isPicker = target.dataset?.picker === '1'
+    if (target.readOnly && !isPicker) return
     const type = target.type
     if (type === 'hidden' || type === 'file' || type === 'button' || type === 'submit') return
   } else if (target instanceof HTMLSelectElement) {

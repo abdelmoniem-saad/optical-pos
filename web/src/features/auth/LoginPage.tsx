@@ -1,6 +1,8 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Navigate, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../lib/auth'
+import { IS_LOCAL } from '../../lib/config'
+import { useLocalMeta } from '../../lib/local/state'
 import { useI18n } from '../../i18n/LanguageContext'
 
 /** Real Supabase Auth login. Staff enter a username; the AuthProvider maps it
@@ -13,6 +15,10 @@ export function LoginPage() {
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  const localMeta = useLocalMeta()
+
+  // Shop PC not linked to its store yet: run first-time setup instead.
+  if (IS_LOCAL && !localMeta.provisioned) return <Navigate to="/setup" replace />
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -44,6 +50,7 @@ export function LoginPage() {
           </div>
           <h1 className="text-xl font-semibold text-brand-dark">LensyPOS</h1>
           <p className="text-sm text-muted">{t('Sign in to continue')}</p>
+          {IS_LOCAL && <p className="mt-1 text-xs text-faint">{t('Works without internet on this computer.')}</p>}
         </div>
 
         {error && (

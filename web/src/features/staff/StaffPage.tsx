@@ -17,7 +17,60 @@ import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../lib/auth'
 import { useI18n } from '../../i18n/LanguageContext'
 import { usePermissions } from '../../data/permissions'
-import type { NamedRow } from '../../data/metadata'
+import { getRepo } from '../../lib/repository'
+import { IS_LOCAL, READ_ONLY } from '../../lib/config'
+import { pullNewStaff } from '../../lib/local/sync'
+import { setOfflinePassword } from '../../lib/local/localAuth'
+import type { User } from '../../lib/database.types'
+
+/** Shop PC: let an admin set the password a person uses to sign in on THIS
+ *  computer (e.g. new staff who never signed in here while online). */
+function OfflinePasswordButton({ user }: { user: User }) {
+  const { t } = useI18n()
+  const [open, setOpen] = useState(false)
+  const [pw, setPw] = useState('')
+  const [err, setErr] = useState<string | null>(null)
+  const [done, setDone] = useState(false)
+
+  async function save() {
+    setErr(null)
+    try {
+      await setOfflinePassword(user, pw)
+      setDone(true)
+      setOpen(false)
+      setPw('')
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e))
+    }
+  }
+
+  if (!open) {
+    return (
+      <button onClick={() => setOpen(true)} className="text-xs text-brand hover:underline">
+        {done ? `✓ ${t('Set')}` : t('Set password')}
+      </button>
+    )
+  }
+  return (
+    <div className="flex items-center justify-center gap-1">
+      <input
+        type="password"
+        autoFocus
+        value={pw}
+        onChange={(e) => setPw(e.target.value)}
+        onKeyDown={(e) => e.key === 'Enter' && void save()}
+        className="w-28 rounded-md border border-line px-2 py-1 text-xs outline-none focus:border-brand"
+      />
+      <button onClick={() => void save()} className="rounded-md bg-brand px-2 py-1 text-xs text-white">
+        {t('Save')}
+      </button>
+      <button onClick={() => setOpen(false)} className="px-1 text-xs text-muted">
+        ✕
+      </button>
+      {err && <span className="text-xs text-warning">{t(err)}</span>}
+    </div>
+  )
+}
 
 function AddUserForm({ onClose, storeId }: { onClose: () => void; storeId: string | null }) {
   const { t } = useI18n()
@@ -33,6 +86,10 @@ function AddUserForm({ onClose, storeId }: { onClose: () => void; storeId: strin
     setErr(null)
     if (!f.username.trim() || f.password.length < 6) {
       setErr(t('Username is required') + ' · ' + t('Password must be at least 6 characters'))
+      return
+    }
+    if (IS_LOCAL && !navigator.onLine) {
+      setErr(t('Adding staff needs an internet connection.'))
       return
     }
     setBusy(true)
@@ -60,6 +117,14 @@ function AddUserForm({ onClose, storeId }: { onClose: () => void; storeId: strin
         throw new Error(detail)
       }
       if (data?.error) throw new Error(data.error)
+      if (IS_LOCAL) {
+        // The account was created in the cloud: bring its staff row down to
+        // this PC and let the new person sign in here offline right away.
+        await pullNewStaff()
+        const uname = f.username.trim().toLowerCase()
+        const created = (await getRepo().getUsers()).find((u) => u.username.toLowerCase() === uname)
+        if (created) await setOfflinePassword(created, f.password)
+      }
       await qc.invalidateQueries({ queryKey: ['users'] })
       onClose()
     } catch (e) {
@@ -296,14 +361,14 @@ function AccessControl() {
     const name = newPosition.trim()
     if (!name) return
     setErr(null)
-    const { data, error } = await supabase.from('roles').insert({ name }).select().single<NamedRow>()
-    if (error) {
-      setErr(error.message)
-      return
+    try {
+      const role = await getRepo().addRole(name)
+      await qc.invalidateQueries({ queryKey: ['roles'] })
+      setNewPosition('')
+      setSelectedRoleId(role.id)
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e))
     }
-    await qc.invalidateQueries({ queryKey: ['roles'] })
-    setNewPosition('')
-    setSelectedRoleId(data.id)
   }
 
   const selCls = 'rounded-lg border border-line bg-white px-3 py-2 text-sm outline-none focus:border-brand'
@@ -443,7 +508,7 @@ export function StaffPage() {
     <div className="mx-auto max-w-5xl p-6">
       <div className="mb-1 flex items-center justify-between">
         <h1 className="text-2xl font-semibold text-brand-dark">{t('Staff')}</h1>
-        {canEditStaff && (
+        {canEditStaff && !READ_ONLY && (
           <button onClick={() => setAdding(true)} className="rounded-lg bg-brand px-4 py-2.5 font-semibold text-white">
             {t('+ Add Staff')}
           </button>
@@ -475,6 +540,7 @@ export function StaffPage() {
                   <th className="px-4 py-2">{t('Full Name')}</th>
                   <th className="px-4 py-2">{t('Role')}</th>
                   <th className="px-4 py-2 text-center">{t('Active')}</th>
+                  {IS_LOCAL && canEditStaff && <th className="px-4 py-2 text-center">{t('Offline sign-in')}</th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-line/40">
@@ -513,6 +579,11 @@ export function StaffPage() {
                         <span className="text-success">{t('Active')}</span>
                       )}
                     </td>
+                    {IS_LOCAL && canEditStaff && (
+                      <td className="px-4 py-2 text-center">
+                        <OfflinePasswordButton user={u} />
+                      </td>
+                    )}
                   </tr>
                 ))}
               </tbody>

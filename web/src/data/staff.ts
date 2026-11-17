@@ -1,48 +1,18 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { supabase } from '../lib/supabase'
+import { getRepo } from '../lib/repository'
 import { useAuth } from '../lib/auth'
-import type { User } from '../lib/database.types'
 
-/** Staff users with their role joined. Mirrors repo.get_users().
+// Re-exported so existing imports from './staff' keep working.
+export type { User } from '../lib/database.types'
+
+/** Staff users with their role joined. Mirrors repo.getUsers().
  *  Note: creating/editing auth users is done via the Supabase dashboard or a
  *  service-role Edge Function (see supabase/SETUP.md) - not from the browser. */
 export function useUsers() {
   return useQuery({
     queryKey: ['users'],
-    queryFn: async (): Promise<User[]> => {
-      const { data, error } = await supabase
-        .from('users')
-        .select('*, roles(*)')
-        .order('username')
-        .returns<User[]>()
-      if (error) throw error
-      return data ?? []
-    },
+    queryFn: () => getRepo().getUsers(),
   })
-}
-
-/**
- * Resolve the signed-in auth user's public.users row.
- * Tries, in order:
- *   1. users.id === auth UID            (the convention for rows we create)
- *   2. users.username === email local   (links LEGACY desktop-era rows - e.g.
- *      the seeded 'admin' - to their auth account without touching their PK)
- * Returns null when neither matches.
- */
-async function queryStaffRow(uid: string, username: string): Promise<User | null> {
-  const { data: byId } = await supabase
-    .from('users')
-    .select('*, roles(*)')
-    .eq('id', uid)
-    .maybeSingle<User>()
-  if (byId) return byId
-  if (!username) return null
-  const { data: byName } = await supabase
-    .from('users')
-    .select('*, roles(*)')
-    .eq('username', username)
-    .maybeSingle<User>()
-  return byName ?? null
 }
 
 /** Fetches the currently signed-in staff user (with role joined). Returns
@@ -52,10 +22,7 @@ export function useCurrentUser() {
   return useQuery({
     queryKey: ['current-user', user?.id ?? null, user?.email ?? null],
     enabled: !!user?.id,
-    queryFn: async (): Promise<User | null> => {
-      const uname = user!.email?.split('@')[0] ?? ''
-      return queryStaffRow(user!.id, uname)
-    },
+    queryFn: () => getRepo().getCurrentUser(user!.id, user!.email ?? null),
   })
 }
 
@@ -66,12 +33,7 @@ export function useCurrentUser() {
  * even on databases migrated from the desktop version.
  */
 export async function resolveStaffUserId(): Promise<string | null> {
-  const { data } = await supabase.auth.getUser()
-  const uid = data.user?.id
-  if (!uid) return null
-  const uname = data.user?.email?.split('@')[0] ?? ''
-  const row = await queryStaffRow(uid, uname)
-  return row?.id ?? null
+  return getRepo().resolveStaffUserId()
 }
 
 /** True when the signed-in user has a privileged role (Admin/Owner).
@@ -86,10 +48,8 @@ export function useIsAdmin(): boolean {
 export function useUpdateUserRole() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: async ({ id, role_id }: { id: string; role_id: string | null }) => {
-      const { error } = await supabase.from('users').update({ role_id }).eq('id', id)
-      if (error) throw error
-    },
+    mutationFn: ({ id, role_id }: { id: string; role_id: string | null }) =>
+      getRepo().updateUserRole(id, role_id),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['users'] }),
   })
 }

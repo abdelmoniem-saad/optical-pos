@@ -3,6 +3,8 @@ import { useSettings, useSetSetting } from '../../data/settings'
 import { useI18n } from '../../i18n/LanguageContext'
 import { OpticalSettings } from './OpticalSettings'
 import { usePermissions } from '../../data/permissions'
+import { IS_LOCAL } from '../../lib/config'
+import { BackupPanel } from '../local/BackupPanel'
 
 const FIELDS: { key: string; label: string; multiline?: boolean }[] = [
   { key: 'shop_name', label: 'Shop Name' },
@@ -78,6 +80,8 @@ export function SettingsPage() {
       <div className="mt-8">
         <OpticalSettings />
       </div>
+
+      {IS_LOCAL && perms.isAdmin && <BackupPanel />}
     </div>
   )
 }

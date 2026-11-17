@@ -6,6 +6,18 @@
       "runtimeExecutable": "npm",
       "runtimeArgs": ["--prefix", "web", "run", "dev"],
       "autoPort": true
+    },
+    {
+      "name": "lensy-web supabase (node)",
+      "runtimeExecutable": "C:/Program Files/RStudio/resources/app/bin/node/node.exe",
+      "runtimeArgs": ["web/node_modules/vite/bin/vite.js", "web", "--port", "5198", "--strictPort"],
+      "port": 5198
+    },
+    {
+      "name": "lensy-web local-mode test (node)",
+      "runtimeExecutable": "C:/Program Files/RStudio/resources/app/bin/node/node.exe",
+      "runtimeArgs": ["web/node_modules/vite/bin/vite.js", "web", "--port", "5199", "--strictPort", "--mode", "localtest"],
+      "port": 5199
     }
   ]
 }

@@ -5,7 +5,7 @@ import {
   type ReactNode,
 } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { supabase } from '../lib/supabase'
+import { getRepo } from '../lib/repository'
 import { useAuth } from '../lib/auth'
 import { useCurrentUser } from './staff'
 
@@ -66,17 +66,7 @@ export function useRoleGrants(roleId: string | null) {
   return useQuery({
     queryKey: ['role_permissions', roleId],
     enabled: !!roleId,
-    queryFn: async (): Promise<string[]> => {
-      const { data, error } = await supabase
-        .from('role_permissions')
-        .select('permissions(code)')
-        .eq('role_id', roleId as string)
-        .returns<{ permissions: { code: string } | null }[]>()
-      if (error) throw error
-      return (data ?? [])
-        .map((r) => r.permissions?.code)
-        .filter((c): c is string => !!c)
-    },
+    queryFn: () => getRepo().getRoleGrants(roleId as string),
   })
 }
 
@@ -85,49 +75,16 @@ export function useUserOverrides(userId: string | null) {
   return useQuery({
     queryKey: ['user_permissions', userId],
     enabled: !!userId,
-    queryFn: async (): Promise<Record<string, boolean>> => {
-      const { data, error } = await supabase
-        .from('user_permissions')
-        .select('allow, permissions(code)')
-        .eq('user_id', userId as string)
-        .returns<{ allow: boolean | null; permissions: { code: string } | null }[]>()
-      if (error) throw error
-      const map: Record<string, boolean> = {}
-      for (const r of data ?? []) {
-        const c = r.permissions?.code
-        if (c) map[c] = r.allow !== false
-      }
-      return map
-    },
+    queryFn: () => getRepo().getUserOverrides(userId as string),
   })
 }
 
 // ---- mutations -----------------------------------------------------------
 
-async function permissionIdByCode(codeStr: string): Promise<string> {
-  const { data, error } = await supabase
-    .from('permissions')
-    .select('id')
-    .eq('code', codeStr)
-    .maybeSingle<{ id: string }>()
-  if (error) throw error
-  if (!data) {
-    // Unknown code (migration 004 not run / newer app) - create it on the fly.
-    const { data: created, error: insErr } = await supabase
-      .from('permissions')
-      .insert({ code: codeStr })
-      .select()
-      .single<{ id: string }>()
-    if (insErr) throw insErr
-    return created.id
-  }
-  return data.id
-}
-
 export function useToggleRoleGrant() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: async ({
+    mutationFn: ({
       roleId,
       permCode,
       granted,
@@ -135,25 +92,7 @@ export function useToggleRoleGrant() {
       roleId: string
       permCode: string
       granted: boolean
-    }) => {
-      const pid = await permissionIdByCode(permCode)
-      if (granted) {
-        const { error } = await supabase
-          .from('role_permissions')
-          .upsert(
-            { role_id: roleId, permission_id: pid },
-            { onConflict: 'role_id,permission_id' },
-          )
-        if (error) throw error
-      } else {
-        const { error } = await supabase
-          .from('role_permissions')
-          .delete()
-          .eq('role_id', roleId)
-          .eq('permission_id', pid)
-        if (error) throw error
-      }
-    },
+    }) => getRepo().toggleRoleGrant(roleId, permCode, granted),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ['role_permissions'] })
       void qc.invalidateQueries({ queryKey: ['my-permissions'] })
@@ -168,7 +107,7 @@ export function useToggleRoleGrant() {
 export function useSetUserOverride() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: async ({
+    mutationFn: ({
       userId,
       permCode,
       allow,
@@ -176,23 +115,7 @@ export function useSetUserOverride() {
       userId: string
       permCode: string
       allow: boolean | null
-    }) => {
-      const pid = await permissionIdByCode(permCode)
-      if (allow === null) {
-        const { error } = await supabase
-          .from('user_permissions')
-          .delete()
-          .eq('user_id', userId)
-          .eq('permission_id', pid)
-        if (error) throw error
-        return
-      }
-      const { error } = await supabase.from('user_permissions').upsert(
-        { user_id: userId, permission_id: pid, allow },
-        { onConflict: 'user_id,permission_id' },
-      )
-      if (error) throw error
-    },
+    }) => getRepo().setUserOverride(userId, permCode, allow),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ['user_permissions'] })
       void qc.invalidateQueries({ queryKey: ['my-permissions'] })

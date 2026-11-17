@@ -6,7 +6,7 @@ import {
   useRef,
   type ReactNode,
 } from 'react'
-import { supabase } from '../../lib/supabase'
+import { useQueryClient } from '@tanstack/react-query'
 import {
   getNextInvoiceNo,
   useCreateSale,
@@ -14,8 +14,7 @@ import {
   type CartLine,
 } from '../../data/sales'
 import { useAddCustomer, useUpdateCustomer } from '../../data/customers'
-import { resolveStaffUserId } from '../../data/staff'
-import { addMissingOrderMetadata } from '../../data/metadata'
+import { getRepo } from '../../lib/repository'
 import { findOrderImages } from '../../lib/storage'
 import { useStoreId } from '../../lib/licensing'
 import type { Customer, CustomerInsert, Product, Sale } from '../../lib/database.types'
@@ -120,12 +119,42 @@ function reducer(state: State, action: Action): State {
   return { ...state, ...action.patch }
 }
 
-// The New Sale wizard intentionally SURVIVES tab switches: navigating to
-// another tab unmounts this route, so the latest state is mirrored into a
-// module-level snapshot and re-hydrated when the tab is opened again. Every
-// other screen reloads fresh by design; only this wizard continues where it
-// left off. "startNewSale" (receipt dialog) is the explicit way to reset.
+// The New Sale wizard intentionally SURVIVES tab switches AND page reloads
+// (a crash/power cut mid-sale must not lose the order being typed): the latest
+// state is mirrored into a module-level snapshot plus localStorage, and
+// re-hydrated when the tab is opened again. Every other screen reloads fresh
+// by design; only this wizard continues where it left off. "startNewSale"
+// (receipt dialog) is the explicit way to reset.
+const WIZARD_KEY = 'lensy-pos-wizard'
 let memoryState: State | null = null
+
+function loadPersisted(): State | null {
+  try {
+    const raw = localStorage.getItem(WIZARD_KEY)
+    if (!raw) return null
+    const saved = JSON.parse(raw) as Partial<State>
+    // Transient UI flags never survive a reload.
+    return { ...initialState(), ...saved, busy: false, error: null, completed: null }
+  } catch {
+    return null
+  }
+}
+
+function persist(state: State): void {
+  try {
+    if (state.step === 'category' && !state.customer && !state.cartItems.length && !state.examinations.length) {
+      localStorage.removeItem(WIZARD_KEY)
+    } else {
+      const { busy: _b, error: _e, completed: _c, ...rest } = state
+      void _b
+      void _e
+      void _c
+      localStorage.setItem(WIZARD_KEY, JSON.stringify(rest))
+    }
+  } catch {
+    // storage full/blocked - the in-memory snapshot still covers tab switches
+  }
+}
 
 type POSApi = {
   state: State
@@ -169,13 +198,15 @@ type POSApi = {
 const Ctx = createContext<POSApi | undefined>(undefined)
 
 export function POSProvider({ children }: { children: ReactNode }) {
-  const [state, dispatch] = useReducer(reducer, undefined, () => memoryState ?? initialState())
+  const [state, dispatch] = useReducer(reducer, undefined, () => memoryState ?? loadPersisted() ?? initialState())
   const ref = useRef(state)
   ref.current = state
+  const qc = useQueryClient()
 
-  // Mirror every change into the module-level snapshot (tab-switch survival).
+  // Mirror every change into the snapshot (tab switches) and storage (reloads).
   useEffect(() => {
     memoryState = state
+    persist(state)
   }, [state])
 
   const createSale = useCreateSale()
@@ -245,12 +276,8 @@ export function POSProvider({ children }: { children: ReactNode }) {
     let invoiceNo = ref.current.invoiceNo
     if (invoiceNo && !ref.current.savedSale) {
       try {
-        const { data: existing } = await supabase
-          .from('sales')
-          .select('id')
-          .eq('invoice_no', invoiceNo)
-          .limit(1)
-        if (existing && existing.length > 0) {
+        const existing = await getRepo().getSaleByInvoiceNo(invoiceNo)
+        if (existing) {
           invoiceNo = ''
         }
       } catch {
@@ -328,43 +355,7 @@ export function POSProvider({ children }: { children: ReactNode }) {
 
   /** Find an existing Frame product by name, or create a zero-priced one. */
   async function findOrCreateFrame(name: string): Promise<Product | null> {
-    const raw = name.trim()
-    if (!raw) return null
-    // Strip trailing parenthetical details (e.g. "RayBan RB2140 (Black)" -> "RayBan RB2140")
-    const clean = raw.split(' (')[0].trim() || raw
-    try {
-      const { data: existing } = await supabase
-        .from('inventory')
-        .select('*')
-        .eq('category', 'Frame')
-        .ilike('name', clean)
-        .limit(1)
-        .returns<Product[]>()
-      if (existing && existing.length) return existing[0]
-
-      // Check across any category before attempting creation
-      const { data: anyExisting } = await supabase
-        .from('inventory')
-        .select('*')
-        .ilike('name', clean)
-        .limit(1)
-        .returns<Product[]>()
-      if (anyExisting && anyExisting.length) return anyExisting[0]
-
-      const { data: created, error } = await supabase
-        .from('inventory')
-        .insert({ name: clean, category: 'Frame', sale_price: 0, cost_price: 0 })
-        .select()
-        .maybeSingle<Product>()
-      if (error) {
-        console.warn('Could not auto-create frame product in inventory:', error)
-        return null
-      }
-      return created
-    } catch (e) {
-      console.warn('findOrCreateFrame error:', e)
-      return null
-    }
+    return getRepo().ensureFrameProduct(name)
   }
 
   /** Add New-frame lines from examinations into the cart (runs at checkout). */
@@ -393,26 +384,12 @@ export function POSProvider({ children }: { children: ReactNode }) {
     const t = term.trim()
     if (!t) return
     // Exact SKU first, then name contains. Mirrors find_product_by_name_or_sku.
-    let { data } = await supabase
-      .from('inventory')
-      .select('*')
-      .ilike('sku', t)
-      .limit(1)
-      .returns<Product[]>()
-    if (!data || !data.length) {
-      const res = await supabase
-        .from('inventory')
-        .select('*')
-        .ilike('name', `%${t}%`)
-        .limit(1)
-        .returns<Product[]>()
-      data = res.data ?? []
-    }
-    if (!data.length) {
+    const product = await getRepo().findProductBySkuOrName(t)
+    if (!product) {
       patch({ error: `Product not found: ${t}` })
       return
     }
-    patch({ cartItems: addLine(ref.current.cartItems, data[0]), error: null })
+    patch({ cartItems: addLine(ref.current.cartItems, product), error: null })
   }
 
   const addProduct = (p: Product) =>
@@ -441,7 +418,9 @@ export function POSProvider({ children }: { children: ReactNode }) {
       // Settings sync (lens types / frame colors used by this order) happens
       // HERE at confirmation - typing during the wizard never touches them.
       // Missing frame products are created by addNewFramesFromExams above.
-      await addMissingOrderMetadata(s.examinations)
+      await getRepo().addMissingOrderMetadata(s.examinations)
+      qc.invalidateQueries({ queryKey: ['lens_types'] })
+      qc.invalidateQueries({ queryKey: ['frame_colors'] })
       const t = computeTotals(cartItems, {
         discount: s.discount,
         amountPaid: s.amountPaid,
@@ -493,7 +472,7 @@ export function POSProvider({ children }: { children: ReactNode }) {
         // First checkout: attribute the invoice to the signed-in staff member.
         // Resolution understands BOTH auth-keyed users rows and legacy rows
         // linked by username (databases migrated from the desktop version).
-        const staffId = await resolveStaffUserId()
+        const staffId = await getRepo().resolveStaffUserId()
         sale = await createSale.mutateAsync({
           customerId: s.customer?.id ?? null,
           userId: staffId,

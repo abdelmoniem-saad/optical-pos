@@ -10,6 +10,7 @@ import { emptyExam, type Exam } from '../types'
 import { usePermissions } from '../../../data/permissions'
 import { prescriptionImageUrl, uploadOrderImage } from '../../../lib/storage'
 import { QrDialog } from '../../../components/QrDialog'
+import { publicAppUrl } from '../../../lib/config'
 
 const small =
   'rounded-md border border-line bg-white px-2 py-1.5 text-sm outline-none focus:border-brand'
@@ -326,7 +327,7 @@ export function ExamSection() {
 
       {qrOpen && (
         <QrDialog
-          url={`${window.location.origin}/m-upload?inv=${encodeURIComponent(state.invoiceNo)}`}
+          url={`${publicAppUrl()}/m-upload?inv=${encodeURIComponent(state.invoiceNo)}`}
           title={`${t('Invoice')} #${state.invoiceNo}`}
           onClose={() => setQrOpen(false)}
         />

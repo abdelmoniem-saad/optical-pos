@@ -8,6 +8,14 @@ import {
 import type { Session, User } from '@supabase/supabase-js'
 import { supabase } from './supabase'
 import { queryClient } from './queryClient'
+import { IS_LOCAL, READ_ONLY } from './config'
+import {
+  getLocalSession,
+  localSignIn,
+  localSignOut,
+  sessionAsAuthUser,
+  type LocalSession,
+} from './local/localAuth'
 
 // This module intentionally co-locates the AuthProvider with its hook/helpers
 // (useAuth, usernameToEmail, displayName).
@@ -34,7 +42,38 @@ type AuthState = {
 
 const AuthContext = createContext<AuthState | undefined>(undefined)
 
+/** Supabase Auth online; local staff sign-in on the shop PC (VITE_DATA_MODE=local). */
 export function AuthProvider({ children }: { children: ReactNode }) {
+  return IS_LOCAL ? <LocalAuthProvider>{children}</LocalAuthProvider> : <CloudAuthProvider>{children}</CloudAuthProvider>
+}
+
+/**
+ * Shop PC: staff sign in against verifiers stored on the PC, so login works
+ * with no internet. The PC's Supabase session (the "device account" used for
+ * replication) is untouched by staff sign-in/out.
+ */
+function LocalAuthProvider({ children }: { children: ReactNode }) {
+  const [local, setLocal] = useState<LocalSession | null>(() => getLocalSession())
+  const user = local ? sessionAsAuthUser(local) : null
+  // Screens only test the session for presence; give them a stand-in.
+  const session = user ? ({ user, access_token: '', token_type: 'local' } as unknown as Session) : null
+
+  async function signIn(username: string, password: string) {
+    setLocal(await localSignIn(username, password))
+  }
+
+  async function signOut() {
+    localSignOut()
+    setLocal(null)
+    queryClient.clear()
+  }
+
+  return (
+    <AuthContext.Provider value={{ session, user, loading: false, signIn, signOut }}>{children}</AuthContext.Provider>
+  )
+}
+
+function CloudAuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null)
   const [loading, setLoading] = useState(true)
 
@@ -55,7 +94,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // convention staff.ts::useCurrentUser relies on).
   useEffect(() => {
     const u = session?.user
-    if (u) void ensureStaffRecord(u)
+    // The read-only phone view never writes - not even this bookkeeping row.
+    if (u && !READ_ONLY) void ensureStaffRecord(u)
   }, [session])
 
   async function signIn(username: string, password: string) {

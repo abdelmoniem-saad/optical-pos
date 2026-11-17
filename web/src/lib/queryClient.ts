@@ -1,23 +1,30 @@
 import { QueryClient } from '@tanstack/react-query'
 import { createSyncStoragePersister } from '@tanstack/query-sync-storage-persister'
+import { IS_LOCAL } from './config'
 
 // Server-state cache. Tuned for a POS: data is read often, changes rarely
 // within a session, and we want snappy navigation between screens.
 // gcTime is large so cached queries survive long enough to be persisted
 // (must be >= the persister maxAge below).
+//
+// Local mode (shop PC): every query/mutation hits IndexedDB, which works with
+// no network - so TanStack must NOT pause them while the browser is offline
+// (its default 'online' network mode would freeze the whole POS).
 export const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 30_000,
+      staleTime: IS_LOCAL ? 0 : 30_000,
       gcTime: 24 * 60 * 60_000, // 24h
-      retry: 1,
+      retry: IS_LOCAL ? 0 : 1,
       refetchOnWindowFocus: false,
+      ...(IS_LOCAL ? { networkMode: 'always' as const } : {}),
     },
+    mutations: IS_LOCAL ? { networkMode: 'always' } : {},
   },
 })
 
 // Persist the cache to localStorage so reads survive a reload / brief offline.
-// Full offline-write support (queue + sync) is Phase 7.
+// Not used in local mode: IndexedDB already is the durable copy.
 export const persister = createSyncStoragePersister({
   storage: window.localStorage,
   key: 'lensy-query-cache',

@@ -1,36 +1,21 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { supabase } from '../lib/supabase'
-import type { Setting } from '../lib/database.types'
+import { getRepo } from '../lib/repository'
 
 const KEY = ['settings'] as const
 
-/** All shop settings as a key→value map. Mirrors repo.get_setting() callers. */
+/** All shop settings as a key→value map. Mirrors repo.getSettings(). */
 export function useSettings() {
   return useQuery({
     queryKey: KEY,
-    queryFn: async (): Promise<Record<string, string>> => {
-      const { data, error } = await supabase
-        .from('settings')
-        .select('*')
-        .returns<Setting[]>()
-      if (error) throw error
-      const map: Record<string, string> = {}
-      for (const s of data ?? []) map[s.key] = s.value ?? ''
-      return map
-    },
+    queryFn: () => getRepo().getSettings(),
   })
 }
 
-/** Upsert a single setting. Mirrors repo.set_setting(). */
+/** Upsert a single setting. Mirrors repo.setSetting(). */
 export function useSetSetting() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: async ({ key, value }: { key: string; value: string }) => {
-      const { error } = await supabase
-        .from('settings')
-        .upsert({ key, value }, { onConflict: 'key' })
-      if (error) throw error
-    },
+    mutationFn: ({ key, value }: { key: string; value: string }) => getRepo().setSetting(key, value),
     onSuccess: () => qc.invalidateQueries({ queryKey: KEY }),
   })
 }

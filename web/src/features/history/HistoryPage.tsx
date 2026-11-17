@@ -10,6 +10,7 @@ import { useI18n } from '../../i18n/LanguageContext'
 import { OrderExamsLazy } from '../../components/ExamView'
 import { OrderReceiptDialog } from '../../components/OrderReceiptDialog'
 import { QrDialog } from '../../components/QrDialog'
+import { publicAppUrl } from '../../lib/config'
 import { EditOrderForm } from './EditOrderForm'
 import { usePermissions } from '../../data/permissions'
 import { prescriptionImageUrl, uploadOrderImage } from '../../lib/storage'
@@ -194,7 +195,7 @@ export function HistoryPage() {
       {reprint && <OrderReceiptDialog sale={reprint} onClose={() => setReprint(null)} />}
       {qrFor && (
         <QrDialog
-          url={`${window.location.origin}/m-upload?inv=${encodeURIComponent(qrFor.invoice_no)}`}
+          url={`${publicAppUrl()}/m-upload?inv=${encodeURIComponent(qrFor.invoice_no)}`}
           title={`${t('Invoice')} #${qrFor.invoice_no}`}
           onClose={() => setQrFor(null)}
         />

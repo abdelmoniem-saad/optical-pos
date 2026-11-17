@@ -6,6 +6,9 @@ import { GlobalSearch } from './GlobalSearch'
 import { Calculator } from './Calculator'
 import { PermissionsProvider, usePermissions } from '../data/permissions'
 import { useMyLicense, useIsPlatformAdmin } from '../lib/licensing'
+import { IS_LOCAL, READ_ONLY } from '../lib/config'
+import { useLocalMeta } from '../lib/local/state'
+import { SyncBadge } from '../features/local/SyncStatus'
 
 const nav: { to: string; label: string; end?: boolean; resource: string }[] = [
   { to: '/', label: 'New Sale', end: true, resource: 'pos' },
@@ -29,6 +32,10 @@ function AppShell() {
   const [calcOpen, setCalcOpen] = useState(false)
   const license = useMyLicense()
   const isPlatform = useIsPlatformAdmin()
+  const localMeta = useLocalMeta()
+
+  // Shop PC that hasn't been linked to its store yet: first-run setup.
+  if (IS_LOCAL && !localMeta.provisioned) return <Navigate to="/setup" replace />
 
   if (loading) {
     return (
@@ -66,7 +73,9 @@ function AppShell() {
     )
   }
 
-  const visibleNav = nav.filter((item) => perms.can(`${item.resource}.view` as never))
+  const visibleNav = nav.filter(
+    (item) => perms.can(`${item.resource}.view` as never) && !(READ_ONLY && item.resource === 'pos'),
+  )
 
   return (
     <div className="flex h-full overflow-hidden">
@@ -106,6 +115,7 @@ function AppShell() {
           >
             {lang === 'ar' ? 'English' : 'العربية'}
           </button>
+          {IS_LOCAL && <SyncBadge />}
           <div className="truncate text-muted">{displayName(user)}</div>
           <button
             onClick={() => signOut()}
@@ -117,6 +127,11 @@ function AppShell() {
       </aside>
 
       <main className="flex min-w-0 flex-1 flex-col overflow-hidden">
+        {READ_ONLY && (
+          <div className="bg-brand-bg px-4 py-2 text-center text-xs font-semibold text-brand-dark">
+            {t('Read-only view - the shop computer is the main copy; figures may be a few minutes behind.')}
+          </div>
+        )}
         {licenseGrace && (
           <div className="bg-warning-bg px-4 py-2 text-center text-xs font-semibold text-warning">
             {t('License expired - data is read-only during the grace period. Renew to continue working.')}

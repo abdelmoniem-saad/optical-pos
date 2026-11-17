@@ -388,4 +388,76 @@ export const ar: Record<string, string> = {
   'No entries yet.': 'لا توجد إدخالات بعد.',
   'Custom order': 'ترتيب مخصص',
   Alphabetical: 'أبجدي',
+
+  // Offline shop PC (local mode): setup, sign-in, sync, backup
+  'Set up this computer': 'إعداد هذا الجهاز',
+  'Sign in once with the store admin account. All data is downloaded to this computer so it keeps working without internet.':
+    'سجّل الدخول مرة واحدة بحساب مدير المتجر. سيتم تنزيل جميع البيانات إلى هذا الجهاز ليعمل دون إنترنت.',
+  'Setup needs an internet connection (only this once).': 'الإعداد يحتاج إلى اتصال بالإنترنت (هذه المرة فقط).',
+  Downloading: 'جارٍ تنزيل',
+  'Finishing…': 'جارٍ الإنهاء…',
+  'Setting up…': 'جارٍ الإعداد…',
+  'Link and download data': 'ربط الجهاز وتنزيل البيانات',
+  'Works without internet on this computer.': 'يعمل دون إنترنت على هذا الجهاز.',
+  'This account has not signed in on this computer yet. Connect to the internet once, or ask an admin to set an offline password.':
+    'لم يسجّل هذا الحساب الدخول على هذا الجهاز بعد. اتصل بالإنترنت مرة واحدة، أو اطلب من المدير تعيين كلمة مرور للدخول دون إنترنت.',
+  'Password must be at least 4 characters': 'يجب ألا تقل كلمة المرور عن 4 أحرف',
+  'That account belongs to a different store than this computer.': 'هذا الحساب يتبع متجراً مختلفاً عن هذا الجهاز.',
+  'This account is not linked to a store.': 'هذا الحساب غير مرتبط بأي متجر.',
+  'Sync problem': 'مشكلة في المزامنة',
+  Offline: 'غير متصل',
+  'Syncing…': 'جارٍ المزامنة…',
+  'Waiting to sync': 'بانتظار المزامنة',
+  Synced: 'تمت المزامنة',
+  never: 'أبداً',
+  'Cloud sync': 'المزامنة السحابية',
+  'This computer is the main copy. Changes upload to the cloud (owner phone view and off-site backup) whenever there is internet.':
+    'هذا الجهاز هو النسخة الأساسية. تُرفع التغييرات إلى السحابة (عرض المالك على الهاتف والنسخة الاحتياطية الخارجية) كلما توفر الإنترنت.',
+  Internet: 'الإنترنت',
+  Connected: 'متصل',
+  'Changes waiting': 'تغييرات بانتظار الرفع',
+  'Photos waiting': 'صور بانتظار الرفع',
+  'Last sync': 'آخر مزامنة',
+  'Cloud account': 'الحساب السحابي',
+  'Cloud sign-in needed': 'يلزم تسجيل الدخول إلى السحابة',
+  'The cloud rejected a change - later changes are waiting behind it.':
+    'رفضت السحابة أحد التغييرات - التغييرات اللاحقة بانتظاره.',
+  Attempts: 'المحاولات',
+  'Skip this change': 'تخطي هذا التغيير',
+  'Skip this change? It will NOT reach the cloud copy (it stays on this computer).':
+    'تخطي هذا التغيير؟ لن يصل إلى النسخة السحابية (سيبقى على هذا الجهاز).',
+  'Sync now': 'مزامنة الآن',
+  'Sign in again with the store admin account to resume cloud sync.':
+    'سجّل الدخول مجدداً بحساب مدير المتجر لاستئناف المزامنة السحابية.',
+  'Offline - everything keeps working on this computer.': 'غير متصل - كل شيء يعمل على هذا الجهاز.',
+  'changes will upload when the internet is back.': 'تغييرات سيتم رفعها عند عودة الإنترنت.',
+  Backup: 'النسخ الاحتياطي',
+  'The cloud keeps an automatic off-site copy. You can also save a backup file (keep it somewhere safe - it contains all customer data).':
+    'تحتفظ السحابة بنسخة خارجية تلقائية. يمكنك أيضاً حفظ ملف نسخة احتياطية (احفظه في مكان آمن - فهو يحتوي على جميع بيانات العملاء).',
+  'Export backup file': 'تصدير ملف نسخة احتياطية',
+  'Import backup file': 'استيراد ملف نسخة احتياطية',
+  'Restore from cloud': 'الاستعادة من السحابة',
+  'Backup file saved.': 'تم حفظ ملف النسخة الاحتياطية.',
+  'Replace ALL data on this computer with this backup file? This cannot be undone.':
+    'استبدال جميع البيانات على هذا الجهاز بهذا الملف؟ لا يمكن التراجع عن ذلك.',
+  'Replace the data on this computer with the cloud copy?': 'استبدال البيانات على هذا الجهاز بالنسخة السحابية؟',
+  'Restored from the cloud.': 'تمت الاستعادة من السحابة.',
+  'Some changes have not been uploaded yet.': 'بعض التغييرات لم تُرفع بعد.',
+  'Some changes have not been uploaded yet. Sync (or export a backup) before restoring.':
+    'بعض التغييرات لم تُرفع بعد. قم بالمزامنة (أو صدّر نسخة احتياطية) قبل الاستعادة.',
+  'Restoring from the cloud needs an internet connection.': 'الاستعادة من السحابة تحتاج إلى اتصال بالإنترنت.',
+  'This file is not a LensyPOS backup.': 'هذا الملف ليس نسخة احتياطية من LensyPOS.',
+  'This backup belongs to a different store.': 'هذه النسخة الاحتياطية تتبع متجراً آخر.',
+  'Last full download': 'آخر تنزيل كامل',
+  'Adding staff needs an internet connection.': 'إضافة موظف تحتاج إلى اتصال بالإنترنت.',
+  'Offline sign-in': 'الدخول دون إنترنت',
+  'Set password': 'تعيين كلمة المرور',
+  Set: 'تم التعيين',
+
+  // Read-only phone view
+  'Read-only view - the shop computer is the main copy; figures may be a few minutes behind.':
+    'عرض للقراءة فقط - جهاز المحل هو النسخة الأساسية؛ قد تتأخر الأرقام بضع دقائق.',
+  'Read-only view - changes are made on the shop computer.': 'عرض للقراءة فقط - تتم التعديلات على جهاز المحل.',
+  'Photo saved. It attaches to the order on the shop computer automatically.':
+    'تم حفظ الصورة. ستُرفق بالطلب على جهاز المحل تلقائياً.',
 }

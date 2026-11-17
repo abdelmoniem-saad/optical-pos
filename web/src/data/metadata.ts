@@ -1,58 +1,30 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { supabase } from '../lib/supabase'
-import { queryClient } from '../lib/queryClient'
-import { ensureFrameProduct } from './inventory'
+import { getRepo } from '../lib/repository'
+import type { ExamRefRow } from '../lib/repository'
 
-export type NamedRow = { id: string; name: string; sort_order?: number | null }
+// Re-exported so existing imports from './metadata' keep working.
+export type { NamedRow } from '../lib/repository'
 
-/** Generic id+name lookup table (lens_types, frame_colors, roles…).
- *  Mirrors repo.get_metadata(table_name).
- *  order 'name'   → alphabetical (roles, generic lists)
- *  order 'custom' → persistent sort_order, then creation order (settings). */
-function useNamedTable(table: string, order: 'name' | 'custom' = 'name') {
-  return useQuery({
-    queryKey: [table, order],
-    queryFn: async (): Promise<NamedRow[]> => {
-      let q = supabase.from(table).select('*')
-      q =
-        order === 'custom'
-          ? q
-              .order('sort_order', { ascending: true, nullsFirst: false })
-              .order('created_at', { ascending: true })
-          : q.order('name')
-      const { data, error } = await q.returns<NamedRow[]>()
-      if (error) throw error
-      return data ?? []
-    },
-  })
-}
+/**
+ * Generic id+name lookup table (lens_types, frame_colors, roles…).
+ * order 'name'   → alphabetical (roles, generic lists)
+ * order 'custom' → persistent sort_order, then creation order (settings).
+ */
+export const useLensTypes = () =>
+  useQuery({ queryKey: ['lens_types', 'custom'], queryFn: () => getRepo().getLensTypes() })
 
-export const useLensTypes = () => useNamedTable('lens_types', 'custom')
-export const useFrameColors = () => useNamedTable('frame_colors', 'custom')
-export const useRoles = () => useNamedTable('roles')
+export const useFrameColors = () =>
+  useQuery({ queryKey: ['frame_colors', 'custom'], queryFn: () => getRepo().getFrameColors() })
+
+export const useRoles = () => useQuery({ queryKey: ['roles', 'name'], queryFn: () => getRepo().getRoles() })
 
 /** Add a row to a metadata table (lens_types, frame_types, frame_colors).
  *  Pass sortOrder to place the new row in the custom order (settings lists). */
 export function useAddMetadata(table: string) {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: async ({
-      name,
-      sortOrder,
-    }: {
-      name: string
-      sortOrder?: number
-    }): Promise<NamedRow> => {
-      const payload: Record<string, unknown> = { name: name.trim() }
-      if (sortOrder !== undefined) payload.sort_order = sortOrder
-      const { data, error } = await supabase
-        .from(table)
-        .insert(payload)
-        .select()
-        .single<NamedRow>()
-      if (error) throw error
-      return data
-    },
+    mutationFn: ({ name, sortOrder }: { name: string; sortOrder?: number }) =>
+      getRepo().addMetadata(table, name, sortOrder),
     onSuccess: () => qc.invalidateQueries({ queryKey: [table] }),
   })
 }
@@ -61,13 +33,7 @@ export function useAddMetadata(table: string) {
 export function useReorderMetadata(table: string) {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: async (orderedIds: string[]): Promise<void> => {
-      await Promise.all(
-        orderedIds.map((id, i) =>
-          supabase.from(table).update({ sort_order: i + 1 }).eq('id', id),
-        ),
-      )
-    },
+    mutationFn: (orderedIds: string[]) => getRepo().reorderMetadata(table, orderedIds),
     onSuccess: () => qc.invalidateQueries({ queryKey: [table] }),
   })
 }
@@ -76,67 +42,19 @@ export function useReorderMetadata(table: string) {
 export function useDeleteMetadata(table: string) {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: async (id: string): Promise<void> => {
-      const { error } = await supabase.from(table).delete().eq('id', id)
-      if (error) throw error
-    },
+    mutationFn: (id: string) => getRepo().deleteMetadata(table, id),
     onSuccess: () => qc.invalidateQueries({ queryKey: [table] }),
   })
 }
 
 // ---- order-confirmation reference sync ------------------------------------
 
-const distinctNonEmpty = (values: (string | null | undefined)[]): string[] => {
-  const out: string[] = []
-  for (const v of values) {
-    const s = (v ?? '').trim()
-    if (s && !out.some((x) => x.toLowerCase() === s.toLowerCase())) out.push(s)
-  }
-  return out
-}
-
-async function metadataHas(table: string, name: string): Promise<boolean> {
-  const { data } = await supabase
-    .from(table)
-    .select('id')
-    .ilike('name', name)
-    .limit(1)
-    .returns<{ id: string }[]>()
-  return !!data?.length
-}
-
 /** Add lens/color values used by a CONFIRMED order that don't exist yet.
  *  Called at checkout - never while the order is still being typed. */
 export async function addMissingOrderMetadata(
   exams: { lens_info?: string | null; frame_color?: string | null }[],
 ): Promise<void> {
-  const lens = distinctNonEmpty(exams.map((e) => e.lens_info))
-  const colors = distinctNonEmpty(exams.map((e) => e.frame_color))
-
-  for (const [table, values] of [
-    ['lens_types', lens],
-    ['frame_colors', colors],
-  ] as const) {
-    const missing: string[] = []
-    for (const v of values) {
-      if (!(await metadataHas(table, v))) missing.push(v)
-    }
-    if (missing.length) {
-      const { error } = await supabase
-        .from(table)
-        .insert(missing.map((name) => ({ name })))
-      if (error) throw error
-    }
-  }
-  const qc = queryClient
-  qc.invalidateQueries({ queryKey: ['lens_types'] })
-  qc.invalidateQueries({ queryKey: ['frame_colors'] })
-}
-
-export type ExamRefRow = {
-  lens_info?: string | null
-  frame_color?: string | null
-  frame_info?: string | null
+  return getRepo().addMissingOrderMetadata(exams)
 }
 
 /**
@@ -155,101 +73,5 @@ export async function syncExamReferences(params: {
   oldRows: ExamRefRow[]
   newRows: ExamRefRow[]
 }): Promise<void> {
-  const { oldRows, newRows } = params
-
-  for (const [table, field] of [
-    ['lens_types', 'lens_info'],
-    ['frame_colors', 'frame_color'],
-  ] as const) {
-    const oldVals = distinctNonEmpty(oldRows.map((r) => r[field]))
-    const newVals = distinctNonEmpty(newRows.map((r) => r[field]))
-
-    for (const v of newVals) {
-      if (!(await metadataHas(table, v))) {
-        const { error } = await supabase.from(table).insert({ name: v })
-        if (error) throw error
-      }
-    }
-
-    for (const v of oldVals) {
-      if (newVals.some((x) => x.toLowerCase() === v.toLowerCase())) continue
-      // Delete only when NO other order still uses this value.
-      const { data: used } = await supabase
-        .from('order_examinations')
-        .select('id')
-        .ilike(field, v)
-        .limit(1)
-        .returns<{ id: string }[]>()
-      if (used?.length) continue
-      const { data: row } = await supabase
-        .from(table)
-        .select('id')
-        .ilike('name', v)
-        .limit(1)
-        .returns<{ id: string }[]>()
-      if (row?.[0]) {
-        const { error } = await supabase.from(table).delete().eq('id', row[0].id)
-        if (error) throw error
-      }
-    }
-    queryClient.invalidateQueries({ queryKey: [table] })
-  }
-
-  // ---- frames vs inventory ----
-  const oldFrames = distinctNonEmpty(oldRows.map((r) => r.frame_info))
-  const newFrames = distinctNonEmpty(newRows.map((r) => r.frame_info))
-
-  for (const v of newFrames) {
-    if (!oldFrames.some((x) => x.toLowerCase() === v.toLowerCase())) {
-      await ensureFrameProduct(v)
-    }
-  }
-  queryClient.invalidateQueries({ queryKey: ['inventory'] })
-
-  for (const v of oldFrames) {
-    if (newFrames.some((x) => x.toLowerCase() === v.toLowerCase())) continue
-    // Still referenced by another order? Keep the product.
-    const { data: used } = await supabase
-      .from('order_examinations')
-      .select('id')
-      .ilike('frame_info', v)
-      .limit(1)
-      .returns<{ id: string }[]>()
-    if (used?.length) continue
-
-    // Find the inventory product (case-insensitive).
-    const { data: prod } = await supabase
-      .from('inventory')
-      .select('id')
-      .eq('category', 'Frame')
-      .ilike('name', v)
-      .limit(1)
-      .returns<{ id: string }[]>()
-    const pid = prod?.[0]?.id
-    if (!pid) continue
-
-    // Referenced by a sale line item? Keep it (its stock history is real).
-    const { data: si } = await supabase
-      .from('sale_items')
-      .select('id')
-      .eq('product_id', pid)
-      .limit(1)
-      .returns<{ id: string }[]>()
-    if (si?.length) continue
-
-    // Only clean up app-created clutter: product whose net stock is zero or
-    // negative (a phantom). Real stock (purchases / initial) is never touched.
-    const { data: movs } = await supabase
-      .from('stock_movements')
-      .select('qty')
-      .eq('product_id', pid)
-      .returns<{ qty: number | null }[]>()
-    const stock = (movs ?? []).reduce((sum, m) => sum + (m.qty ?? 0), 0)
-    if (stock > 0) continue
-
-    // Cascades away its phantom movements with it.
-    const { error } = await supabase.from('inventory').delete().eq('id', pid)
-    if (error) throw error
-    queryClient.invalidateQueries({ queryKey: ['inventory'] })
-  }
+  return getRepo().syncExamReferences(params)
 }

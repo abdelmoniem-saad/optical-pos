@@ -1,25 +1,18 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { supabase } from '../lib/supabase'
-import type { OrderExamination, Sale } from '../lib/database.types'
+import { getRepo } from '../lib/repository'
+import type { OrderExamination } from '../lib/database.types'
 
-/** Examinations for a single sale. Mirrors repo.get_order_examinations(sale_id). */
+// Re-exported so existing imports from './examinations' keep working.
+export type { PastExam } from '../lib/repository'
+
+/** Examinations for a single sale. Mirrors repo.getOrderExaminations(). */
 export function useOrderExaminations(saleId: string | null) {
   return useQuery({
     queryKey: ['order_examinations', saleId],
     enabled: !!saleId,
-    queryFn: async (): Promise<OrderExamination[]> => {
-      const { data, error } = await supabase
-        .from('order_examinations')
-        .select('*')
-        .eq('sale_id', saleId as string)
-        .returns<OrderExamination[]>()
-      if (error) throw error
-      return data ?? []
-    },
+    queryFn: () => getRepo().getOrderExaminations(saleId as string),
   })
 }
-
-export type PastExam = OrderExamination & { sale: Partial<Sale> }
 
 /**
  * Replace ALL of one sale's examinations (History order editor). Non-atomic
@@ -30,25 +23,8 @@ export type PastExam = OrderExamination & { sale: Partial<Sale> }
 export function useReplaceOrderExaminations(saleId: string) {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: async (
-      exams: Omit<OrderExamination, 'id' | 'sale_id'>[],
-    ): Promise<void> => {
-      const { error: delErr } = await supabase
-        .from('order_examinations')
-        .delete()
-        .eq('sale_id', saleId)
-      if (delErr) throw delErr
-      if (exams.length) {
-        const rows = exams.map((e) => ({ ...e, sale_id: saleId }))
-        let { error: insErr } = await supabase.from('order_examinations').insert(rows)
-        if (insErr && (insErr.code === '42703' || /image_path/i.test(insErr.message ?? ''))) {
-          const stripped = rows.map(({ image_path: _unused, ...rest }: any) => rest)
-          const retry = await supabase.from('order_examinations').insert(stripped)
-          insErr = retry.error
-        }
-        if (insErr) throw insErr
-      }
-    },
+    mutationFn: (exams: Omit<OrderExamination, 'id' | 'sale_id'>[]) =>
+      getRepo().replaceOrderExaminations(saleId, exams),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['order_examinations', saleId] })
       qc.invalidateQueries({ queryKey: ['customer-orders'] })
@@ -60,41 +36,13 @@ export function useReplaceOrderExaminations(saleId: string) {
 
 /**
  * A customer's recent examinations with sale info attached.
- * Mirrors repo.get_customer_past_examinations(): two-step query (sales, then
- * exams by sale_id), newest first, capped at 10.
+ * Mirrors repo.getPastExaminations(): two-step query (sales, then exams by
+ * sale_id), newest first, capped at 10.
  */
 export function usePastExaminations(customerId: string | null) {
   return useQuery({
     queryKey: ['past_examinations', customerId],
     enabled: !!customerId,
-    queryFn: async (): Promise<PastExam[]> => {
-      const { data: sales, error: sErr } = await supabase
-        .from('sales')
-        .select('id, order_date, invoice_no, doctor_name')
-        .eq('customer_id', customerId as string)
-        .order('order_date', { ascending: false })
-        .limit(20)
-        .returns<Pick<Sale, 'id' | 'order_date' | 'invoice_no' | 'doctor_name'>[]>()
-      if (sErr) throw sErr
-      if (!sales?.length) return []
-
-      const saleMap = new Map(sales.map((s) => [s.id, s]))
-      const { data: exams, error: eErr } = await supabase
-        .from('order_examinations')
-        .select('*')
-        .in(
-          'sale_id',
-          sales.map((s) => s.id),
-        )
-        .returns<OrderExamination[]>()
-      if (eErr) throw eErr
-
-      return (exams ?? [])
-        .map((e): PastExam => ({ ...e, sale: saleMap.get(e.sale_id) ?? {} }))
-        .sort((a, b) =>
-          String(b.sale.order_date ?? '').localeCompare(String(a.sale.order_date ?? '')),
-        )
-        .slice(0, 10)
-    },
+    queryFn: () => getRepo().getPastExaminations(customerId as string),
   })
 }
