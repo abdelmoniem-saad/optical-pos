@@ -1,6 +1,21 @@
-import { QueryClient } from '@tanstack/react-query'
+import { MutationCache, QueryClient } from '@tanstack/react-query'
 import { createSyncStoragePersister } from '@tanstack/query-sync-storage-persister'
-import { IS_LOCAL } from './config'
+import { IS_LOCAL, READ_ONLY, READ_ONLY_MESSAGE } from './config'
+import { ar } from '../i18n/translations'
+
+/** Read-only phone view: every refused save says why (not a silent revert). */
+const mutationCache = new MutationCache({
+  onError: (e) => {
+    if (!READ_ONLY || (e as Error | null)?.name !== 'ReadOnlyError') return
+    let lang = 'ar'
+    try {
+      lang = localStorage.getItem('lensy-lang') ?? 'ar'
+    } catch {
+      // default language
+    }
+    window.alert(lang === 'en' ? READ_ONLY_MESSAGE : (ar[READ_ONLY_MESSAGE] ?? READ_ONLY_MESSAGE))
+  },
+})
 
 // Server-state cache. Tuned for a POS: data is read often, changes rarely
 // within a session, and we want snappy navigation between screens.
@@ -11,6 +26,7 @@ import { IS_LOCAL } from './config'
 // no network - so TanStack must NOT pause them while the browser is offline
 // (its default 'online' network mode would freeze the whole POS).
 export const queryClient = new QueryClient({
+  mutationCache,
   defaultOptions: {
     queries: {
       staleTime: IS_LOCAL ? 0 : 30_000,

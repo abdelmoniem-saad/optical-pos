@@ -92,7 +92,8 @@ export function enterMovesNext(e: KeyboardEvent<HTMLElement>): void {
     if (el instanceof HTMLTextAreaElement) return false
     if (el instanceof HTMLSelectElement) return !el.disabled
     if (!(el instanceof HTMLInputElement)) return false
-    if (el.disabled || el.readOnly) return false
+    // Picker fields are readonly but DO take part (their focus opens the popup).
+    if (el.disabled || (el.readOnly && el.dataset.picker !== '1')) return false
     const t = el.type
     if (t === 'hidden' || t === 'file' || t === 'button' || t === 'submit') return false
     // Skip elements hidden via CSS (offsetParent is null when not rendered).

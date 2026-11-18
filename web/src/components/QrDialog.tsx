@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import QRCode from 'qrcode'
 import { useI18n } from '../i18n/LanguageContext'
+import { IS_LOCAL, hasCloudUrl } from '../lib/config'
 
 /**
  * Modal showing a QR code that deep-links a phone to the mobile upload page
@@ -23,6 +24,11 @@ export function QrDialog({ url, title, onClose }: { url: string; title: string; 
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-3 font-semibold text-brand-dark">{title}</div>
+        {IS_LOCAL && !hasCloudUrl() && (
+          <p className="mb-3 rounded-lg bg-warning-bg px-3 py-2 text-xs text-warning">
+            {t('This register build has no cloud address (VITE_CLOUD_URL), so phones cannot open this code. Attach the photo on this computer instead.')}
+          </p>
+        )}
         {qr ? (
           <img src={qr} alt="QR" className="mx-auto rounded-lg border border-line" />
         ) : (

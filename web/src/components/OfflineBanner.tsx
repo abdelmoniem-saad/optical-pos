@@ -7,7 +7,9 @@ import { useSyncStatus } from '../lib/local/sync'
 /** Thin fixed strip shown only while the device is offline. Reads are served
  *  from the persisted Query cache; writes pause and resume on reconnect. */
 export function OfflineBanner() {
-  return IS_LOCAL ? <LocalOfflineBanner /> : <CloudOfflineBanner />
+  // Shop PC: offline is normal - a calm in-page strip (LocalOfflineStrip,
+  // rendered by the app shell) instead of an overlay.
+  return IS_LOCAL ? null : <CloudOfflineBanner />
 }
 
 function CloudOfflineBanner() {
@@ -26,13 +28,13 @@ function CloudOfflineBanner() {
 }
 
 /** Shop PC: offline is a normal state - say so calmly, with the queue size. */
-function LocalOfflineBanner() {
+export function LocalOfflineStrip() {
   const { t } = useI18n()
   const s = useSyncStatus()
   if (s.online) return null
   const waiting = s.pending + s.pendingImages
   return (
-    <div className="fixed inset-x-0 top-0 z-[60] bg-muted px-4 py-1 text-center text-xs font-medium text-white shadow">
+    <div className="bg-muted px-4 py-1 text-center text-xs font-medium text-white">
       {t('Offline - everything keeps working on this computer.')}
       {waiting > 0 && ` ${waiting} ${t('changes will upload when the internet is back.')}`}
     </div>

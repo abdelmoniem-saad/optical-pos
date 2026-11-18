@@ -15,15 +15,35 @@
 
 export type DataMode = 'supabase' | 'local'
 
-const rawMode = String(import.meta.env.VITE_DATA_MODE ?? 'supabase').trim().toLowerCase()
+const rawMode = String(import.meta.env.VITE_DATA_MODE ?? '').trim().toLowerCase() || 'supabase'
+const rawReadOnly = String(import.meta.env.VITE_READ_ONLY ?? '').trim().toLowerCase() || 'false'
 
 export const DATA_MODE: DataMode = rawMode === 'local' ? 'local' : 'supabase'
 export const IS_LOCAL = DATA_MODE === 'local'
 
-export const READ_ONLY =
-  !IS_LOCAL && String(import.meta.env.VITE_READ_ONLY ?? '').trim().toLowerCase() === 'true'
+export const READ_ONLY = !IS_LOCAL && rawReadOnly === 'true'
+
+/**
+ * A misspelt flag must never silently produce the wrong kind of app (e.g. a
+ * read-write phone view, or a shop PC writing straight to the cloud). The
+ * build already refuses these (vite.config.ts); this is the runtime backstop.
+ */
+export const CONFIG_ERROR: string | null =
+  rawMode !== 'supabase' && rawMode !== 'local'
+    ? `VITE_DATA_MODE must be "supabase" or "local" (it is "${rawMode}").`
+    : rawReadOnly !== 'true' && rawReadOnly !== 'false'
+      ? `VITE_READ_ONLY must be "true" or "false" (it is "${rawReadOnly}").`
+      : null
+
+/** Set on the shop PC when it is linked (see sync.ts provisionDevice). */
+export const DEVICE_MARKER_KEY = 'lensypos-device'
 
 const cloudUrl = String(import.meta.env.VITE_CLOUD_URL ?? '').trim().replace(/\/+$/, '')
+
+/** Whether a public cloud URL was configured for QR codes. */
+export function hasCloudUrl(): boolean {
+  return !!cloudUrl
+}
 
 /** Base URL a phone should open (QR codes). Falls back to this origin. */
 export function publicAppUrl(): string {

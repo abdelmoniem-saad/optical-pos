@@ -1,21 +1,34 @@
 // Offline staff sign-in for the shop PC.
 //
 // Supabase Auth needs the network, so the PC keeps a salted PBKDF2 verifier of
-// each staff member's password in IndexedDB (never replicated). Sign-in:
-//   1. the local verifier matches            -> signed in (works offline)
-//   2. otherwise, if online, ask Supabase     -> on success cache a verifier
-// An admin can also set an "offline password" for a staff member who has never
-// signed in online on this PC.
+// each staff member's password in IndexedDB (never replicated, never exported).
+// Sign-in:
+//   - online:  Supabase checks the password of THAT staff member's own account
+//              (email derived from the staff row, never from what was typed).
+//              Success refreshes the verifier; a rejection (wrong password,
+//              account deleted or banned in the cloud) also revokes it.
+//   - offline: the local verifier must match.
+// An admin can also set an "offline password" for a staff member who has
+// never signed in online on this PC.
 //
 // This is staff identity on the PC only. Replication to the cloud runs as the
 // separate "device account" that linked this PC during setup.
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
-import { CREDENTIALS, getAll, getOne, putCredential, type Credential } from './db'
+import { CREDENTIALS, deleteCredential, getAll, getOne, putCredential, type Credential } from './db'
 import type { User } from '../database.types'
 
 const SESSION_KEY = 'lensy-local-session'
 const ITERATIONS = 150_000
-const EMAIL_DOMAIN = (import.meta.env.VITE_AUTH_EMAIL_DOMAIN as string | undefined) ?? 'lensypos.local'
+const ONLINE_CHECK_TIMEOUT_MS = 6_000
+export const EMAIL_DOMAIN = (
+  (import.meta.env.VITE_AUTH_EMAIL_DOMAIN as string | undefined) ?? 'lensypos.local'
+).toLowerCase()
+
+/** The Supabase Auth email of a staff username (same mapping as auth.tsx). */
+export function staffEmail(username: string | null | undefined): string {
+  const v = String(username ?? '').trim()
+  return v.includes('@') ? v : `${v}@${EMAIL_DOMAIN}`
+}
 
 export type LocalSession = {
   userId: string
@@ -25,6 +38,8 @@ export type LocalSession = {
 }
 
 // ---- session ----------------------------------------------------------------
+
+export const LOCAL_SESSION_KEY = SESSION_KEY
 
 export function getLocalSession(): LocalSession | null {
   try {
@@ -46,6 +61,19 @@ function setLocalSession(s: LocalSession | null): void {
 
 export function localSignOut(): void {
   setLocalSession(null)
+  windowSession = null
+}
+
+// The person signed in on THIS window (each window attributes its own sales,
+// even if someone signs in on another window meanwhile).
+let windowSession: LocalSession | null = getLocalSession()
+
+export function setWindowSession(s: LocalSession | null): void {
+  windowSession = s
+}
+
+export function currentWindowSession(): LocalSession | null {
+  return windowSession
 }
 
 // ---- hashing ----------------------------------------------------------------
@@ -84,7 +112,7 @@ function safeEqual(a: string, b: string): boolean {
 
 /** Store (or replace) the offline password verifier for a staff member. */
 export async function setOfflinePassword(user: Pick<User, 'id' | 'username'>, password: string): Promise<void> {
-  if (password.length < 4) throw new Error('Password must be at least 4 characters')
+  if (password.length < 6) throw new Error('Password must be at least 6 characters')
   const salt = crypto.getRandomValues(new Uint8Array(16))
   await putCredential({
     user_id: user.id,
@@ -94,6 +122,11 @@ export async function setOfflinePassword(user: Pick<User, 'id' | 'username'>, pa
     iterations: ITERATIONS,
     updated_at: new Date().toISOString(),
   })
+}
+
+/** Forget a staff member's offline password on this PC. */
+export async function revokeOfflinePassword(userId: string): Promise<void> {
+  await deleteCredential(userId)
 }
 
 export async function hasOfflinePassword(userId: string): Promise<boolean> {
@@ -127,48 +160,87 @@ function verifyClient(): SupabaseClient {
   return verifier
 }
 
-type VerifyResult = 'ok' | 'bad' | 'unreachable'
+type VerifyResult = { result: 'ok'; authId: string; email: string } | { result: 'bad' } | { result: 'unreachable' }
 
-async function verifyOnline(username: string, password: string): Promise<VerifyResult> {
-  if (typeof navigator !== 'undefined' && navigator.onLine === false) return 'unreachable'
+/** Check `password` against the cloud account with exactly this email. */
+async function verifyOnline(email: string, password: string): Promise<VerifyResult> {
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) return { result: 'unreachable' }
   try {
-    const email = username.includes('@') ? username : `${username}@${EMAIL_DOMAIN}`
-    const { error } = await verifyClient().auth.signInWithPassword({ email, password })
-    if (!error) return 'ok'
-    const status = (error as { status?: number }).status ?? 0
-    // 400 = wrong credentials; anything else (0/5xx/fetch failure) = can't tell.
-    return status === 400 ? 'bad' : 'unreachable'
+    const attempt = verifyClient().auth.signInWithPassword({ email, password })
+    const timeout = new Promise<'timeout'>((resolve) => setTimeout(() => resolve('timeout'), ONLINE_CHECK_TIMEOUT_MS))
+    const res = await Promise.race([attempt, timeout])
+    if (res === 'timeout') return { result: 'unreachable' }
+    const { data, error } = res
+    if (!error && data.user) {
+      void verifyClient().auth.signOut({ scope: 'local' })
+      return { result: 'ok', authId: data.user.id, email: (data.user.email ?? email).toLowerCase() }
+    }
+    const status = (error as { status?: number } | null)?.status ?? 0
+    // 400 = wrong password / unknown or banned account; anything else = can't tell.
+    return status === 400 ? { result: 'bad' } : { result: 'unreachable' }
   } catch {
-    return 'unreachable'
+    return { result: 'unreachable' }
   }
+}
+
+/** The cloud account that answered must be this staff row's own account. */
+function belongsTo(row: Pick<User, 'id' | 'username'>, v: { authId: string; email: string }): boolean {
+  return v.authId === row.id || v.email === staffEmail(row.username).toLowerCase()
 }
 
 // ---- sign-in ----------------------------------------------------------------
 
-function normalizeUsername(input: string): string {
+/** Exact username match; the configured staff domain may be typed or left off. */
+function findStaff(users: User[], input: string): User | undefined {
   const v = input.trim().toLowerCase()
-  return v.includes('@') ? v.split('@')[0] : v
+  const exact = users.find((u) => (u.username ?? '').toLowerCase() === v)
+  if (exact) return exact
+  const suffix = `@${EMAIL_DOMAIN}`
+  if (v.endsWith(suffix)) {
+    const bare = v.slice(0, -suffix.length)
+    return users.find((u) => (u.username ?? '').toLowerCase() === bare)
+  }
+  return undefined
 }
 
-export async function localSignIn(usernameInput: string, password: string): Promise<LocalSession> {
-  const uname = normalizeUsername(usernameInput)
-  const users = await getAll<User>('users')
-  const user = users.find((u) => (u.username ?? '').toLowerCase() === uname)
-  if (!user || user.is_active === false) throw new Error('Invalid login credentials')
+const INVALID = 'Invalid login credentials'
 
-  let ok = await verifyLocal(user.id, password)
-  if (!ok) {
-    const online = await verifyOnline(usernameInput.trim(), password)
-    if (online === 'ok') {
-      await setOfflinePassword(user, password)
-      ok = true
-    } else if (online === 'unreachable' && !(await hasOfflinePassword(user.id))) {
+export async function localSignIn(usernameInput: string, password: string): Promise<LocalSession> {
+  let user = findStaff(await getAll<User>('users'), usernameInput)
+
+  if (!user) {
+    // Added after this PC was set up (online app, vendor, dashboard)? Ask the cloud.
+    const input = usernameInput.trim()
+    const online = await verifyOnline(staffEmail(input), password)
+    if (online.result === 'unreachable') {
+      throw new Error('This person is not known on this computer yet. Connect to the internet once and sign in again.')
+    }
+    if (online.result === 'bad') throw new Error(INVALID)
+    const { pullStaffMember } = await import('./sync')
+    const bare = input.toLowerCase().endsWith(`@${EMAIL_DOMAIN}`) ? input.slice(0, -(EMAIL_DOMAIN.length + 1)) : input
+    const row = await pullStaffMember(bare)
+    if (!row || !belongsTo(row, online)) throw new Error(INVALID)
+    user = row
+  }
+  if (user.is_active === false) throw new Error(INVALID)
+
+  const online = await verifyOnline(staffEmail(user.username), password)
+  if (online.result === 'ok') {
+    if (!belongsTo(user, online)) throw new Error(INVALID)
+    await setOfflinePassword(user, password).catch(() => undefined)
+  } else if (online.result === 'bad') {
+    // Wrong password, or the account was deleted/banned in the cloud: an old
+    // offline password must not keep working either.
+    if (await verifyLocal(user.id, password)) await revokeOfflinePassword(user.id)
+    throw new Error(INVALID)
+  } else {
+    if (!(await hasOfflinePassword(user.id))) {
       throw new Error(
         'This account has not signed in on this computer yet. Connect to the internet once, or ask an admin to set an offline password.',
       )
     }
+    if (!(await verifyLocal(user.id, password))) throw new Error(INVALID)
   }
-  if (!ok) throw new Error('Invalid login credentials')
 
   const session: LocalSession = {
     userId: user.id,
@@ -177,6 +249,7 @@ export async function localSignIn(usernameInput: string, password: string): Prom
     signedInAt: new Date().toISOString(),
   }
   setLocalSession(session)
+  windowSession = session
   return session
 }
 
@@ -188,7 +261,7 @@ export async function localSignIn(usernameInput: string, password: string): Prom
 export function sessionAsAuthUser(s: LocalSession): import('@supabase/supabase-js').User {
   return {
     id: s.userId,
-    email: `${s.username}@${EMAIL_DOMAIN}`,
+    email: staffEmail(s.username),
     app_metadata: {},
     user_metadata: { username: s.username, full_name: s.fullName ?? '' },
     aud: 'local',

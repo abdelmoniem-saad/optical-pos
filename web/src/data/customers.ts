@@ -55,7 +55,7 @@ export function useInfiniteCustomers(pageSize = 60) {
   return useInfiniteQuery({
     queryKey: [...KEY, 'paged'],
     initialPageParam: 0,
-    queryFn: ({ pageParam }) => getRepo().getCustomersPage(pageParam as number, pageSize),
+    queryFn: ({ pageParam }) => getRepo().getCustomersPage((pageParam as number) * pageSize, pageSize),
     getNextPageParam: (last, all) => {
       const loaded = all.reduce((sum, p) => sum + p.rows.length, 0)
       return loaded < last.count ? all.length : undefined

@@ -3,7 +3,7 @@ import { Navigate, useNavigate } from 'react-router-dom'
 import { useI18n } from '../../i18n/LanguageContext'
 import { usernameToEmail } from '../../lib/auth'
 import { useLocalMeta } from '../../lib/local/state'
-import { provisionDevice } from '../../lib/local/sync'
+import { RegisterTakenError, provisionDevice } from '../../lib/local/sync'
 
 /**
  * First run on the shop PC (local mode): link this computer to the store with
@@ -19,6 +19,9 @@ export function SetupPage() {
   const [busy, setBusy] = useState(false)
   const [progress, setProgress] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  // This store already has a register computer: offer to move it here.
+  const [taken, setTaken] = useState(false)
+  const [takeover, setTakeover] = useState(false)
 
   if (meta.provisioned) return <Navigate to="/" replace />
 
@@ -35,11 +38,16 @@ export function SetupPage() {
     }
     setBusy(true)
     try {
-      await provisionDevice(usernameToEmail(username), password, (table, done, total) =>
-        setProgress(table ? `${t('Downloading')} ${table} (${done + 1}/${total})` : t('Finishing…')),
+      await provisionDevice(
+        usernameToEmail(username),
+        password,
+        (table, done, total) =>
+          setProgress(table ? `${t('Downloading')} ${table} (${done + 1}/${total})` : t('Finishing…')),
+        { takeover },
       )
       navigate('/login', { replace: true })
     } catch (err) {
+      if (err instanceof RegisterTakenError) setTaken(true)
       setError(err instanceof Error ? err.message : String(err))
       setProgress(null)
     } finally {
@@ -88,6 +96,16 @@ export function SetupPage() {
             className={cls}
           />
         </label>
+
+        {taken && (
+          <label className="mb-4 flex items-start gap-2 rounded-lg bg-warning-bg px-3 py-2 text-sm text-warning">
+            <input type="checkbox" checked={takeover} onChange={(e) => setTakeover(e.target.checked)} className="mt-1" />
+            <span>
+              {t('Replace the old register')}:{' '}
+              {t('the other computer stops uploading to the cloud. Only do this if it is broken or no longer used - any changes still waiting on it will not reach the cloud.')}
+            </span>
+          </label>
+        )}
 
         <button
           type="submit"

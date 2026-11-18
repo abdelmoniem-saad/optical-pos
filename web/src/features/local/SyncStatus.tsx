@@ -2,11 +2,20 @@ import { useState } from 'react'
 import { useI18n } from '../../i18n/LanguageContext'
 import { usernameToEmail } from '../../lib/auth'
 import { useLocalMeta } from '../../lib/local/state'
-import { linkDevice, skipBlockedEntry, syncNow, useSyncStatus, type SyncStatus } from '../../lib/local/sync'
+import {
+  linkDevice,
+  skipBlockedEntry,
+  skipBlockedImage,
+  syncNow,
+  useSyncStatus,
+  type SyncStatus,
+} from '../../lib/local/sync'
 import { usePermissions } from '../../data/permissions'
+import { storagePersisted } from '../../lib/local/boot'
 
 function tone(s: SyncStatus): { dot: string; label: string } {
-  if (s.blocked || s.needsLink) return { dot: 'bg-danger', label: 'Sync problem' }
+  if (s.blocked || s.needsLink || s.replaced || s.imageBlocked) return { dot: 'bg-danger', label: 'Sync problem' }
+  if (s.licenseHold) return { dot: 'bg-danger', label: 'License not active' }
   if (!s.online) return { dot: 'bg-faint', label: 'Offline' }
   if (s.syncing) return { dot: 'bg-brand animate-pulse', label: 'Syncing…' }
   if (s.pending || s.pendingImages) return { dot: 'bg-warning', label: 'Waiting to sync' }
@@ -50,13 +59,29 @@ function SyncPanel({ onClose }: { onClose: () => void }) {
   const meta = useLocalMeta()
   const perms = usePermissions()
   const [busy, setBusy] = useState(false)
+  const [note, setNote] = useState<string | null>(null)
   const row = 'flex justify-between gap-4 py-1.5 text-sm'
 
   async function skip() {
+    const seq = s.blocked?.seq
+    if (seq === undefined) return
     if (!confirm(t('Skip this change? It will NOT reach the cloud copy (it stays on this computer).'))) return
     setBusy(true)
     try {
-      await skipBlockedEntry()
+      const ok = await skipBlockedEntry(seq)
+      setNote(ok ? null : t('That change already synced or changed - refreshed.'))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function skipImage() {
+    const path = s.imageBlocked?.path
+    if (!path) return
+    if (!confirm(t('Stop uploading this photo? It stays on this computer only.'))) return
+    setBusy(true)
+    try {
+      await skipBlockedImage(path)
     } finally {
       setBusy(false)
     }
@@ -90,6 +115,10 @@ function SyncPanel({ onClose }: { onClose: () => void }) {
           <div className={row}>
             <span className="text-muted">{t('Last sync')}</span>
             <span>{when(s.lastSyncAt, t)}</span>
+          </div>
+          <div className={row}>
+            <span className="text-muted">{t('Data protected by the browser')}</span>
+            <span>{storagePersisted === false ? t('No - install the app (Chrome/Edge > Install)') : t('Yes')}</span>
           </div>
           <div className={row}>
             <span className="text-muted">{t('Cloud account')}</span>
@@ -126,7 +155,46 @@ function SyncPanel({ onClose }: { onClose: () => void }) {
           </div>
         )}
 
-        {s.needsLink && <RelinkForm />}
+        {s.imageBlocked && (
+          <div className="mt-3 rounded-lg bg-danger/10 px-3 py-2 text-xs text-danger">
+            <div className="mb-1 font-semibold">{t('The cloud refused a photo - other changes keep syncing.')}</div>
+            <div dir="ltr" className="break-words">
+              {s.imageBlocked.path.split('/').pop()}: {s.imageBlocked.error}
+            </div>
+            {perms.isAdmin && (
+              <button
+                onClick={skipImage}
+                disabled={busy}
+                className="mt-2 rounded-md border border-danger/40 px-2 py-1 text-danger hover:bg-white disabled:opacity-50"
+              >
+                {t('Stop uploading this photo')}
+              </button>
+            )}
+          </div>
+        )}
+
+        {s.licenseHold && (
+          <p className="mt-3 rounded-lg bg-warning-bg px-3 py-2 text-xs text-warning">
+            {t('The store license is not active, so the cloud does not accept changes. They are kept on this computer and upload after renewal.')}
+          </p>
+        )}
+
+        {s.replaced && (
+          <p className="mt-3 rounded-lg bg-danger/10 px-3 py-2 text-xs text-danger">
+            {t('Another computer is now the register for this store, so this one no longer uploads. Export a backup of anything you need from it.')}
+          </p>
+        )}
+
+        {note && <p className="mt-3 text-xs text-muted">{note}</p>}
+
+        {s.needsLink &&
+          (perms.isAdmin ? (
+            <RelinkForm />
+          ) : (
+            <p className="mt-3 rounded-lg bg-warning-bg px-3 py-2 text-xs text-warning">
+              {t('Cloud sync is paused: ask an admin to open this panel and sign in again.')}
+            </p>
+          ))}
 
         <div className="mt-4 flex justify-end gap-2">
           <button onClick={onClose} className="rounded-lg border border-line px-4 py-2 text-sm text-muted hover:bg-surface">

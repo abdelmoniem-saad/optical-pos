@@ -25,7 +25,7 @@ export function useInfiniteSales(range: SalesRange, term: string) {
   return useInfiniteQuery({
     queryKey: [...KEY, 'paged', range, t],
     initialPageParam: 0,
-    queryFn: ({ pageParam }) => getRepo().getSalesPage(range, t, pageParam as number, SALES_PAGE),
+    queryFn: ({ pageParam }) => getRepo().getSalesPage(range, t, (pageParam as number) * SALES_PAGE, SALES_PAGE),
     getNextPageParam: (last, all) => {
       const loaded = all.reduce((sum, p) => sum + p.rows.length, 0)
       return loaded < last.count ? all.length : undefined
@@ -38,7 +38,7 @@ export function useInfiniteLabSales(status: string) {
   return useInfiniteQuery({
     queryKey: [...KEY, 'lab', status],
     initialPageParam: 0,
-    queryFn: ({ pageParam }) => getRepo().getLabSalesPage(status, pageParam as number, SALES_PAGE),
+    queryFn: ({ pageParam }) => getRepo().getLabSalesPage(status, (pageParam as number) * SALES_PAGE, SALES_PAGE),
     getNextPageParam: (last, all) => {
       const loaded = all.reduce((sum, p) => sum + p.rows.length, 0)
       return loaded < last.count ? all.length : undefined

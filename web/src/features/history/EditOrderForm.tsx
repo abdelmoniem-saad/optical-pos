@@ -95,15 +95,19 @@ export function EditOrderForm({ sale, onDone }: { sale: Sale; onDone: () => void
         // (when no other order uses them), new frames become products, and
         // orphaned app-created frame products are cleaned up. Quantities of
         // existing products are never auto-changed by an edit.
-        await syncExamReferences({
-          invoiceNo: sale.invoice_no,
-          oldRows: examsQ.data ?? [],
-          newRows: rows,
-        })
-        // The repository performs the sync but doesn't own the query cache.
-        qc.invalidateQueries({ queryKey: ['inventory'] })
-        qc.invalidateQueries({ queryKey: ['lens_types'] })
-        qc.invalidateQueries({ queryKey: ['frame_colors'] })
+        try {
+          await syncExamReferences({
+            invoiceNo: sale.invoice_no,
+            oldRows: examsQ.data ?? [],
+            newRows: rows,
+          })
+        } finally {
+          // The repository performs the sync but doesn't own the query cache;
+          // refresh even if it stopped partway.
+          qc.invalidateQueries({ queryKey: ['inventory'] })
+          qc.invalidateQueries({ queryKey: ['lens_types'] })
+          qc.invalidateQueries({ queryKey: ['frame_colors'] })
+        }
       }
       onDone()
     } catch (e) {

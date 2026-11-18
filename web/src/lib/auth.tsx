@@ -10,12 +10,15 @@ import { supabase } from './supabase'
 import { queryClient } from './queryClient'
 import { IS_LOCAL, READ_ONLY } from './config'
 import {
+  LOCAL_SESSION_KEY,
   getLocalSession,
   localSignIn,
   localSignOut,
   sessionAsAuthUser,
+  setWindowSession,
   type LocalSession,
 } from './local/localAuth'
+import { clearPersistedWizard } from '../features/pos/wizardStore'
 
 // This module intentionally co-locates the AuthProvider with its hook/helpers
 // (useAuth, usernameToEmail, displayName).
@@ -58,12 +61,30 @@ function LocalAuthProvider({ children }: { children: ReactNode }) {
   // Screens only test the session for presence; give them a stand-in.
   const session = user ? ({ user, access_token: '', token_type: 'local' } as unknown as Session) : null
 
+  // Sales made in this window are attributed to the person shown in it.
+  useEffect(() => {
+    setWindowSession(local)
+  }, [local])
+
+  // Signing in/out in another window of the app applies here too.
+  useEffect(() => {
+    const onStorage = (e: StorageEvent) => {
+      if (e.key !== LOCAL_SESSION_KEY && e.key !== null) return
+      const next = getLocalSession()
+      setLocal((cur) => (cur?.userId === next?.userId && cur?.signedInAt === next?.signedInAt ? cur : next))
+      if (!next) queryClient.clear()
+    }
+    window.addEventListener('storage', onStorage)
+    return () => window.removeEventListener('storage', onStorage)
+  }, [])
+
   async function signIn(username: string, password: string) {
     setLocal(await localSignIn(username, password))
   }
 
   async function signOut() {
     localSignOut()
+    clearPersistedWizard()
     setLocal(null)
     queryClient.clear()
   }
@@ -83,8 +104,15 @@ function CloudAuthProvider({ children }: { children: ReactNode }) {
       setSession(data.session)
       setLoading(false)
     })
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, next) => {
+    const { data: sub } = supabase.auth.onAuthStateChange((event, next) => {
       setSession(next)
+      // Store id / license / vendor flag were possibly fetched before sign-in
+      // (as anonymous = null): fetch them again for the new account.
+      if (event === 'SIGNED_IN' || event === 'SIGNED_OUT' || event === 'USER_UPDATED') {
+        for (const key of ['my-store-id', 'my-license', 'is-platform-admin']) {
+          void queryClient.invalidateQueries({ queryKey: [key] })
+        }
+      }
     })
     return () => sub.subscription.unsubscribe()
   }, [])
@@ -105,7 +133,11 @@ function CloudAuthProvider({ children }: { children: ReactNode }) {
   }
 
   async function signOut() {
-    await supabase.auth.signOut()
+    // 'local': end THIS device's session only. The default ('global') would
+    // also sign out every other device of the same account - including the
+    // shop PC's cloud sync when the owner signs out on the phone.
+    await supabase.auth.signOut({ scope: 'local' })
+    clearPersistedWizard()
     // Don't leave another staff member's data cached on a shared tablet.
     queryClient.clear()
     try {

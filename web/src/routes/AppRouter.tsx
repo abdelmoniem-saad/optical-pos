@@ -66,7 +66,9 @@ const router = createBrowserRouter([
       },
       {
         path: 'pos',
-        element: (
+        element: READ_ONLY ? (
+          <Navigate to="/reports" replace />
+        ) : (
           <RequirePermission resource="pos">
             <POSPage />
           </RequirePermission>

@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { useI18n } from '../../i18n/LanguageContext'
-import { exportBackup, importBackup } from '../../lib/local/backup'
-import { restoreFromCloud, useSyncStatus } from '../../lib/local/sync'
+import { exportBackup, importBackup, readBackup } from '../../lib/local/backup'
+import { cloudMaxInvoice, restoreFromCloud, useSyncStatus } from '../../lib/local/sync'
+import { metaGet } from '../../lib/local/db'
 import { useLocalMeta } from '../../lib/local/state'
 
 /** Settings → Backup (shop PC only): export / import / restore-from-cloud. */
@@ -38,15 +39,29 @@ export function BackupPanel() {
 
   const doImport = (file: File | undefined) => {
     if (!file) return
-    if (!confirm(t('Replace ALL data on this computer with this backup file? This cannot be undone.'))) return
     void run('import', async () => {
-      await importBackup(file)
+      const info = await readBackup(file)
+      const made = new Date(info.exportedAt).toLocaleString()
+      let text = `${t('Replace ALL data on this computer with this backup file? This cannot be undone.')}\n\n${t('Backup made')}: ${made} · ${t('Orders')}: ${info.sales} · ${t('Changes waiting')}: ${info.waitingChanges}`
+      if (info.olderThanLastSync) {
+        text += `\n\n${t('WARNING: this backup is OLDER than the last cloud sync. Orders made after it will disappear from this computer. If this computer still works, use "Restore from cloud" instead.')}`
+      }
+      if (!confirm(text)) return
+      // Never hand out an invoice number the cloud already has.
+      let cloudMax = 0
+      if (navigator.onLine) cloudMax = await cloudMaxInvoice().catch(() => 0)
+      await importBackup(info, cloudMax)
       window.location.reload()
     })
   }
 
-  const doRestore = () => {
-    if (!confirm(t('Replace the data on this computer with the cloud copy?'))) return
+  const doRestore = async () => {
+    const skipped = ((await metaGet<unknown[]>('skippedEntries')) ?? []).length
+    let text = t('Replace the data on this computer with the cloud copy?')
+    if (skipped) {
+      text += `\n\n${t('Changes that were skipped in the sync panel never reached the cloud and will be lost')}: ${skipped}`
+    }
+    if (!confirm(text)) return
     void run('restore', async () => {
       await restoreFromCloud()
       setMsg({ ok: true, text: t('Restored from the cloud.') })
@@ -78,7 +93,7 @@ export function BackupPanel() {
           />
         </label>
         <button
-          onClick={doRestore}
+          onClick={() => void doRestore()}
           disabled={!!busy || !s.online || s.pending > 0}
           title={s.pending > 0 ? t('Some changes have not been uploaded yet.') : undefined}
           className={btn}

@@ -15,7 +15,9 @@ import {
 } from '../../data/sales'
 import { useAddCustomer, useUpdateCustomer } from '../../data/customers'
 import { getRepo } from '../../lib/repository'
+import { useAuth } from '../../lib/auth'
 import { findOrderImages } from '../../lib/storage'
+import { loadWizard, saveWizard } from './wizardStore'
 import { useStoreId } from '../../lib/licensing'
 import type { Customer, CustomerInsert, Product, Sale } from '../../lib/database.types'
 import { addLine, computeTotals, removeLine, setQty, type Totals } from './pricing'
@@ -80,9 +82,15 @@ type State = {
   rxImagePath: string | null
   frameImagePath: string | null
   invoiceNo: string
+  /** When invoiceNo was handed out (ms): older phone photos under the same
+   *  number belong to an abandoned order and are never attached. */
+  invoiceAssignedAt: number | null
   /** Sale created by the FIRST Finish Checkout; later checkouts update it. */
   savedSale: Sale | null
   savedHadExams: boolean
+  /** Invoice of a first checkout that was sent but not yet confirmed (a
+   *  reload in that moment must not create the same sale twice). */
+  pendingInvoice: string | null
   completed: CompletedOrder | null
   busy: boolean
   error: string | null
@@ -104,8 +112,10 @@ function initialState(): State {
     rxImagePath: null,
     frameImagePath: null,
     invoiceNo: '',
+    invoiceAssignedAt: null,
     savedSale: null,
     savedHadExams: false,
+    pendingInvoice: null,
     completed: null,
     busy: false,
     error: null,
@@ -121,39 +131,26 @@ function reducer(state: State, action: Action): State {
 
 // The New Sale wizard intentionally SURVIVES tab switches AND page reloads
 // (a crash/power cut mid-sale must not lose the order being typed): the latest
-// state is mirrored into a module-level snapshot plus localStorage, and
-// re-hydrated when the tab is opened again. Every other screen reloads fresh
-// by design; only this wizard continues where it left off. "startNewSale"
-// (receipt dialog) is the explicit way to reset.
-const WIZARD_KEY = 'lensy-pos-wizard'
-let memoryState: State | null = null
-
-function loadPersisted(): State | null {
-  try {
-    const raw = localStorage.getItem(WIZARD_KEY)
-    if (!raw) return null
-    const saved = JSON.parse(raw) as Partial<State>
-    // Transient UI flags never survive a reload.
-    return { ...initialState(), ...saved, busy: false, error: null, completed: null }
-  } catch {
-    return null
-  }
+// state is mirrored into a module-level snapshot plus localStorage (see
+// wizardStore.ts - tagged with the signed-in staff member, cleared on sign-out)
+// and re-hydrated when the tab is opened again. Every other screen reloads
+// fresh by design; only this wizard continues where it left off.
+// "startNewSale" (receipt dialog) is the explicit way to reset.
+function restore(owner: string | null): State | null {
+  const saved = loadWizard<Partial<State>>(owner)
+  if (!saved) return null
+  // Transient UI flags never survive a reload or a tab switch.
+  return { ...initialState(), ...saved, busy: false, error: null, completed: null }
 }
 
-function persist(state: State): void {
-  try {
-    if (state.step === 'category' && !state.customer && !state.cartItems.length && !state.examinations.length) {
-      localStorage.removeItem(WIZARD_KEY)
-    } else {
-      const { busy: _b, error: _e, completed: _c, ...rest } = state
-      void _b
-      void _e
-      void _c
-      localStorage.setItem(WIZARD_KEY, JSON.stringify(rest))
-    }
-  } catch {
-    // storage full/blocked - the in-memory snapshot still covers tab switches
-  }
+function persist(owner: string | null, state: State): void {
+  const empty =
+    state.step === 'category' && !state.customer && !state.cartItems.length && !state.examinations.length
+  const { busy: _b, error: _e, completed: _c, ...rest } = state
+  void _b
+  void _e
+  void _c
+  saveWizard(owner, state, rest, empty)
 }
 
 type POSApi = {
@@ -198,16 +195,23 @@ type POSApi = {
 const Ctx = createContext<POSApi | undefined>(undefined)
 
 export function POSProvider({ children }: { children: ReactNode }) {
-  const [state, dispatch] = useReducer(reducer, undefined, () => memoryState ?? loadPersisted() ?? initialState())
+  const owner = useAuth().user?.id ?? null
+  const [state, dispatch] = useReducer(reducer, undefined, () => restore(owner) ?? initialState())
   const ref = useRef(state)
   ref.current = state
   const qc = useQueryClient()
 
   // Mirror every change into the snapshot (tab switches) and storage (reloads).
   useEffect(() => {
-    memoryState = state
-    persist(state)
-  }, [state])
+    persist(owner, state)
+  }, [owner, state])
+
+  // A reload while a first checkout was in flight: if that sale was saved,
+  // continue editing IT instead of creating a duplicate under a new number.
+  useEffect(() => {
+    if (ref.current.pendingInvoice && !ref.current.savedSale) void recoverPendingCheckout()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const createSale = useCreateSale()
   const updateSale = useUpdateSaleFull()
@@ -286,6 +290,7 @@ export function POSProvider({ children }: { children: ReactNode }) {
     }
     if (!invoiceNo) {
       invoiceNo = await getNextInvoiceNo()
+      patch({ invoiceAssignedAt: Date.now() })
     }
     patch({ customer, invoiceNo, step: 'cart' })
   }
@@ -406,13 +411,45 @@ export function POSProvider({ children }: { children: ReactNode }) {
   const setGross = (n: number) => patch({ grossOverride: Math.max(0, n || 0) })
 
   // ---- checkout ----
+
+  /** Returns false when checkout must not continue (the cashier is told why). */
+  async function recoverPendingCheckout(): Promise<boolean> {
+    const s = ref.current
+    if (!s.pendingInvoice || s.savedSale) return true
+    let existing: Sale | null = null
+    try {
+      existing = await getRepo().getSaleByInvoiceNo(s.pendingInvoice)
+    } catch {
+      patch({ error: `Could not check whether invoice ${s.pendingInvoice} was already saved. Check History before finishing again.` })
+      return false
+    }
+    if (!existing) {
+      patch({ pendingInvoice: null })
+      return true
+    }
+    if ((existing.customer_id ?? null) === (s.customer?.id ?? null)) {
+      patch({
+        savedSale: existing,
+        savedHadExams: s.examinations.length > 0,
+        invoiceNo: existing.invoice_no,
+        pendingInvoice: null,
+        rxImagePath: s.rxImagePath ?? existing.rx_image_path ?? null,
+        frameImagePath: s.frameImagePath ?? existing.frame_image_path ?? null,
+      })
+      return true
+    }
+    patch({ pendingInvoice: null })
+    return true
+  }
+
   async function finishOrder() {
+    if (!(await recoverPendingCheckout())) return
     const s = ref.current
     if (!s.cartItems.length && !s.examinations.length) {
       patch({ error: 'Cart is empty and no examinations. Cannot checkout.' })
       return
     }
-    patch({ busy: true, error: null })
+    patch({ busy: true, error: null, pendingInvoice: s.savedSale ? null : s.invoiceNo || null })
     try {
       const cartItems = await addNewFramesFromExams(s.cartItems, s.examinations)
       // Settings sync (lens types / frame colors used by this order) happens
@@ -437,7 +474,9 @@ export function POSProvider({ children }: { children: ReactNode }) {
       let rxImagePath = s.rxImagePath ?? legacyRxImage
       let frameImagePath = s.frameImagePath
       if (!rxImagePath || !frameImagePath) {
-        const found = await findOrderImages(myStoreId ?? '', s.invoiceNo)
+        // Photo names carry the phone's clock: allow 30 minutes of drift.
+        const since = s.invoiceAssignedAt ? s.invoiceAssignedAt - 30 * 60_000 : 0
+        const found = await findOrderImages(myStoreId ?? '', s.invoiceNo, since)
         rxImagePath = rxImagePath ?? found.rx ?? null
         frameImagePath = frameImagePath ?? found.frame ?? null
       }
@@ -482,9 +521,13 @@ export function POSProvider({ children }: { children: ReactNode }) {
       }
       patch({
         busy: false,
+        pendingInvoice: null,
         invoiceNo: sale.invoice_no || s.invoiceNo,
         savedSale: sale,
         savedHadExams: s.examinations.length > 0,
+        // Show (and lock) the photos the sale actually carries now.
+        rxImagePath: sale.rx_image_path ?? rxImagePath ?? null,
+        frameImagePath: sale.frame_image_path ?? frameImagePath ?? null,
         completed: {
           sale,
           customer: s.customer,
@@ -504,6 +547,8 @@ export function POSProvider({ children }: { children: ReactNode }) {
         e?.error_description ||
         e?.details ||
         (typeof e === 'string' ? e : 'Error saving order')
+      // The request failed, so nothing was saved under the pending number -
+      // unless the response was lost; recoverPendingCheckout() checks that.
       patch({ busy: false, error: msg })
     }
   }

@@ -310,7 +310,7 @@ export class SupabaseRepository implements PosRepository {
   async getSaleByInvoiceNo(invoiceNo: string): Promise<Sale | null> {
     const { data, error } = await supabase
       .from('sales')
-      .select('id, invoice_no, rx_image_path, frame_image_path, order_date')
+      .select('id, invoice_no, customer_id, rx_image_path, frame_image_path, order_date')
       .eq('invoice_no', invoiceNo)
       .maybeSingle<Sale>()
     if (error) throw error
@@ -485,6 +485,7 @@ export class SupabaseRepository implements PosRepository {
     paymentMethod,
     rxImagePath,
     frameImagePath,
+    customerId,
   }: UpdateSaleFullInput): Promise<Sale> {
     // 1) Header. lab_status only changes when the exam set appears/vanishes;
     //    an in-progress lab status must never be reset by a re-checkout.
@@ -496,9 +497,12 @@ export class SupabaseRepository implements PosRepository {
       payment_method: paymentMethod ?? 'Cash',
       delivery_date: deliveryDate ? deliveryDate : null,
       doctor_name: doctorName ?? '',
-      rx_image_path: rxImagePath ?? null,
-      frame_image_path: frameImagePath ?? null,
     }
+    // A photo the wizard doesn't know about (adopted from the phone, or not
+    // found because the lookup timed out) is kept, never cleared.
+    if (rxImagePath) headerPatch.rx_image_path = rxImagePath
+    if (frameImagePath) headerPatch.frame_image_path = frameImagePath
+    if (customerId !== undefined) headerPatch.customer_id = customerId
     const exams = examinations ?? []
     if (exams.length) headerPatch.lab_status = 'Not Started'
     else if (previousHadExams) headerPatch.lab_status = null
@@ -1096,7 +1100,11 @@ export class SupabaseRepository implements PosRepository {
   }
 
   async setSetting(key: string, value: string): Promise<void> {
-    const { error } = await supabase.from('settings').upsert({ key, value }, { onConflict: 'key' })
+    // Per-store key after migration 011/012; the old global key before it.
+    let { error } = await supabase.from('settings').upsert({ key, value }, { onConflict: 'store_id,key' })
+    if (error?.code === '42P10') {
+      ;({ error } = await supabase.from('settings').upsert({ key, value }, { onConflict: 'key' }))
+    }
     if (error) throw error
   }
 

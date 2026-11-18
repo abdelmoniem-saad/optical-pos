@@ -15,13 +15,18 @@ export type TableDef = {
   createdAt?: boolean
   /** Table may be missing on older databases - pull treats "missing" as empty. */
   optional?: boolean
+  /**
+   * Cloud ON CONFLICT targets to try, in order, when they differ from `key`.
+   * The first one the database accepts is remembered (meta 'conflictPick').
+   */
+  conflict?: string[][]
 }
 
 export const TABLES: TableDef[] = [
   { name: 'customers', key: ['id'], storeScoped: true, createdAt: true },
   { name: 'sales', key: ['id'], indexes: ['customer_id', 'invoice_no', 'order_date'], storeScoped: true },
-  { name: 'sale_items', key: ['id'], indexes: ['sale_id', 'product_id'], storeScoped: true },
-  { name: 'order_examinations', key: ['id'], indexes: ['sale_id'], storeScoped: true },
+  { name: 'sale_items', key: ['id'], indexes: ['sale_id', 'product_id'], storeScoped: true, createdAt: true },
+  { name: 'order_examinations', key: ['id'], indexes: ['sale_id'], storeScoped: true, createdAt: true },
   { name: 'prescriptions', key: ['id'], indexes: ['customer_id'], storeScoped: true, optional: true },
   { name: 'inventory', key: ['id'], storeScoped: true },
   { name: 'stock_movements', key: ['id'], indexes: ['product_id', 'ref_no'], storeScoped: true },
@@ -40,7 +45,8 @@ export const TABLES: TableDef[] = [
   { name: 'note_seen', key: ['note_id', 'user_id'], indexes: ['note_id'], storeScoped: true, optional: true },
   { name: 'users', key: ['id'], indexes: ['username'], storeScoped: true },
   { name: 'roles', key: ['id'], storeScoped: true },
-  { name: 'settings', key: ['key'], storeScoped: true },
+  // Per-store UNIQUE(store_id, key) after migration 011; global UNIQUE(key) before.
+  { name: 'settings', key: ['key'], storeScoped: true, conflict: [['store_id', 'key'], ['key']] },
   { name: 'lens_types', key: ['id'], storeScoped: true, createdAt: true },
   { name: 'frame_colors', key: ['id'], storeScoped: true, createdAt: true },
   { name: 'frame_types', key: ['id'], storeScoped: true, createdAt: true, optional: true },

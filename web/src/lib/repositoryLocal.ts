@@ -36,11 +36,26 @@ import type {
   SaleItem,
   User,
 } from './database.types'
-import { META, commit, getAll, getByIndex, getOne, metaGet, onCommit, type Change, type Row } from './local/db'
+import {
+  META,
+  commit,
+  getAll,
+  getByIndex,
+  getOne,
+  metaGet,
+  metaSet,
+  onCommit,
+  withLock,
+  type Change,
+  type Row,
+} from './local/db'
 import { tableDef } from './local/schema'
 import { uuid } from './local/uuid'
 import { effectiveLicenseState, localMeta } from './local/state'
-import { getLocalSession } from './local/localAuth'
+import { currentWindowSession, getLocalSession } from './local/localAuth'
+
+/** Invoice numbers are handed out under a lock shared by every window. */
+const INVOICE_LOCK = 'lensypos-invoice'
 
 // ---------------------------------------------------------------------------
 // helpers
@@ -107,6 +122,30 @@ function examRow(e: Record<string, unknown>, saleId: string): Row {
 
 const up = (table: string, ...rows: Row[]): Change => ({ table, op: 'upsert', rows })
 const del = (table: string, rows: Row[]): Change => ({ table, op: 'delete', rows })
+
+/** Rows created in one go keep their order: created_at = base + index (ms). */
+const orderedAt = (base: number, i: number) => new Date(base + i).toISOString()
+
+/** Line items / examinations in the order they were entered. */
+function byCreated<T>(a: T, b: T): number {
+  const x = a as Record<string, unknown>
+  const y = b as Record<string, unknown>
+  return (
+    String(x.created_at ?? '').localeCompare(String(y.created_at ?? '')) || String(x.id).localeCompare(String(y.id))
+  )
+}
+
+/** Same rule (and the same wording) as the cloud's UNIQUE constraints. */
+function duplicate(what: string): Error {
+  return new Error(`duplicate key value violates unique constraint - ${what}`)
+}
+
+/** An empty SKU is "no SKU" (two products without one must not collide). */
+function cleanSku<T extends { sku?: string | null }>(p: T): T {
+  if (p.sku === undefined) return p
+  const sku = (p.sku ?? '').trim()
+  return { ...p, sku: sku || null }
+}
 
 // Stock is derived from the append-only movements ledger. Summing the whole
 // ledger on every inventory read is wasteful, so keep the totals in memory and
@@ -309,8 +348,8 @@ export class LocalRepository implements PosRepository {
     return Promise.all(
       sales.map(async (s) => ({
         ...s,
-        sale_items: await getByIndex<SaleItem>('sale_items', 'sale_id', s.id),
-        order_examinations: await getByIndex<OrderExamination>('order_examinations', 'sale_id', s.id),
+        sale_items: (await getByIndex<SaleItem>('sale_items', 'sale_id', s.id)).sort(byCreated),
+        order_examinations: (await getByIndex<OrderExamination>('order_examinations', 'sale_id', s.id)).sort(byCreated),
       })),
     )
   }
@@ -321,11 +360,17 @@ export class LocalRepository implements PosRepository {
   }
 
   /**
-   * Next invoice number from the PC's own sequence. One writer (this PC) means
-   * no collisions; the persisted high-water mark means a number is never
-   * reused, even if its sale is later deleted.
+   * Next invoice number from the PC's own sequence, RESERVED as it is handed
+   * out: the persisted high-water mark moves past it at once, so a number is
+   * never given twice - not after an abandoned order (whose photos are stored
+   * under that number), not after a deletion, not from two windows at once.
    */
   async getNextInvoiceNo(): Promise<string> {
+    return (await withLock(INVOICE_LOCK, () => this.reserveInvoiceNo())) as string
+  }
+
+  /** Call only while holding INVOICE_LOCK (locks are not re-entrant). */
+  private async reserveInvoiceNo(): Promise<string> {
     const sales = await getAll<Sale>('sales')
     const taken = new Set(sales.map((s) => String(s.invoice_no ?? '').trim()))
     let max = (await metaGet<number>('invoiceHigh')) ?? 0
@@ -336,12 +381,14 @@ export class LocalRepository implements PosRepository {
     if (max === 0) max = sales.length
     let candidate = max + 1
     while (taken.has(pad6(candidate))) candidate++
+    await metaSet('invoiceHigh', candidate)
     return pad6(candidate)
   }
 
-  private invoiceHighChange(invoiceNo: string): Change[] {
+  private async invoiceHighChange(invoiceNo: string): Promise<Change[]> {
     if (!/^\d+$/.test(invoiceNo)) return []
-    return [{ table: META, op: 'upsert', localOnly: true, rows: [{ key: 'invoiceHigh', value: Number(invoiceNo) }] }]
+    const high = Math.max((await metaGet<number>('invoiceHigh')) ?? 0, Number(invoiceNo))
+    return [{ table: META, op: 'upsert', localOnly: true, rows: [{ key: 'invoiceHigh', value: high }] }]
   }
 
   private saleChildren(
@@ -349,8 +396,9 @@ export class LocalRepository implements PosRepository {
     invoiceNo: string,
     input: Pick<CreateSaleInput, 'items' | 'examinations' | 'doctorName'>,
   ): Change[] {
-    const at = nowIso()
-    const items = input.items.map((i) =>
+    const base = Date.now()
+    const at = new Date(base).toISOString()
+    const items = input.items.map((i, n) =>
       this.stamp('sale_items', {
         sale_id: saleId,
         product_id: i.product_id,
@@ -358,6 +406,7 @@ export class LocalRepository implements PosRepository {
         unit_price: i.unit_price,
         total_price: i.total_price,
         name: i.name,
+        created_at: orderedAt(base, n),
       }),
     )
     const movements = input.items.map((i) =>
@@ -370,21 +419,28 @@ export class LocalRepository implements PosRepository {
         created_at: at,
       }),
     )
-    const exams = (input.examinations ?? []).map((e) =>
+    const exams = (input.examinations ?? []).map((e, n) =>
       this.stamp('order_examinations', {
         ...examRow(e as Record<string, unknown>, saleId),
         doctor_name: (e as Record<string, unknown>).doctor_name || input.doctorName || null,
+        created_at: orderedAt(base, n),
       }),
     )
     return [up('sale_items', ...items), up('stock_movements', ...movements), up('order_examinations', ...exams)]
   }
 
   async createSale(input: CreateSaleInput): Promise<Sale> {
+    // Number check + save under one lock: two windows can't take one number.
+    return (await withLock(INVOICE_LOCK, () => this.createSaleLocked(input))) as Sale
+  }
+
+  private async createSaleLocked(input: CreateSaleInput): Promise<Sale> {
+    this.assertWritable()
     let invoiceNo = input.invoiceNo
     if (!invoiceNo) {
-      invoiceNo = await this.getNextInvoiceNo()
+      invoiceNo = await this.reserveInvoiceNo()
     } else if (!invoiceNo.startsWith('PRESC-') && (await this.getSaleByInvoiceNo(invoiceNo))) {
-      invoiceNo = await this.getNextInvoiceNo()
+      invoiceNo = await this.reserveInvoiceNo()
     }
     const sale = this.stamp('sales', {
       invoice_no: invoiceNo,
@@ -406,7 +462,7 @@ export class LocalRepository implements PosRepository {
     await this.write([
       up('sales', sale as unknown as Row),
       ...this.saleChildren(sale.id, invoiceNo, input),
-      ...this.invoiceHighChange(invoiceNo),
+      ...(await this.invoiceHighChange(invoiceNo)),
     ])
     return sale
   }
@@ -423,6 +479,7 @@ export class LocalRepository implements PosRepository {
     paymentMethod,
     rxImagePath,
     frameImagePath,
+    customerId,
   }: UpdateSaleFullInput): Promise<Sale> {
     const cur = await this.mustGet<Sale>('sales', saleId)
     const exams = examinations ?? []
@@ -435,9 +492,12 @@ export class LocalRepository implements PosRepository {
       payment_method: paymentMethod ?? 'Cash',
       delivery_date: deliveryDate ? deliveryDate : null,
       doctor_name: doctorName ?? '',
-      rx_image_path: rxImagePath ?? null,
-      frame_image_path: frameImagePath ?? null,
+      // A photo the wizard doesn't know about (adopted from the phone, or a
+      // cloud lookup that timed out) is kept, never cleared.
+      rx_image_path: rxImagePath ?? cur.rx_image_path ?? null,
+      frame_image_path: frameImagePath ?? cur.frame_image_path ?? null,
     }
+    if (customerId !== undefined) sale.customer_id = customerId
     // lab_status only changes when the exam set appears/vanishes.
     if (exams.length) sale.lab_status = 'Not Started'
     else if (previousHadExams) sale.lab_status = null
@@ -493,12 +553,15 @@ export class LocalRepository implements PosRepository {
   // =========================================================================
 
   async getOrderExaminations(saleId: string): Promise<OrderExamination[]> {
-    return getByIndex<OrderExamination>('order_examinations', 'sale_id', saleId)
+    return (await getByIndex<OrderExamination>('order_examinations', 'sale_id', saleId)).sort(byCreated)
   }
 
   async replaceOrderExaminations(saleId: string, exams: Omit<OrderExamination, 'id' | 'sale_id'>[]): Promise<void> {
     const old = await getByIndex<Row>('order_examinations', 'sale_id', saleId)
-    const rows = exams.map((e) => this.stamp('order_examinations', examRow(e as Record<string, unknown>, saleId)))
+    const base = Date.now()
+    const rows = exams.map((e, n) =>
+      this.stamp('order_examinations', { ...examRow(e as Record<string, unknown>, saleId), created_at: orderedAt(base, n) }),
+    )
     await this.write([del('order_examinations', old), up('order_examinations', ...rows)])
   }
 
@@ -545,8 +608,17 @@ export class LocalRepository implements PosRepository {
     return movs.reduce((sum, m) => sum + (m.qty ?? 0), 0)
   }
 
+  /** inventory.sku is UNIQUE in the cloud: refuse here, as the cloud would. */
+  private async assertSkuFree(sku: string | null | undefined, exceptId?: string): Promise<void> {
+    if (!sku) return
+    const clash = (await getAll<Product>('inventory')).find((p) => p.sku === sku && p.id !== exceptId)
+    if (clash) throw duplicate(`another product already uses SKU "${sku}" (${clash.name})`)
+  }
+
   async addProduct(input: ProductInsert): Promise<Product> {
-    const { stock_qty = 0, ...fields } = input
+    const { stock_qty = 0, ...rest } = input
+    const fields = cleanSku(rest)
+    await this.assertSkuFree(fields.sku)
     const product = this.stamp('inventory', { ...fields }) as unknown as Product
     const changes: Change[] = [up('inventory', product as unknown as Row)]
     if (stock_qty > 0) {
@@ -569,7 +641,9 @@ export class LocalRepository implements PosRepository {
 
   async updateProduct(id: string, patch: Partial<Omit<ProductInsert, 'stock_qty'>>): Promise<void> {
     const cur = await this.mustGet<Product>('inventory', id)
-    await this.write([up('inventory', { ...cur, ...patch, id } as unknown as Row)])
+    const clean = cleanSku(patch)
+    if (clean.sku !== undefined) await this.assertSkuFree(clean.sku, id)
+    await this.write([up('inventory', { ...cur, ...clean, id } as unknown as Row)])
   }
 
   async adjustStock(input: {
@@ -646,7 +720,9 @@ export class LocalRepository implements PosRepository {
   }
 
   async addMetadata(table: string, name: string, sortOrder?: number): Promise<NamedRow> {
-    const payload: Row = { name: name.trim() }
+    const clean = name.trim()
+    if ((await getAll<Row>(table)).some((r) => r.name === clean)) throw duplicate(`"${clean}" already exists`)
+    const payload: Row = { name: clean }
     if (sortOrder !== undefined) payload.sort_order = sortOrder
     const row = this.stamp(table, payload) as unknown as NamedRow
     await this.write([up(table, row as unknown as Row)])
@@ -805,9 +881,9 @@ export class LocalRepository implements PosRepository {
   private async permissionIdByCode(codeStr: string): Promise<{ id: string; create?: Change }> {
     const found = (await getByIndex<{ id: string }>('permissions', 'code', codeStr))[0]
     if (found) return { id: found.id }
-    // Unknown code (migration 004 not run) - create it, like the cloud path.
-    const row = { id: uuid(), code: codeStr }
-    return { id: row.id, create: up('permissions', row) }
+    // The permission catalogue is global and only the vendor may add to it
+    // (migration 011); 004/011 seed every code the app uses.
+    throw new Error(`Unknown permission "${codeStr}" - run the Supabase migrations (004/011), then Restore from cloud.`)
   }
 
   async toggleRoleGrant(roleId: string, permCode: string, granted: boolean): Promise<void> {
@@ -874,7 +950,8 @@ export class LocalRepository implements PosRepository {
   }
 
   async resolveStaffUserId(): Promise<string | null> {
-    const s = getLocalSession()
+    // The person signed in on THIS window (not whoever signed in last anywhere).
+    const s = currentWindowSession() ?? getLocalSession()
     if (!s) return null
     return (await getOne<User>('users', s.userId))?.id ?? null
   }
@@ -885,6 +962,7 @@ export class LocalRepository implements PosRepository {
   }
 
   async addRole(name: string): Promise<NamedRow> {
+    if ((await getAll<Row>('roles')).some((r) => r.name === name)) throw duplicate(`position "${name}" already exists`)
     const row = this.stamp('roles', { name }) as unknown as NamedRow
     await this.write([up('roles', row as unknown as Row)])
     return row

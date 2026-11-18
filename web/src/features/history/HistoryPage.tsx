@@ -10,7 +10,7 @@ import { useI18n } from '../../i18n/LanguageContext'
 import { OrderExamsLazy } from '../../components/ExamView'
 import { OrderReceiptDialog } from '../../components/OrderReceiptDialog'
 import { QrDialog } from '../../components/QrDialog'
-import { publicAppUrl } from '../../lib/config'
+import { READ_ONLY, publicAppUrl } from '../../lib/config'
 import { EditOrderForm } from './EditOrderForm'
 import { usePermissions } from '../../data/permissions'
 import { prescriptionImageUrl, uploadOrderImage } from '../../lib/storage'
@@ -222,7 +222,13 @@ function OrderImages({ sale, onQr }: { sale: Sale; onQr: () => void }) {
     setBusy(slot)
     try {
       const p = await uploadOrderImage(file, sale.invoice_no, slot, storeId)
-      await setImg.mutateAsync({ saleId: sale.id, slot, path: p })
+      if (READ_ONLY) {
+        // The phone view never writes the order: the shop computer attaches
+        // the newest photo from storage on its next sync.
+        alert(t('Photo saved. It attaches to the order on the shop computer automatically.'))
+      } else {
+        await setImg.mutateAsync({ saleId: sale.id, slot, path: p })
+      }
     } catch (e) {
       alert(e instanceof Error ? e.message : String(e))
     } finally {

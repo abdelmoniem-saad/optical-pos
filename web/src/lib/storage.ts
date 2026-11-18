@@ -73,12 +73,16 @@ export async function uploadOrderImage(
   slot: 'rx' | 'frame',
   storeId: string | null | undefined,
 ): Promise<string> {
-  const store = storeId ?? (IS_LOCAL ? localMeta().storeId : null)
-  if (!store) throw new Error('no-store')
+  let store = storeId ?? (IS_LOCAL ? localMeta().storeId : null)
+  if (!store && !IS_LOCAL) {
+    // Signed in a moment ago (the store id was looked up before sign-in).
+    const { data } = await supabase.rpc('auth_store_id')
+    store = (data as string | null) ?? null
+  }
+  if (!store) throw new Error('This account is not linked to a store. Sign out and sign in again.')
   const safe = invoiceNo.replace(/[^\w-]/g, '') || 'order'
   const compressed = await downscaleImage(file)
-  const ext = (compressed.name.split('.').pop() || 'jpg').toLowerCase()
-  const path = `store/${store}/orders/${safe}-${slot}-${Date.now().toString(36)}.${ext}`
+  const path = `store/${store}/orders/${safe}-${slot}-${Date.now().toString(36)}.${imageExt(compressed)}`
   if (IS_LOCAL) {
     // Same path the cloud will use; the sync engine uploads it when online.
     await putImage({
@@ -100,25 +104,72 @@ export async function uploadOrderImage(
   return path
 }
 
+/** A safe file extension: from the name if it is plain, else from the type. */
+function imageExt(f: File): string {
+  const fromName = (f.name.includes('.') ? f.name.split('.').pop() : '')?.toLowerCase() ?? ''
+  if (/^[a-z0-9]{1,5}$/.test(fromName)) return fromName
+  const fromType = (f.type.split('/')[1] ?? '').toLowerCase().replace('jpeg', 'jpg')
+  return /^[a-z0-9]{1,5}$/.test(fromType) ? fromType : 'jpg'
+}
+
+/**
+ * Keep a copy of a cloud photo on the shop PC (e.g. one adopted from the
+ * phone) so it still shows with no internet.
+ */
+export async function cacheCloudImage(path: string): Promise<void> {
+  if (!IS_LOCAL || localUrls.has(path)) return
+  try {
+    const url = supabase.storage.from(BUCKET).getPublicUrl(path).data.publicUrl
+    const res = await fetch(url)
+    if (!res.ok) return
+    const blob = await res.blob()
+    await putImage({
+      path,
+      blob,
+      contentType: blob.type || 'image/jpeg',
+      createdAt: new Date().toISOString(),
+      uploaded: 1,
+    })
+    localUrls.set(path, URL.createObjectURL(blob))
+  } catch {
+    // offline / not public - it shows from the cloud when online
+  }
+}
+
 /** Remove a previously uploaded order image (used when replacing). */
 export async function removeOrderImage(path: string): Promise<void> {
   const { error } = await supabase.storage.from(BUCKET).remove([path])
   if (error) throw error
 }
 
-function latestBySlot(names: string[], safe: string, dir: string) {
+/** Milliseconds encoded in an order photo name (<inv>-<slot>-<base36 ms>.<ext>). */
+function photoMs(name: string): number {
+  const m = /-(?:rx|frame)-([0-9a-z]+)\.[a-z0-9]+$/i.exec(name)
+  const n = m ? Number.parseInt(m[1], 36) : NaN
+  return Number.isFinite(n) ? n : 0
+}
+
+/** Newest photo per slot for this invoice, ignoring photos taken before `since`. */
+function latestBySlot(names: string[], safe: string, dir: string, since = 0) {
   const bySlot = (slot: 'rx' | 'frame'): string | undefined => {
-    const files = names.filter((n) => n.includes(`${safe}-${slot}-`)).sort()
+    const files = names
+      .filter((n) => n.startsWith(`${safe}-${slot}-`) && photoMs(n) >= since)
+      .sort((a, b) => photoMs(a) - photoMs(b))
     const last = files[files.length - 1]
     return last ? `${dir}/${last}` : undefined
   }
   return { rx: bySlot('rx'), frame: bySlot('frame') }
 }
 
-/** Photos for an invoice in CLOUD storage (uploaded from the phone). */
+/**
+ * Photos for an invoice in CLOUD storage (uploaded from the phone). `since`
+ * (ms): ignore older photos - they belong to an earlier, abandoned order that
+ * had the same number.
+ */
 export async function findCloudOrderImages(
   storeId: string,
   invoiceNo: string,
+  since = 0,
 ): Promise<{ rx?: string; frame?: string }> {
   const safe = invoiceNo.replace(/[^\w-]/g, '') || 'order'
   const dir = `store/${storeId}/orders`
@@ -128,6 +179,7 @@ export async function findCloudOrderImages(
     data.map((f) => f.name),
     safe,
     dir,
+    since,
   )
 }
 
@@ -141,8 +193,9 @@ export async function findCloudOrderImages(
 export async function findOrderImages(
   storeId: string,
   invoiceNo: string,
+  since = 0,
 ): Promise<{ rx?: string; frame?: string }> {
-  if (!IS_LOCAL) return findCloudOrderImages(storeId, invoiceNo)
+  if (!IS_LOCAL) return findCloudOrderImages(storeId, invoiceNo, since)
   const store = storeId || localMeta().storeId || ''
   const safe = invoiceNo.replace(/[^\w-]/g, '') || 'order'
   const dir = `store/${store}/orders`
@@ -150,13 +203,14 @@ export async function findOrderImages(
     [...localUrls.keys()].filter((p) => p.startsWith(`${dir}/`)).map((p) => p.slice(dir.length + 1)),
     safe,
     dir,
+    since,
   )
   if (local.rx && local.frame) return local
   if (!navigator.onLine || !store) return local
   try {
     // A flaky connection must never hold up checkout: give the cloud 4s.
     const cloud = await Promise.race([
-      findCloudOrderImages(store, invoiceNo),
+      findCloudOrderImages(store, invoiceNo, since),
       new Promise<{ rx?: string; frame?: string }>((resolve) => setTimeout(() => resolve({}), 4000)),
     ])
     return { rx: local.rx ?? cloud.rx, frame: local.frame ?? cloud.frame }

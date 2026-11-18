@@ -19,7 +19,8 @@ import { useI18n } from '../../i18n/LanguageContext'
 import { usePermissions } from '../../data/permissions'
 import { getRepo } from '../../lib/repository'
 import { IS_LOCAL, READ_ONLY } from '../../lib/config'
-import { pullNewStaff } from '../../lib/local/sync'
+import { pullNewStaff, syncNow } from '../../lib/local/sync'
+import { outboxPeek } from '../../lib/local/db'
 import { setOfflinePassword } from '../../lib/local/localAuth'
 import type { User } from '../../lib/database.types'
 
@@ -94,6 +95,14 @@ function AddUserForm({ onClose, storeId }: { onClose: () => void; storeId: strin
     }
     setBusy(true)
     try {
+      if (IS_LOCAL && roleId) {
+        // A position created on this PC must be in the cloud before a login can use it.
+        await syncNow(true)
+        const queued = await outboxPeek(5000)
+        if (queued.some((e) => e.table === 'roles' && e.rows.some((r) => r.id === roleId))) {
+          throw new Error(t('This position has not been uploaded to the cloud yet - check the sync panel, then try again.'))
+        }
+      }
       const { data, error } = await supabase.functions.invoke('create-user', {
         body: {
           username: f.username.trim(),
@@ -123,7 +132,10 @@ function AddUserForm({ onClose, storeId }: { onClose: () => void; storeId: strin
         await pullNewStaff()
         const uname = f.username.trim().toLowerCase()
         const created = (await getRepo().getUsers()).find((u) => u.username.toLowerCase() === uname)
-        if (created) await setOfflinePassword(created, f.password)
+        if (!created) {
+          throw new Error(t('The login was created, but its staff record did not reach this computer yet. Wait a minute and sign in with it once while online.'))
+        }
+        await setOfflinePassword(created, f.password)
       }
       await qc.invalidateQueries({ queryKey: ['users'] })
       onClose()
@@ -367,7 +379,7 @@ function AccessControl() {
       setNewPosition('')
       setSelectedRoleId(role.id)
     } catch (e) {
-      setErr(e instanceof Error ? e.message : String(e))
+      setErr((e as { message?: string } | null)?.message ?? String(e))
     }
   }
 
@@ -540,7 +552,7 @@ export function StaffPage() {
                   <th className="px-4 py-2">{t('Full Name')}</th>
                   <th className="px-4 py-2">{t('Role')}</th>
                   <th className="px-4 py-2 text-center">{t('Active')}</th>
-                  {IS_LOCAL && canEditStaff && <th className="px-4 py-2 text-center">{t('Offline sign-in')}</th>}
+                  {IS_LOCAL && perms.isAdmin && <th className="px-4 py-2 text-center">{t('Offline sign-in')}</th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-line/40">
@@ -579,7 +591,7 @@ export function StaffPage() {
                         <span className="text-success">{t('Active')}</span>
                       )}
                     </td>
-                    {IS_LOCAL && canEditStaff && (
+                    {IS_LOCAL && perms.isAdmin && (
                       <td className="px-4 py-2 text-center">
                         <OfflinePasswordButton user={u} />
                       </td>
