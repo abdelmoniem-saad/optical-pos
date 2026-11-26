@@ -116,8 +116,10 @@ The first two CI runs reported two different "stable" hashes for the same
 schema: the dump header names the exact `pg_dump` package build
 (`18.7-1.pgdg26.04+2` vs `+5` on two runner images), and the fingerprint
 hashed it. `web/scripts/schema-fingerprint.sh` now drops the two
-`-- Dumped from/by ... version` header lines, so the recorded hash is the one
-CI reports after that fix.
+`-- Dumped from/by ... version` header lines. The recorded 030 hash,
+`c64b2ead1ef6d6cf5e8c529b7ae940f0b6b4e3b39388596db84e33787f53b7e4`, comes from
+CI run 45898341885 after that fix (stable across the step's two runs, every
+pgTAP gate green in the same job).
 
 Local verification: production build, 298 frontend tests, 444 pgTAP assertions
 (365 before 030 plus 79 in the seven 030 gates).
