@@ -58,7 +58,7 @@ vi.mock('../lib/supabase', () => ({
   },
 }))
 
-import { MONEY_COLUMNS, getNextInvoiceNo } from './sales'
+import { MONEY_COLUMNS, getNextInvoiceNo, isInvoiceNoConflict, toRpcItems } from './sales'
 
 beforeEach(() => {
   state.invoiceRows = []
@@ -152,5 +152,27 @@ describe('MONEY_COLUMNS (migration 013 guard contract)', () => {
       'amount_paid',
     ]
     for (const k of MONEY_COLUMNS) expect(saleKeys).toContain(k)
+  })
+})
+// 030 (H5): the first checkout used to drop the line discount and its reason
+// before create_sale_order ever saw them.
+describe('toRpcItems (H5)', () => {
+  it('sends the line discount and its reason to create_sale_order', () => {
+    const out = toRpcItems([{ product_id: 'p1', qty: 2, unit_price: 500, total_price: 1000, name: 'Lens', discount: 100, discount_reason: 'loyal' }])
+    expect(out[0]).toMatchObject({ discount: 100, discount_reason: 'loyal' })
+  })
+
+  it('defaults a missing discount to 0 and reason to null', () => {
+    const out = toRpcItems([{ product_id: 'p1', qty: 1, unit_price: 10, total_price: 10, name: 'X' }])
+    expect(out[0]).toMatchObject({ discount: 0, discount_reason: null })
+  })
+})
+
+// 030 replaced the global sales_invoice_no_key with a per-store unique index.
+describe('isInvoiceNoConflict', () => {
+  it('treats a collision on the per-store invoice index as an invoice conflict', () => {
+    expect(isInvoiceNoConflict({ message: 'duplicate key value violates unique constraint "sales_store_invoice_no_key"' })).toBe(true)
+    expect(isInvoiceNoConflict({ code: '23505', message: 'duplicate key value violates unique constraint "sales_store_invoice_no_key"' })).toBe(true)
+    expect(isInvoiceNoConflict({ code: '42501', message: 'insufficient permission' })).toBe(false)
   })
 })

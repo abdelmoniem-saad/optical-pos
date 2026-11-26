@@ -9,6 +9,7 @@ import {
   methodLabelKey,
   normalizeLines,
   paymentsTotal,
+  refundMethodOptions,
   removeLine as removePayLine,
   round2,
   upsertLine,
@@ -107,12 +108,12 @@ export function SalePayments({ sale, balance }: { sale: Sale; balance: number })
         )}
       </div>
 
-      {canRefund && <button type="button" className="my-1 text-xs text-danger hover:underline" onClick={() => setRefundOpen(v => !v)}>{t('Refund')}</button>}
+      {canRefund && <button type="button" className="my-1 text-xs text-danger hover:underline" onClick={() => { if (!refundOpen) setRefundMethod(refundMethodOptions(rows)[0] ?? 'cash'); setRefundOpen(v => !v) }}>{t('Refund')}</button>}
       {refundOpen && canRefund && <div className="my-2 space-y-2 rounded-lg border border-line p-3">
         <p className="text-xs text-muted">{t('Refunding money keeps this invoice open and increases its remaining balance. Use Void for a cancelled sale.')}</p>
         <div className="flex flex-wrap gap-2">
           <select aria-label={t('Payment method')} className="rounded border border-line p-2 text-xs" value={refundMethod} onChange={e => setRefundMethod(e.target.value)}>
-            {PAYMENT_METHODS.map(m => <option key={m} value={m}>{t(methodLabelKey(m))}</option>)}
+            {refundMethodOptions(rows).map(m => <option key={m} value={m}>{t(methodLabelKey(m))}</option>)}
           </select>
           <input aria-label={t('Refund amount')} className="w-28 rounded border border-line p-2 text-xs" type="number" min="0.01" max={refundable} step="0.01" value={refundAmount} onChange={e => setRefundAmount(e.target.value)}/>
           <span className="text-xs">{t('Available to refund')}: {money(Math.max(0,refundable))}</span>

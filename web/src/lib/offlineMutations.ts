@@ -1,4 +1,4 @@
-import { onlineManager } from '@tanstack/react-query'
+import type { QueryClient } from '@tanstack/react-query'
 
 /** Offline replay for CHECKOUT only.
  *
@@ -40,7 +40,9 @@ export const CHECKOUT_MUTATION_KEY = ['sale-checkout'] as const
  *  returns a promise that stays pending, so the wizard would sit on "saving"
  *  forever with no indication the sale was being held. Reporting that as a
  *  failure is wrong too: nothing failed, and the sale WILL be saved on
- *  reconnect. So the caller distinguishes the two and says the true thing. */
+ *  reconnect. So the caller distinguishes the two and says the true thing -
+ *  and "queued" is claimed only when the queue really holds the sale
+ *  (isCheckoutQueued below). */
 export type CheckoutOutcome =
   /** The database has the sale. Show the receipt. */
   | { kind: 'saved'; invoiceNo: string }
@@ -50,22 +52,66 @@ export type CheckoutOutcome =
   /** Not saved. Show the reason; nothing is pending. */
   | { kind: 'failed'; message: string }
 
-/** True when the error means "paused for offline", not "rejected".
+/** True when THIS checkout attempt (its idempotency key) is held in the queue.
  *
- *  TanStack's own signal for a paused mutation is `mutation.state.isPaused`,
- *  which lives on the core `Mutation` object — the React `UseMutationResult`
- *  returned by a hook does NOT re-export it, so it cannot be read from the
- *  hook's return value (`tsc` rejects that shape; see the note in the commit
- *  message). The reliable caller-side signal is the online manager: a mutation
- *  configured with `networkMode: 'online'` can only be paused because the
- *  device went offline, and a paused mutation is by definition unsettled, so
- *  "we are offline" is exactly the condition under which a checkout must be
- *  reported as queued rather than saved or failed.
- *
- *  Reading the network instead of matching a string in the thrown error is
- *  deliberate: message-matching would mislabel any unrelated failure that
- *  happens to occur while the connection drops, telling the cashier a sale is
- *  safely queued when it was in fact rejected. */
-export function isQueuedOffline(): boolean {
-  return !onlineManager.isOnline()
+ *  Read from the mutation cache, not from the network state. "We are offline"
+ *  is not the same as "the sale is queued": a checkout that failed BEFORE it
+ *  reached the mutation (resolving the staff id, syncing settings) while the
+ *  device was offline used to be reported as "Saved on this device" with
+ *  nothing queued at all - the exact silent loss this module exists to prevent.
+ *  A mutation with `networkMode: 'online'` marks itself paused synchronously
+ *  when it is started offline, and again later if the connection drops between
+ *  retries, so this is the true signal in both cases. */
+export function isCheckoutQueued(qc: QueryClient, idempotencyKey: string): boolean {
+  return qc.getMutationCache()
+    .findAll({ mutationKey: CHECKOUT_MUTATION_KEY })
+    .some((m) => m.state.isPaused && m.state.status === 'pending' &&
+      (m.state.variables as { idempotencyKey?: string | null } | undefined)?.idempotencyKey === idempotencyKey)
+}
+
+/** The newest checkout mutation for this attempt (its idempotency key), in any
+ *  state. A wizard that was unmounted while its sale sat in the queue (a tab
+ *  switch) reads the outcome from here when it comes back: the promise it was
+ *  waiting on belonged to the old mount. */
+export function findCheckout(qc: QueryClient, idempotencyKey: string) {
+  return qc.getMutationCache()
+    .findAll({ mutationKey: CHECKOUT_MUTATION_KEY })
+    .filter((m) => checkoutKeyOf(m.state.variables) === idempotencyKey)
+    .sort((a, b) => (a.state.submittedAt ?? 0) - (b.state.submittedAt ?? 0))
+    .at(-1)
+}
+
+/** The idempotency key a checkout mutation's variables carry, if any. */
+export function checkoutKeyOf(variables: unknown): string | null {
+  const k = (variables as { idempotencyKey?: unknown } | null | undefined)?.idempotencyKey
+  return typeof k === 'string' ? k : null
+}
+
+/** The outcome to report when a checkout call has not produced a sale: queued
+ *  only if THIS attempt is actually held in the queue, otherwise failed. */
+export function checkoutOutcomeAfterCall(
+  qc: QueryClient,
+  idempotencyKey: string,
+  message = 'Error saving order',
+): CheckoutOutcome {
+  return isCheckoutQueued(qc, idempotencyKey) ? { kind: 'queued' } : { kind: 'failed', message }
+}
+
+/** Resolves once this attempt is paused in the queue (immediately if it
+ *  already is). `cancel` unsubscribes; call it once the race is decided. */
+export function whenCheckoutQueued(
+  qc: QueryClient,
+  idempotencyKey: string,
+): { promise: Promise<void>; cancel: () => void } {
+  let unsubscribe = () => {}
+  const promise = new Promise<void>((resolve) => {
+    if (isCheckoutQueued(qc, idempotencyKey)) return resolve()
+    unsubscribe = qc.getMutationCache().subscribe(() => {
+      if (isCheckoutQueued(qc, idempotencyKey)) {
+        unsubscribe()
+        resolve()
+      }
+    })
+  })
+  return { promise, cancel: () => unsubscribe() }
 }

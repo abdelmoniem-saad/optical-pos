@@ -239,7 +239,21 @@ export const ar: Record<string, string> = {
     'السلة فارغة ولا توجد فحوصات. لا يمكن إتمام الطلب.',
   'Insufficient stock for:': 'مخزون غير كافٍ لـ:',
   'Price changed for:': 'تغيّر السعر أثناء المراجعة لـ:',
+  'This invoice changed since it was opened (a payment or refund was recorded). Reopen it and try again.':
+    'تغيّرت هذه الفاتورة منذ فتحها (تم تسجيل دفعة أو استرداد). أعد فتحها وحاول مرة أخرى.',
   'Error saving order': 'خطأ أثناء حفظ الطلب',
+  'This change gives money back to the customer:': 'هذا التعديل يُرجع مبلغًا للعميل:',
+  'Record the refund in History (on the tender it went back on), then reopen this invoice.':
+    'سجّل الاسترداد من السجل (على طريقة الدفع التي رُدّ بها)، ثم أعد فتح هذه الفاتورة.',
+  'Invalid payment method': 'طريقة دفع غير صالحة',
+  'Moving money from one tender to another is a refund on the first one. You need the refund permission.':
+    'نقل مبلغ من طريقة دفع إلى أخرى يُعدّ استردادًا من الأولى، ويتطلب صلاحية الاسترداد.',
+  'Earlier payment - refund it from History if needed': 'دفعة سابقة - استردها من السجل عند الحاجة',
+  'A sale held on this device was NOT saved. Enter it again.':
+    'عملية بيع محفوظة على هذا الجهاز لم تُحفظ في المتجر. أدخلها مرة أخرى.',
+  'The held sale was discarded before it could sync (signed out, or held too long).':
+    'تم التخلص من البيع المحفوظ قبل مزامنته (تسجيل خروج، أو بقي محفوظًا مدة طويلة).',
+  Dismiss: 'إخفاء',
 
   // Receipt
   'Order Saved': 'تم حفظ الطلب',

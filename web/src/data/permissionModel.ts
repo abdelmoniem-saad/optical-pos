@@ -28,6 +28,12 @@ export function resolveCan(granted: ReadonlySet<string>, overrides: Record<strin
   return has(c) && (c.endsWith('.view') || has(`${c.split('.')[0]}.view`))
 }
 export type EffectiveAccess = { is_admin: boolean; active: boolean; assigned: boolean; codes: string[] }
+/** How long an access answer counts as fresh. Access is not polled: it is
+ *  re-read on load, on navigation (2 min minimum), on tab return / reconnect once
+ *  older than this, and at once after any server denial (lib/queryClient.ts).
+ *  The database enforces every action on its own (029), so this only bounds how
+ *  long a revoked button can stay visible. */
+export const ACCESS_STALE_MS = 5 * 60_000
 export function readEffectiveAccess(data: unknown): EffectiveAccess {
   if (!data || typeof data !== 'object') throw new Error('Could not load permissions.')
   const v = data as Record<string, unknown>
@@ -35,4 +41,14 @@ export function readEffectiveAccess(data: unknown): EffectiveAccess {
       typeof v.assigned !== 'boolean' || !Array.isArray(v.codes) ||
       !v.codes.every(c => typeof c === 'string')) throw new Error('Could not load permissions.')
   return v as EffectiveAccess
+}
+
+/** True when the server refused because of WHO is asking (revoked permission,
+ *  deactivated staff, expired/invalid session) rather than because of the data
+ *  or the network. 42501 is require_perm / RLS; PGRST301-303 and 401 are JWT. */
+export function isAuthDenial(err: unknown): boolean {
+  if (!err || typeof err !== 'object') return false
+  const e = err as { code?: unknown; status?: unknown }
+  const code = String(e.code ?? '')
+  return code === '42501' || /^PGRST30[1-3]$/.test(code) || code === '401' || e.status === 401
 }

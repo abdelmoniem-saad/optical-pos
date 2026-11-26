@@ -675,6 +675,68 @@ it; re-pasting is safe.
 Gate: [`tests/026_license_window_test.sql`](./tests/026_license_window_test.sql)
 (14 assertions).
 
+## Step 27 — `030_money_fixes.sql` (money that stays where it was put)
+
+**Paste this and deploy the matching web app in the same sitting** (see
+[`RELEASE_030.md`](../../RELEASE_030.md)). The app now sends line discounts on the
+first checkout, and only a 030 database prices them correctly; the app expects
+version **30** and shows the version banner until this is applied.
+
+Paste [`030_money_fixes.sql`](./030_money_fixes.sql). It is one transaction and
+safe to re-run. What it changes (no table gains or loses a column):
+
+- **Re-checkout no longer rewrites history.** `update_sale_order` used to delete
+  every payment row of the invoice - refunds included - and every sale stock
+  movement, and write them again dated now. It now appends the difference: a
+  higher total adds a payment row, moving money between tenders at the same
+  total adds a refund row on the tender that went down (needs
+  `history.refund`), and a quantity change adds one stock movement for the
+  change. Earlier rows keep their amount, date and who recorded them, so a
+  closed shift's Z report stays true.
+- **Refund first.** A re-checkout that would give money back in total is refused
+  (`refund first: ...`): the cashier records the refund from History, choosing
+  the tender and the reason, then reopens the invoice. The server never decides
+  which tender the drawer paid out from.
+- **Tenders are checked.** An unknown tender is refused
+  (`Invalid payment method`). A legacy tender already on the invoice (`visa`,
+  `cash + instapay`, from the 011 backfill or an old re-checkout) may be kept or
+  reduced but takes no new money, because no Z report counts it as drawer cash.
+  An app that opened the invoice before a later payment or refund is told to
+  reopen it - by the amount paid and by the per-tender split it saw, so a refund
+  on one tender plus a collection on another at the same total is caught too.
+- **The device clock is bounded.** A checkout queued offline keeps the time
+  Finish was pressed, but only inside [the store's latest closed shift's end, at
+  most 2 days back, now]; outside it the time moves to the nearest bound, so a
+  late replay never lands in a shift whose cash is already counted.
+- **Line discounts are no longer charged back.** `price_cart` kept the line
+  discounts out of the stored discount, so a re-checkout of an order with a line
+  discount raised its net and left a phantom balance. The stored discount is now
+  the whole discount and the net is what the customer was charged.
+- **A partly refunded sale can be voided.** `void_sale` refunds what is still
+  held on each tender instead of every original payment.
+- **A replayed checkout is answered first.** If the response to a checkout was
+  lost and the app retries after the cashier was deactivated or the licence
+  lapsed, it gets the sale that already exists instead of an error.
+- **Invoice numbers are unique per store**, like the counter that issues them.
+  A second store no longer collides with the first store's numbers.
+
+Check it:
+
+```sql
+select public.schema_version();   -- 30
+select indexname from pg_indexes
+ where tablename = 'sales' and indexname = 'sales_store_invoice_no_key';
+```
+
+Gates: [`tests/030_recheckout_ledger_test.sql`](./tests/030_recheckout_ledger_test.sql),
+[`tests/030_recheckout_refund_gate_test.sql`](./tests/030_recheckout_refund_gate_test.sql),
+[`tests/030_recheckout_guards_test.sql`](./tests/030_recheckout_guards_test.sql),
+[`tests/030_price_cart_line_discounts_test.sql`](./tests/030_price_cart_line_discounts_test.sql),
+[`tests/030_void_after_refund_test.sql`](./tests/030_void_after_refund_test.sql),
+[`tests/030_sale_time_bounds_test.sql`](./tests/030_sale_time_bounds_test.sql),
+[`tests/030_money_fixes_test.sql`](./tests/030_money_fixes_test.sql)
+(79 assertions).
+
 ## Schema baseline (recommended, ~2 minutes)
 
 The hardening roadmap (Phase 0) wants a `pg_dump` of the **live** `public`

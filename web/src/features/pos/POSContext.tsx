@@ -7,16 +7,21 @@ import {
   useRef,
   type ReactNode,
 } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../../lib/supabase'
-import { isQueuedOffline } from '../../lib/offlineMutations'
+import { findCheckout, isCheckoutQueued, whenCheckoutQueued } from '../../lib/offlineMutations'
+import { wasQueued } from '../../lib/checkoutJournal'
 import {
   nextInvoiceNo,
   useCreateSale,
   useUpdateSaleFull,
   type CartLine,
+  type CreateSaleInput,
 } from '../../data/sales'
+import { checkoutErrorMessage as describeCheckoutError, recheckoutProblem } from './checkoutErrors'
 import { useAddCustomer, useUpdateCustomer } from '../../data/customers'
 import { resolveStaffUserId } from '../../data/staff'
+import { isMissingPaymentLedger } from '../../data/salesPayments'
 import { addMissingOrderMetadata } from '../../data/metadata'
 import { findOrderImages } from '../../lib/storage'
 import { useStoreId } from '../../lib/licensing'
@@ -27,6 +32,7 @@ import type { Customer, CustomerInsert, Product, Sale } from '../../lib/database
 import {
   addLine,
   computeTotals,
+  receiptTotals,
   removeLine,
   setLineDiscount as setLineDiscountValue,
   setQty,
@@ -37,6 +43,7 @@ import {
   legacyMethodKey,
   paymentsTotal,
   removeLine as removePayLine,
+  tendersFromLedger,
   upsertLine,
   type PaymentLine,
 } from '../../lib/payments'
@@ -122,9 +129,19 @@ type State = {
   /** Idempotency key of the current checkout attempt (migration 012).
    *  Mirrored into the draft so a reload-resume replays the SAME attempt. */
   idempotencyKey: string | null
+  /** When Finish was clicked for this attempt (ISO), sent as order_date /
+   *  paid_at so a queued checkout replayed later keeps the real sale time.
+   *  Mirrored into the draft with the key; cleared when the attempt fails. */
+  orderDate: string | null
   /** Sale created by the FIRST Finish Checkout; later checkouts update it. */
   savedSale: Sale | null
   savedHadExams: boolean
+  /** The per-method tenders savedSale's ledger held when this wizard last saw
+   *  it (loaded from the ledger, or what the last checkout wrote). Sent with a
+   *  re-checkout so the server refuses it if History changed the split since
+   *  (030), and compared before sending so a refund is never asked of the
+   *  server. null = unknown (a draft from before this field). */
+  savedTenders: PaymentLine[] | null
   completed: CompletedOrder | null
   busy: boolean
   error: string | null
@@ -147,8 +164,10 @@ function initialState(): State {
     frameImagePath: null,
     invoiceNo: '',
     idempotencyKey: null,
+    orderDate: null,
     savedSale: null,
     savedHadExams: false,
+    savedTenders: null,
     completed: null,
     busy: false,
     error: null,
@@ -167,7 +186,7 @@ function draftSafe(s: State): State {
       : []
   const copy = { ...s } as State & { amountPaid?: number }
   delete copy.amountPaid
-  return { ...copy, payments, busy: false, error: null }
+  return { ...copy, payments, savedTenders: s.savedTenders ?? null, busy: false, error: null }
 }
 
 type Action = { type: 'PATCH'; patch: Partial<State> } | { type: 'RESET' }
@@ -256,6 +275,7 @@ export function POSProvider({ children }: { children: ReactNode }) {
     memoryState = state
   }, [state])
 
+  const qc = useQueryClient()
   const createSale = useCreateSale()
   const updateSale = useUpdateSaleFull()
   const addCustomer = useAddCustomer()
@@ -543,6 +563,72 @@ export function POSProvider({ children }: { children: ReactNode }) {
   const setGross = (n: number) => patch({ grossOverride: Math.max(0, n || 0) })
 
   // ---- checkout ----
+  /** A failed checkout in the shop's language instead of a raw Postgres message. */
+  const checkoutErrorMessage = (e: unknown) => describeCheckoutError(e, t)
+  const queuedMessage = t('Saved on this device. It will sync to the shop when you reconnect.')
+
+  /** The wizard's own sale after a FIRST checkout: the server has `sale`, made
+   *  from `input` (what was sent). Shared by Finish and by the queue watcher
+   *  below, which applies a sale the queue saved while this wizard was away. */
+  function savedPatch(sale: Sale, input: CreateSaleInput, s: State, totals: Totals, isUpdate: boolean): Partial<State> {
+    const invoiceNo = sale.invoice_no || s.invoiceNo
+    return {
+      busy: false,
+      invoiceNo,
+      savedSale: sale,
+      savedHadExams: (input.examinations?.length ?? 0) > 0,
+      // The ledger now holds exactly these (create writes them; a re-checkout
+      // reconciles to them - 030).
+      savedTenders: input.payments ?? [],
+      completed: {
+        sale,
+        customer: s.customer,
+        cartItems: input.items,
+        examinations: s.examinations,
+        // As the database stored them, so this print and a reprint agree (M6).
+        totals: receiptTotals(input.items, totals),
+        invoiceNo,
+        doctorName: s.doctorName,
+        deliveryDate: s.deliveryDate,
+        isUpdate,
+      },
+    }
+  }
+
+  // The offline queue outlives this wizard: a tab switch unmounts it while its
+  // sale is still held, and the promise finishOrder was waiting on belongs to
+  // that old mount. So the outcome of THIS attempt (its idempotency key) is
+  // read from the mutation cache whenever it changes, and once on mount.
+  const settledRef = useRef<number | null>(null)
+  useEffect(() => {
+    const settle = () => {
+      const s = ref.current
+      const key = s.idempotencyKey
+      // busy: finishOrder is in flight and reports its own outcome.
+      if (!key || s.savedSale || s.busy) return
+      const m = findCheckout(qc, key)
+      if (!m || settledRef.current === m.mutationId) return
+      const input = m.state.variables as CreateSaleInput | undefined
+      if (m.state.status === 'success' && m.state.data && input) {
+        settledRef.current = m.mutationId
+        const totals = computeTotals(input.items, {
+          discount: s.discount,
+          amountPaid: input.totals.amount_paid,
+          grossOverride: s.grossOverride,
+        })
+        dispatch({ type: 'PATCH', patch: { error: null, ...savedPatch(m.state.data as Sale, input, s, totals, false) } })
+      } else if (m.state.status === 'error' && wasQueued(key)) {
+        // Only a QUEUED attempt: an online failure was already reported by
+        // finishOrder on the spot.
+        settledRef.current = m.mutationId
+        dispatch({ type: 'PATCH', patch: { error: checkoutErrorMessage(m.state.error), orderDate: null } })
+      }
+    }
+    settle()
+    return qc.getMutationCache().subscribe(settle)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [qc])
+
   async function finishOrder() {
     const s = ref.current
     if (s.busy) return
@@ -551,7 +637,12 @@ export function POSProvider({ children }: { children: ReactNode }) {
       patch({ error: 'Cart is empty and no examinations. Cannot checkout.' })
       return
     }
-    patch({ busy: true, error: null })
+    // When Finish was clicked. A checkout held in the offline queue and
+    // replayed later keeps THIS as order_date / paid_at, so it lands in the
+    // store day the money was taken, not the day it reached the server. Kept
+    // in the draft next to the key so a reload-resume replays the same time.
+    const orderDate = s.orderDate ?? new Date().toISOString()
+    patch({ busy: true, error: null, orderDate })
     // Idempotency (migration 012): mint this attempt's key once. The ref makes
     // a double-click reuse it before re-render, the draft makes a reload-resume
     // reuse it, and it is cleared only once the sale is safely saved - so a
@@ -561,12 +652,28 @@ export function POSProvider({ children }: { children: ReactNode }) {
       patch({ idempotencyKey: idemRef.current })
     }
     const idempotencyKey = idemRef.current
+    // `t` is shadowed by the totals inside the try block below.
+    const tr = t
+    // Already held in the offline queue: pressing Finish again must not queue
+    // the same sale a second time.
+    if (!s.savedSale && isCheckoutQueued(qc, idempotencyKey)) {
+      patch({ busy: false, error: queuedMessage })
+      return
+    }
     try {
       const cartItems = await addNewFramesFromExams(s.cartItems, s.examinations)
       // Settings sync (lens types / frame colors used by this order) happens
       // HERE at confirmation - typing during the wizard never touches them.
       // Missing frame products are created by addNewFramesFromExams above.
-      if (perms.can('inventory.edit')) await addMissingOrderMetadata(s.examinations)
+      // It is a convenience, never a reason to refuse (or, offline, to lose)
+      // the sale, so a failure is logged and the checkout goes on.
+      if (perms.can('inventory.edit')) {
+        try {
+          await addMissingOrderMetadata(s.examinations)
+        } catch (err) {
+          console.warn('order metadata sync skipped:', err)
+        }
+      }
       const t = computeTotals(cartItems, {
         discount: s.discount,
         amountPaid: paymentsTotal(s.payments),
@@ -575,6 +682,22 @@ export function POSProvider({ children }: { children: ReactNode }) {
       // The ledger rows about to be written: clamped so their sum can never
       // exceed the paid amount pricing just computed (sum == amount_paid).
       const payLines = clampPaymentLines(s.payments, t.amountPaid)
+      // Re-checkout (030): money going back is recorded from History first, a
+      // legacy tender takes no new money, and moving money off a tender needs
+      // history.refund. Caught here, before the server refuses it - and
+      // offline, where a re-checkout is not queued, this is the only answer.
+      if (s.savedSale) {
+        const problem = recheckoutProblem({
+          saved: s.savedTenders ?? payLines,
+          savedAmountPaid: Number(s.savedSale.amount_paid ?? 0),
+          next: payLines,
+          canRefund: perms.can('history.refund'),
+        }, tr)
+        if (problem) {
+          patch({ busy: false, error: problem, orderDate: null })
+          return
+        }
+      }
       // Stock is guarded INSIDE create_sale_order (migration 012): stores with
       // stores.allow_negative_stock = false get 'insufficient stock: <name>'
       // and no sale. The default keeps this workflow's documented behaviour -
@@ -608,77 +731,66 @@ export function POSProvider({ children }: { children: ReactNode }) {
         frameImagePath,
       }
       const isUpdate = !!s.savedSale
-      let sale: Sale
       if (s.savedSale) {
-        // Re-checkout: overwrite the SAME invoice (items, exams, totals and
-        // stock movements) instead of creating a duplicate one.
-        sale = await updateSale.mutateAsync({
+        // Re-checkout: the SAME invoice is reconciled (items, exams, totals,
+        // and stock/ledger deltas - migration 030) instead of duplicated. The
+        // amount paid and per-tender split this wizard last saw let the server
+        // refuse a stale tender list rather than undo a payment or refund made
+        // meanwhile in History.
+        const input = {
           saleId: s.savedSale.id,
           invoiceNo: s.savedSale.invoice_no || s.invoiceNo,
           previousHadExams: s.savedHadExams,
           customerId: s.customer?.id ?? null,
           userId: null,
+          expectedAmountPaid: Number(s.savedSale.amount_paid ?? 0),
+          expectedTenders: s.savedTenders ?? undefined,
           ...payload,
-        })
-      } else {
-        // First checkout: attribute the invoice to the signed-in staff member.
-        // Resolution understands BOTH auth-keyed users rows and legacy rows
-        // linked by username (databases migrated from the desktop version).
-        const staffId = await resolveStaffUserId()
-        sale = await createSale.mutateAsync({
-          customerId: s.customer?.id ?? null,
-          userId: staffId,
-          invoiceNo: s.invoiceNo || undefined,
-          idempotencyKey,
-          ...payload,
-        })
-      }
-      patch({
-        busy: false,
-        invoiceNo: sale.invoice_no || s.invoiceNo,
-        savedSale: sale,
-        savedHadExams: s.examinations.length > 0,
-        completed: {
-          sale,
-          customer: s.customer,
-          cartItems,
-          examinations: s.examinations,
-          totals: t,
-          invoiceNo: sale.invoice_no || s.invoiceNo,
-          doctorName: s.doctorName,
-          deliveryDate: s.deliveryDate,
-          isUpdate,
-        },
-      })
-    } catch (e: any) {
-      console.error('finishOrder failed:', e)
-      // Offline queue (mutation 018): a checkout made while the device is
-      // offline is PAUSED, not rejected, so mutateAsync never settles and the
-      // wizard would sit on "saving" with no outcome at all. Detect the pause
-      // and say the true thing - the sale is held and will be written on
-      // reconnect, it is NOT saved yet. Reporting this as a failure would be
-      // equally wrong: the cashier would retry and queue it a second time.
-      if (isQueuedOffline()) {
-        patch({
-          busy: false,
-          error: t('Saved on this device. It will sync to the shop when you reconnect.'),
-        })
+        }
+        patch(savedPatch(await updateSale.mutateAsync(input), input, s, t, isUpdate))
         return
       }
-      let msg =
-        e?.message ||
-        e?.error_description ||
-        e?.details ||
-        (typeof e === 'string' ? e : 'Error saving order')
-      // 012's guards speak 'reason: detail' - turn them into the shop's
-      // language instead of leaking a raw Postgres message.
-      const short = /^insufficient stock:\s*(.*)$/i.exec(msg)
-      if (short) msg = `${t('Insufficient stock for:')} ${short[1]}`
-      else {
-        const stale = /^price changed:\s*(.*)$/i.exec(msg)
-        if (stale) msg = `${t('Price changed for:')} ${stale[1]}`
+      // First checkout: attribute the invoice to the signed-in staff member.
+      // Resolution reads the local session, so it works offline too.
+      const staffId = await resolveStaffUserId()
+      const input: CreateSaleInput = {
+        customerId: s.customer?.id ?? null,
+        userId: staffId,
+        invoiceNo: s.invoiceNo || undefined,
+        idempotencyKey,
+        orderDate,
+        ...payload,
       }
-      patch({ busy: false, error: msg })
+      const applySaved = (sale: Sale) => patch(savedPatch(sale, input, s, t, isUpdate))
+      const pending = createSale.mutateAsync(input)
+      // Offline queue: a checkout made (or retried) while offline is PAUSED,
+      // not rejected, so `pending` does not settle. Race it against the pause
+      // and say the true thing - held on this device, not saved yet - but only
+      // when the queue really holds THIS sale.
+      const queued = whenCheckoutQueued(qc, idempotencyKey)
+      let saved: Sale | null
+      try {
+        saved = await Promise.race([pending, queued.promise.then(() => null)])
+      } finally {
+        queued.cancel()
+      }
+      if (saved) {
+        applySaved(saved)
+        return
+      }
+      patch({ busy: false, error: queuedMessage })
+      // When the queue drains, the watcher above (mutation cache, keyed by
+      // this attempt's idempotency key) shows the receipt or the refusal - on
+      // this mount or a later one, and never on a wizard that moved on to a
+      // newer sale. The checkout journal records it either way.
+      pending.catch((err) => console.error('queued checkout failed:', err))
+    } catch (e: any) {
+      console.error('finishOrder failed:', e)
+      // Not queued (a queued checkout never rejects here), so this is a real
+      // failure even while offline: nothing is held, and the cashier must know.
+      // A rejected attempt wrote nothing (a lost response is answered by the
+      // key, whatever the date), so the next Finish takes a fresh time.
+      patch({ busy: false, error: checkoutErrorMessage(e), orderDate: null })
     }
   }
 
@@ -699,11 +811,20 @@ export function POSProvider({ children }: { children: ReactNode }) {
         .single<Sale>()
       if (error) throw error
 
-      const [{ data: itemRows, error: itemsErr }, { data: examRows }] = await Promise.all([
+      const [
+        { data: itemRows, error: itemsErr },
+        { data: examRows },
+        { data: payRows, error: payErr },
+      ] = await Promise.all([
         supabase.from('sale_items').select('*').eq('sale_id', saleId),
         supabase.from('order_examinations').select('*').eq('sale_id', saleId),
+        supabase.from('sale_payments').select('method, amount').eq('sale_id', saleId),
       ])
       if (itemsErr) throw itemsErr
+      // The tenders are the re-checkout's DESIRED state (030), so a ledger we
+      // could not read must not be guessed at (a pre-011 database has no
+      // table and falls back below).
+      if (payErr && !isMissingPaymentLedger(payErr)) throw payErr
 
       let cust: Customer | null = null
       if (sale.customer_id) {
@@ -715,6 +836,10 @@ export function POSProvider({ children }: { children: ReactNode }) {
         cust = data
       }
 
+      // Line discounts are NOT restored into the cart: sales.discount is the
+      // whole discount (line + header, price_cart since 030) and loads as the
+      // header discount below. If they are ever restored here, subtract them
+      // from sale.discount or they will be counted twice.
       const cartItems: CartLine[] = (itemRows ?? []).map((i) => ({
         product_id: i.product_id,
         name: i.name ?? '',
@@ -734,7 +859,7 @@ export function POSProvider({ children }: { children: ReactNode }) {
       const firstPid = cartItems[0]?.product_id
       if (firstPid) {
         const { data: p } = await supabase
-          .from('products')
+          .from('inventory')
           .select('category')
           .eq('id', firstPid)
           .maybeSingle()
@@ -746,6 +871,15 @@ export function POSProvider({ children }: { children: ReactNode }) {
       const examList: Exam[] = (examRows ?? []).map(
         ({ id: _id, sale_id: _saleId, ...rest }) => rest as Exam,
       )
+      // From the ledger, per method, net of refunds - never from
+      // payment_method, a display summary like 'Cash + InstaPay' that is not
+      // a tender. The single-line fallback is for a ledger-less (pre-011)
+      // database only.
+      const tenders: PaymentLine[] = payRows?.length
+        ? tendersFromLedger(payRows)
+        : amountPaid > 0
+          ? [{ method: legacyMethodKey(sale.payment_method), amount: amountPaid }]
+          : []
 
       // Saved safely: the next checkout is a NEW attempt (new key).
       idemRef.current = null
@@ -767,10 +901,8 @@ export function POSProvider({ children }: { children: ReactNode }) {
         examinations: examList,
         discount: Number(sale.discount ?? 0),
         grossOverride: gross !== itemsTotal ? gross : null,
-        payments:
-          amountPaid > 0
-            ? [{ method: legacyMethodKey(sale.payment_method), amount: amountPaid }]
-            : [],
+        payments: tenders,
+        savedTenders: payRows?.length ? tenders : null,
         doctorName: sale.doctor_name ?? '',
         deliveryDate: (sale.delivery_date ?? '').slice(0, 10) || plusDays(3),
         rxImagePath: sale.rx_image_path,

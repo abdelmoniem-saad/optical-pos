@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { CartLine } from '../../data/sales'
-import { addLine, computeTotals, removeLine, setLineDiscount, setQty } from './pricing'
+import { addLine, computeTotals, receiptTotals, removeLine, setLineDiscount, setQty } from './pricing'
 
 function line(over: Partial<CartLine> = {}): CartLine {
   return {
@@ -166,5 +166,37 @@ describe('setLineDiscount (migration 013)', () => {
     const t = computeTotals(next, { discount: 0, amountPaid: 0, grossOverride: 20 })
     expect(t.gross).toBe(20)
     expect(t.net).toBe(20)
+  })
+})
+// Critique M6: since 030 the header stores gross = catalog items and discount =
+// line + header discount. The receipt printed at Finish must use that split, or
+// it disagrees with every reprint of the same invoice (built from the header).
+describe('receiptTotals (M6)', () => {
+  const two = [line({ qty: 2, unit_price: 500, total_price: 1000, discount: 100 })]
+
+  it('a line discount is shown as discount under the catalog gross, as price_cart stores it', () => {
+    const t = computeTotals(two, { discount: 0, amountPaid: 900, grossOverride: null })
+    expect(t.gross).toBe(900) // the cart's own view
+    const r = receiptTotals(two, t)
+    expect([r.gross, r.discount, r.net, r.amountPaid, r.balance]).toEqual([1000, 100, 900, 900, 0])
+  })
+
+  it('a line discount plus a header discount is one discount', () => {
+    const t = computeTotals(two, { discount: 50, amountPaid: 0, grossOverride: null })
+    const r = receiptTotals(two, t)
+    expect([r.gross, r.discount, r.net]).toEqual([1000, 150, 850])
+  })
+
+  it('without discounts nothing changes', () => {
+    const items = [line({ qty: 2, unit_price: 500, total_price: 1000 })]
+    const t = computeTotals(items, { discount: 0, amountPaid: 0, grossOverride: null })
+    expect(receiptTotals(items, t)).toEqual(t)
+  })
+
+  it('a gross typed ABOVE the catalog is stored as gross = net, no discount (012 T5)', () => {
+    const items = [line({ total_price: 100, unit_price: 100 })]
+    const t = computeTotals(items, { discount: 0, amountPaid: 0, grossOverride: 120 })
+    const r = receiptTotals(items, t)
+    expect([r.gross, r.discount, r.net]).toEqual([120, 0, 120])
   })
 })

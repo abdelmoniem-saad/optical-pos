@@ -38,6 +38,25 @@ export function computeTotals(items: CartLine[], p: PricingInput): Totals {
 }
 
 /**
+ * The totals as the DATABASE stores them (price_cart, migration 030), for the
+ * receipt printed at Finish. The cart shows gross = items minus line discounts
+ * with only the header discount below it; the stored header is gross = the
+ * catalog items (sum of total_price) and discount = the WHOLE discount (line +
+ * header). A reprint is built from that header, so the receipt printed at the
+ * till must use the same split or the two copies of one invoice disagree
+ * (critique M6). A price negotiated ABOVE the catalog is stored as gross = net
+ * with no discount (012 T5). Net, paid and balance are unchanged.
+ */
+export function receiptTotals(items: CartLine[], t: Totals): Totals {
+  const itemsGross = items.reduce((sum, i) => sum + (i.total_price || 0), 0)
+  const [gross, discount] =
+    t.net <= itemsGross + 0.01
+      ? [itemsGross, Math.max(0, Math.round((itemsGross - t.net) * 100) / 100)]
+      : [t.net, 0]
+  return { ...t, itemsTotal: itemsGross, gross, discount }
+}
+
+/**
  * Set (or clear) one line's discount, immutably.
  *
  * Clamped to the line's own gross value, because that is exactly what the
