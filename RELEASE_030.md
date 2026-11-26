@@ -108,11 +108,11 @@ never with real financial transactions:
 
 Migration 030 changes the expected schema fingerprint (new index, dropped
 constraint, redefined functions). `pg_dump` is not available on the local
-Windows setup, so `npm run db:update-fingerprint` could not be run here and
-`web/supabase/schema.fingerprint` still holds the 029 hash. After a CI run for
-this change, copy its stable `actual` hash from the **CI step summary** into
-`web/supabase/schema.fingerprint`, commit it, and rerun CI - the same procedure
-as 029. Do not use an old artifact for this hash. See `DEFERRED.md`.
+Windows setup, so `npm run db:update-fingerprint` could not be run here. The
+030 hash `88126510862a738b85ace3eec8a1cfae602333636d6556fbba1e7964241e201c` was
+taken from the PR's CI run 45896660616 (stable across the step's two runs, all
+pgTAP gates green in the same job) and recorded in
+`web/supabase/schema.fingerprint` - the same procedure as 029. See `DEFERRED.md`.
 
 Local verification: production build, 298 frontend tests, 444 pgTAP assertions
 (365 before 030 plus 79 in the seven 030 gates).
