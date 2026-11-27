@@ -3,7 +3,8 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/auth'
 import type { User } from '../lib/database.types'
 import { invalidateAccess } from './refresh'
-import { isBypassRoleName } from './permissionModel'
+import { ACCESS_STALE_MS } from './permissionModel'
+import { usePermissions } from './permissions'
 
 export function useUsers() {
   return useQuery({ queryKey: ['users'], queryFn: async (): Promise<User[]> => {
@@ -18,19 +19,41 @@ async function queryStaffRow(uid: string): Promise<User | null> {
   if (error) throw error
   return data
 }
+/** The signed-in staff row. Not polled (it was every 15 s while Notes/Staff
+ *  was open): re-read on mount / tab return once stale, and at once after any
+ *  server denial (lib/queryClient.ts). The database enforces access itself. */
+export function currentUserQuery(uid: string | undefined) {
+  return {
+    queryKey: ['current-user', uid] as const,
+    queryFn: () => queryStaffRow(uid!),
+    staleTime: ACCESS_STALE_MS,
+    refetchOnWindowFocus: true,
+    refetchInterval: false as const,
+  }
+}
 export function useCurrentUser() {
   const { user } = useAuth()
-  return useQuery({ queryKey: ['current-user', user?.id], enabled: !!user,
-    queryFn: () => queryStaffRow(user!.id), refetchOnWindowFocus: true, refetchInterval: 15_000 })
+  return useQuery({ ...currentUserQuery(user?.id), enabled: !!user })
 }
+/** The staff id to stamp on a write. Reads the LOCAL session: getUser() always
+ *  makes a network call, which made an offline checkout fail before it could
+ *  be queued. A staff-row lookup that cannot reach the server falls back to
+ *  null (the checkout RPC records auth.uid() itself). */
 export async function resolveStaffUserId(): Promise<string | null> {
-  const { data, error } = await supabase.auth.getUser()
-  if (error) throw error
-  return data.user ? (await queryStaffRow(data.user.id))?.id ?? null : null
+  const { data } = await supabase.auth.getSession()
+  const uid = data.session?.user.id
+  if (!uid) return null
+  try {
+    return (await queryStaffRow(uid))?.id ?? null
+  } catch {
+    return null
+  }
 }
+/** Admin/owner of this shop, from my_permissions.is_admin (is_store_admin() in
+ *  SQL: the same active + admin/owner rule this used to re-derive from a polled
+ *  users row). */
 export function useIsAdmin(): boolean {
-  const me = useCurrentUser()
-  return !me.isError && me.data?.is_active === true && isBypassRoleName(me.data.roles?.name)
+  return usePermissions().isAdmin
 }
 export function useUpdateUserRole() {
   const qc = useQueryClient()

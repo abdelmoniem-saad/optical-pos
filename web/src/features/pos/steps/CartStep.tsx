@@ -2,7 +2,7 @@ import { usePermissions } from '../../../data/permissions'
 import { useState } from 'react'
 import { usePOS, type CustomerDraft } from '../POSContext'
 import { useI18n } from '../../../i18n/LanguageContext'
-import { PAYMENT_METHODS, methodLabelKey, paymentsTotal, round2 } from '../../../lib/payments'
+import { PAYMENT_METHODS, isKnownMethod, methodLabelKey, paymentsTotal, round2 } from '../../../lib/payments'
 import { needsExamination } from '../types'
 import { ExamSection } from './ExamSection'
 import { enterMovesNext } from '../enterNav'
@@ -268,7 +268,16 @@ export function CartStep() {
             </div>
             {state.payments.length > 0 && (
               <div className="space-y-1.5">
-                {state.payments.map((l) => (
+                {state.payments.map((l) => !isKnownMethod(l.method) ? (
+                  // A legacy ledger key ('visa', 'cash + instapay') from an
+                  // invoice opened for re-checkout: it may not take new money
+                  // (030 refuses it), and money going back is recorded from
+                  // History on that tender - so it is shown, not edited.
+                  <div key={l.method} className="flex items-center gap-2" title={t('Earlier payment - refund it from History if needed')}>
+                    <span className="w-24 text-xs text-faint">{t(methodLabelKey(l.method))}</span>
+                    <span className="text-sm font-semibold">{money(l.amount)}</span>
+                  </div>
+                ) : (
                   <div key={l.method} className="flex items-center gap-2">
                     <span className="w-24 text-xs text-faint">{t(methodLabelKey(l.method))}</span>
                     <input

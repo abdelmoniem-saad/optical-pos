@@ -34,9 +34,13 @@ as test data. Record exact validation results and any deployment blockers here.
   immutable administrator access and errors are visible. Server checks prevent
   direct role escalation, unauthorized administrator assignment and self-lockout.
 - Corrected create-user response-envelope handling and reserved administrator
-  identities. Permission checks fail closed, refresh every 15 seconds/focus,
-  and are excluded from persisted query caches. Server writes check current
-  grants immediately, including with an existing JWT.
+  identities. Permission checks fail closed on a real denial and are excluded
+  from persisted query caches. Since 030 they are not polled: the UI re-reads
+  access on load, on navigation (at most every 2 minutes), on tab return or
+  reconnect once older than 5 minutes, and immediately after any server denial
+  (42501/JWT); a failed refetch keeps the last good answer. Enforcement stays in
+  the database (029): server writes check current grants immediately, including
+  with an existing JWT.
 - Protected sale editing, collection, lab changes, examinations, stock,
   purchases, notes and settings at the database boundary. Refunds reuse 028.
 - Connected existing customer/invoice/lab/report routes and refreshes. Collection

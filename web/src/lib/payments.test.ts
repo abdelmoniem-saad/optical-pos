@@ -10,6 +10,10 @@ import {
   round2,
   setLine,
   sumByMethod,
+  tendersFromLedger,
+  tenderDeltas,
+  isKnownMethod,
+  refundMethodOptions,
   upsertLine,
 } from './payments'
 
@@ -250,5 +254,52 @@ describe('sumByMethod (Reports cash-up view)', () => {
 
   it('returns [] for no rows', () => {
     expect(sumByMethod([])).toEqual([])
+  })
+})
+
+// 030 (H1): loadSale rebuilds the tenders from the LEDGER. sales.payment_method
+// is a display summary ('Cash + InstaPay'), and sending it back as a method made
+// a re-checkout replace a split, refunded ledger with one bogus tender.
+describe('tendersFromLedger', () => {
+  it('rebuilds per-method net tenders from the ledger, never from payment_method', () => {
+    expect(tendersFromLedger([
+      { method: 'cash', amount: 600 }, { method: 'instapay', amount: '400' }, { method: 'Cash', amount: -100 },
+    ])).toEqual([{ method: 'cash', amount: 500 }, { method: 'instapay', amount: 400 }])
+  })
+
+  it('drops fully refunded tenders', () => {
+    expect(tendersFromLedger([{ method: 'wallet', amount: 200 }, { method: 'wallet', amount: -200 }])).toEqual([])
+  })
+})
+
+describe('tenderDeltas / isKnownMethod (030 re-checkout)', () => {
+  it('reports per-method changes, merged the way the server groups them', () => {
+    expect(tenderDeltas(
+      [{ method: 'cash', amount: 600 }],
+      [{ method: 'Cash ', amount: 400 }, { method: 'card', amount: 200 }],
+    )).toEqual([{ method: 'cash', delta: -200 }, { method: 'card', delta: 200 }])
+  })
+
+  it('leaves unchanged tenders out', () => {
+    expect(tenderDeltas([{ method: 'cash', amount: 600 }], [{ method: 'cash', amount: 600 }])).toEqual([])
+  })
+
+  it('knows the current tenders from legacy ledger keys', () => {
+    expect(isKnownMethod('Cash')).toBe(true)
+    expect(isKnownMethod('cash + instapay')).toBe(false)
+    expect(isKnownMethod('visa')).toBe(false)
+  })
+})
+
+describe('refundMethodOptions', () => {
+  it('offers a legacy tender that still holds money, by its exact stored string, first', () => {
+    expect(refundMethodOptions([
+      { method: 'cash + instapay', amount: 1000 },
+      { method: 'cash', amount: 50 }, { method: 'cash', amount: -50 },
+    ])).toEqual(['cash + instapay', 'cash', 'wallet', 'instapay', 'card'])
+  })
+
+  it('without a ledger it is the shop tenders', () => {
+    expect(refundMethodOptions([])).toEqual(['cash', 'wallet', 'instapay', 'card'])
   })
 })

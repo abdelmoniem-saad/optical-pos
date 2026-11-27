@@ -46,8 +46,9 @@ function isMissingFunction(error: RpcErrorLike): boolean {
   return isMissingRpc('create_sale_order', error)
 }
 
-/** True when a sale insert or RPC fails due to unique constraint collision on invoice_no. */
-function isInvoiceNoConflict(
+/** True when a sale insert or RPC fails due to unique constraint collision on
+ *  invoice_no (the global key before migration 030, the per-store index after). */
+export function isInvoiceNoConflict(
   error: { code?: string; message?: string; details?: string; hint?: string } | null | undefined,
 ): boolean {
   if (!error) return false
@@ -55,7 +56,7 @@ function isInvoiceNoConflict(
   const msg = `${error.message ?? ''} ${error.details ?? ''} ${error.hint ?? ''}`
   return (
     code === '23505' ||
-    /sales_invoice_no_key/i.test(msg) ||
+    /sales_(store_)?invoice_no_key/i.test(msg) ||
     (/duplicate key/i.test(msg) && /invoice_no/i.test(msg))
   )
 }
@@ -519,6 +520,22 @@ export type CartLine = {
   discount_reason?: string | null
 }
 
+/** Cart lines as create_sale_order / update_sale_order take them, line
+ *  discount and its reason included (migration 013). Only a 030 database prices
+ *  a line discount correctly on the FIRST checkout (H3), which is why this ships
+ *  with 030 and EXPECTED_SCHEMA_VERSION 30. */
+export function toRpcItems(items: CartLine[]) {
+  return items.map((i) => ({
+    product_id: i.product_id,
+    qty: i.qty,
+    unit_price: i.unit_price,
+    total_price: i.total_price,
+    name: i.name,
+    discount: i.discount ?? 0,
+    discount_reason: i.discount_reason ?? null,
+  }))
+}
+
 export type CreateSaleInput = {
   customerId: string | null
   userId?: string | null
@@ -554,6 +571,10 @@ export type CreateSaleInput = {
    *  re-derives this from the cart rather than trusting it, so claiming the wrong
    *  value here is harmless. */
   kind?: 'sale' | 'prescription'
+  /** When Finish was clicked (ISO). A checkout queued offline and replayed
+   *  later keeps THIS as order_date and paid_at, so it lands in the store day
+   *  the money was actually taken, not the day it reached the server. */
+  orderDate?: string
 }
 
 /**
@@ -567,222 +588,235 @@ export type CreateSaleInput = {
  * (see lib/offlineMutations.ts). It is safe because `input.idempotencyKey` is
  * stable per attempt, so a replay returns the original sale rather than writing
  * a second one.
+ *
+ * Module-level (not inline in the hook) so lib/queryClient.ts can register it
+ * as the checkout key's default: a checkout queued offline is restored from
+ * localStorage after a reload with no hook attached, and without a default
+ * mutationFn the resumed sale failed with 'No mutationFn found' and was dropped.
  */
+export async function createSaleMutationFn(input: CreateSaleInput): Promise<Sale> {
+  let lastError: any = null
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      let invoiceNo = input.invoiceNo
+      if (!invoiceNo || attempt > 0) {
+        invoiceNo = await nextInvoiceNo()
+      } else if (!invoiceNo.startsWith('PRESC-')) {
+        const { data: existing } = await supabase
+          .from('sales')
+          .select('id')
+          .eq('invoice_no', invoiceNo)
+          .limit(1)
+        if (existing && existing.length > 0) {
+          invoiceNo = await nextInvoiceNo()
+        }
+      }
+
+      // Payment lines (migration 011): use what the POS sent; callers that
+      // don't know about splits get ONE synthesized line from amount_paid,
+      // so the ledger always agrees with the header (the DB trigger
+      // recomputes sales.amount_paid from the rows we're about to write).
+      const fallbackLines: PaymentLine[] =
+        input.payments ??
+        (input.totals.amount_paid > 0
+          ? [
+              {
+                method: legacyMethodKey(input.paymentMethod ?? 'cash'),
+                amount: input.totals.amount_paid,
+              },
+            ]
+          : [])
+      const pay = clampPaymentLines(fallbackLines, input.totals.amount_paid)
+      const paymentMethod = input.paymentMethod ?? methodSummary(pay)
+      // The Finish-click time (absent = now, as before). A queued checkout
+      // replayed tomorrow must still belong to the day the money was taken.
+      const orderDate = input.orderDate ?? new Date().toISOString()
+      const payLines = pay.map((p) => ({ ...p, paid_at: orderDate }))
+
+      const salePayload = {
+        invoice_no: invoiceNo,
+        customer_id: input.customerId,
+        user_id: input.userId ?? null,
+        total_amount: input.totals.total_amount,
+        discount: input.totals.discount,
+        net_amount: input.totals.net_amount,
+        amount_paid: input.totals.amount_paid,
+        payment_method: paymentMethod,
+        order_date: orderDate,
+        delivery_date: input.deliveryDate ? input.deliveryDate : null,
+        doctor_name: input.doctorName ?? '',
+        lab_status: input.examinations?.length ? 'Not Started' : null,
+        rx_image_path: input.rxImagePath ?? null,
+        frame_image_path: input.frameImagePath ?? null,
+        // Migration 022. Absent means 'sale', so an ordinary checkout sends
+        // nothing and needs no change; only useAddStandalonePrescription
+        // claims 'prescription', so "orders today" stops counting work that
+        // nobody paid for. The RPC does not BELIEVE this - it re-derives the
+        // kind from the cart and stores 'sale' unless there are no lines and
+        // no payments, because create_sale_order's whole job is not trusting
+        // the browser.
+        kind: input.kind ?? 'sale',
+      }
+      // The line discount and its reason ride along (H5); the database turns
+      // them into the header discount (price_cart, migration 030).
+      const items = toRpcItems(input.items)
+      const exams = input.examinations ?? []
+
+      // Preferred path: atomic Postgres function (web/supabase/002_create_sale_rpc.sql).
+      // p_payments only rides along when there ARE lines: an 002-only database
+      // (011 not run yet) keeps its atomic 3-arg path, while a missing 4-arg
+      // match surfaces through isMissingFunction and falls back below.
+      const rpcArgs: Record<string, unknown> = {
+        p_sale: salePayload,
+        p_items: items,
+        p_exams: exams,
+      }
+      if (pay.length) rpcArgs.p_payments = payLines
+      // Idempotency (migration 012): the same key means "this checkout
+      // already happened" - the RPC returns the existing sale instead of
+      // writing a second one. Omitted on pre-012 databases (4-arg call).
+      if (input.idempotencyKey) rpcArgs.p_idempotency_key = input.idempotencyKey
+      try {
+        const rpc = await supabase.rpc('create_sale_order', rpcArgs)
+        if (!rpc.error && rpc.data) return rpc.data as Sale
+        if (rpc.error) {
+          if (isInvoiceNoConflict(rpc.error)) {
+            lastError = rpc.error
+            continue
+          }
+          if (!isMissingFunction(rpc.error)) throw rpc.error
+        }
+      } catch (err: any) {
+        if (isInvoiceNoConflict(err)) {
+          lastError = err
+          continue
+        }
+        if (!isMissingFunction(err)) throw err
+      }
+
+      // Fallback (RPC not installed yet): non-atomic client-side inserts.
+      // This is NOT atomic — a failure part-way through leaves a sale
+      // header with no items, and the stock movement is applied by the
+      // browser. It is kept only so a shop that has not yet run 002 can
+      // still take money; removing it would mean refusing to sell. What
+      // changed is that it can no longer happen quietly: the console
+      // record survives a closed tab, and SchemaBanner tells the user the
+      // actual cause. Once 002 is applied this branch is never reached.
+      console.error(
+        'create_sale_order() is not installed (run 002_create_sale_rpc.sql) - ' +
+          'falling back to NON-ATOMIC client-side inserts. A partial failure can ' +
+          'leave an incomplete sale.',
+        { hasItems: items.length > 0, hasExams: exams.length > 0, hasPayments: pay.length > 0 },
+      )
+      // `kind` arrived in 022, and this branch exists precisely for a
+      // database that has NOT run it. A 42703 here must not refuse the sale:
+      // the fallback's job is to take the money, and a missing column is not
+      // a reason to stop - the same reasoning the image_path retry below
+      // already follows. Without this, a shop 21+ migrations behind would
+      // find the fallback broken by a migration that has nothing to do with
+      // checkout. Degradation is honest: without the column there is no
+      // marker, which is exactly the pre-022 state.
+      let { data: sale, error: saleErr } = await supabase
+        .from('sales')
+        .insert(salePayload)
+        .select()
+        .single<Sale>()
+      if (saleErr && saleErr.code === '42703') {
+        const { kind: _dropped, ...withoutKind } = salePayload
+        const retry = await supabase
+          .from('sales')
+          .insert(withoutKind)
+          .select()
+          .single<Sale>()
+        sale = retry.data
+        saleErr = retry.error
+      }
+      if (saleErr) {
+        if (isInvoiceNoConflict(saleErr)) {
+          lastError = saleErr
+          continue
+        }
+        throw saleErr
+      }
+      // `.single()` answering with neither a row nor an error is not a state
+      // PostgREST should ever produce, but the retry above made `sale`
+      // mutable and a mutable value is not narrowed by the throw above. Say
+      // it out rather than asserting: an unexplained missing sale should
+      // read as an error, not as a half-finished checkout.
+      if (!sale) {
+        throw new Error(
+          'the sale insert returned no row and no error - the order was NOT saved',
+        )
+      }
+
+      if (items.length) {
+        // The pre-002 fallback writes the PRE-013 columns only: a database this
+        // far behind has no sale_items.discount, and a 42703 must not refuse
+        // the sale.
+        const rows: SaleItemInsert[] = items.map(
+          ({ discount: _d, discount_reason: _r, ...i }) => ({ ...i, sale_id: sale.id }),
+        )
+        const { error: itemsErr } = await supabase.from('sale_items').insert(rows)
+        if (itemsErr) throw itemsErr
+
+        const movements = items.map((i) => ({
+          product_id: i.product_id,
+          qty: -i.qty,
+          type: 'sale',
+          ref_no: sale.invoice_no,
+          note: `POS Sale: ${sale.invoice_no}`,
+          created_at: new Date().toISOString(),
+        }))
+        const { error: movErr } = await supabase.from('stock_movements').insert(movements)
+        if (movErr) throw movErr
+      }
+
+      if (exams.length) {
+        const exRows: OrderExaminationInsert[] = exams.map((e) => ({
+          ...e,
+          doctor_name: (e as any).doctor_name || input.doctorName || null,
+          sale_id: sale.id,
+        }))
+        let { error: exErr } = await supabase.from('order_examinations').insert(exRows)
+        // If image_path column does not exist in user's schema (42703 / undefined column), retry without image_path
+        if (exErr && (exErr.code === '42703' || /image_path/i.test(exErr.message ?? ''))) {
+          const stripped = exRows.map(({ image_path: _unused, ...rest }: any) => rest)
+          const retry = await supabase.from('order_examinations').insert(stripped)
+          exErr = retry.error
+        }
+        if (exErr) throw exErr
+      }
+
+      // Payment lines (migration 011). Legacy databases without the ledger
+      // keep the header amount_paid only; running 011 later backfills rows.
+      if (pay.length) {
+        const payRows = payLines.map((p) => ({
+          sale_id: sale.id,
+          amount: p.amount,
+          method: p.method,
+          paid_at: p.paid_at,
+        }))
+        const { error: payErr } = await supabase.from('sale_payments').insert(payRows)
+        if (payErr && !isMissingPaymentLedger(payErr)) throw payErr
+      }
+
+      return sale
+    } catch (err: any) {
+      if (isInvoiceNoConflict(err) && attempt < 2) {
+        lastError = err
+        continue
+      }
+      throw err
+    }
+  }
+  throw lastError
+}
+
 export function useCreateSale() {
   const qc = useQueryClient()
   return useMutation({
     mutationKey: CHECKOUT_MUTATION_KEY,
-    mutationFn: async (input: CreateSaleInput): Promise<Sale> => {
-      let lastError: any = null
-      for (let attempt = 0; attempt < 3; attempt++) {
-        try {
-          let invoiceNo = input.invoiceNo
-          if (!invoiceNo || attempt > 0) {
-            invoiceNo = await nextInvoiceNo()
-          } else if (!invoiceNo.startsWith('PRESC-')) {
-            const { data: existing } = await supabase
-              .from('sales')
-              .select('id')
-              .eq('invoice_no', invoiceNo)
-              .limit(1)
-            if (existing && existing.length > 0) {
-              invoiceNo = await nextInvoiceNo()
-            }
-          }
-
-          // Payment lines (migration 011): use what the POS sent; callers that
-          // don't know about splits get ONE synthesized line from amount_paid,
-          // so the ledger always agrees with the header (the DB trigger
-          // recomputes sales.amount_paid from the rows we're about to write).
-          const fallbackLines: PaymentLine[] =
-            input.payments ??
-            (input.totals.amount_paid > 0
-              ? [
-                  {
-                    method: legacyMethodKey(input.paymentMethod ?? 'cash'),
-                    amount: input.totals.amount_paid,
-                  },
-                ]
-              : [])
-          const pay = clampPaymentLines(fallbackLines, input.totals.amount_paid)
-          const paymentMethod = input.paymentMethod ?? methodSummary(pay)
-
-          const salePayload = {
-            invoice_no: invoiceNo,
-            customer_id: input.customerId,
-            user_id: input.userId ?? null,
-            total_amount: input.totals.total_amount,
-            discount: input.totals.discount,
-            net_amount: input.totals.net_amount,
-            amount_paid: input.totals.amount_paid,
-            payment_method: paymentMethod,
-            order_date: new Date().toISOString(),
-            delivery_date: input.deliveryDate ? input.deliveryDate : null,
-            doctor_name: input.doctorName ?? '',
-            lab_status: input.examinations?.length ? 'Not Started' : null,
-            rx_image_path: input.rxImagePath ?? null,
-            frame_image_path: input.frameImagePath ?? null,
-            // Migration 022. Absent means 'sale', so an ordinary checkout sends
-            // nothing and needs no change; only useAddStandalonePrescription
-            // claims 'prescription', so "orders today" stops counting work that
-            // nobody paid for. The RPC does not BELIEVE this - it re-derives the
-            // kind from the cart and stores 'sale' unless there are no lines and
-            // no payments, because create_sale_order's whole job is not trusting
-            // the browser.
-            kind: input.kind ?? 'sale',
-          }
-          const items = input.items.map((i) => ({
-            product_id: i.product_id,
-            qty: i.qty,
-            unit_price: i.unit_price,
-            total_price: i.total_price,
-            name: i.name,
-          }))
-          const exams = input.examinations ?? []
-
-          // Preferred path: atomic Postgres function (web/supabase/002_create_sale_rpc.sql).
-          // p_payments only rides along when there ARE lines: an 002-only database
-          // (011 not run yet) keeps its atomic 3-arg path, while a missing 4-arg
-          // match surfaces through isMissingFunction and falls back below.
-          const rpcArgs: Record<string, unknown> = {
-            p_sale: salePayload,
-            p_items: items,
-            p_exams: exams,
-          }
-          if (pay.length) rpcArgs.p_payments = pay
-          // Idempotency (migration 012): the same key means "this checkout
-          // already happened" - the RPC returns the existing sale instead of
-          // writing a second one. Omitted on pre-012 databases (4-arg call).
-          if (input.idempotencyKey) rpcArgs.p_idempotency_key = input.idempotencyKey
-          try {
-            const rpc = await supabase.rpc('create_sale_order', rpcArgs)
-            if (!rpc.error && rpc.data) return rpc.data as Sale
-            if (rpc.error) {
-              if (isInvoiceNoConflict(rpc.error)) {
-                lastError = rpc.error
-                continue
-              }
-              if (!isMissingFunction(rpc.error)) throw rpc.error
-            }
-          } catch (err: any) {
-            if (isInvoiceNoConflict(err)) {
-              lastError = err
-              continue
-            }
-            if (!isMissingFunction(err)) throw err
-          }
-
-          // Fallback (RPC not installed yet): non-atomic client-side inserts.
-          // This is NOT atomic — a failure part-way through leaves a sale
-          // header with no items, and the stock movement is applied by the
-          // browser. It is kept only so a shop that has not yet run 002 can
-          // still take money; removing it would mean refusing to sell. What
-          // changed is that it can no longer happen quietly: the console
-          // record survives a closed tab, and SchemaBanner tells the user the
-          // actual cause. Once 002 is applied this branch is never reached.
-          console.error(
-            'create_sale_order() is not installed (run 002_create_sale_rpc.sql) - ' +
-              'falling back to NON-ATOMIC client-side inserts. A partial failure can ' +
-              'leave an incomplete sale.',
-            { hasItems: items.length > 0, hasExams: exams.length > 0, hasPayments: pay.length > 0 },
-          )
-          // `kind` arrived in 022, and this branch exists precisely for a
-          // database that has NOT run it. A 42703 here must not refuse the sale:
-          // the fallback's job is to take the money, and a missing column is not
-          // a reason to stop - the same reasoning the image_path retry below
-          // already follows. Without this, a shop 21+ migrations behind would
-          // find the fallback broken by a migration that has nothing to do with
-          // checkout. Degradation is honest: without the column there is no
-          // marker, which is exactly the pre-022 state.
-          let { data: sale, error: saleErr } = await supabase
-            .from('sales')
-            .insert(salePayload)
-            .select()
-            .single<Sale>()
-          if (saleErr && saleErr.code === '42703') {
-            const { kind: _dropped, ...withoutKind } = salePayload
-            const retry = await supabase
-              .from('sales')
-              .insert(withoutKind)
-              .select()
-              .single<Sale>()
-            sale = retry.data
-            saleErr = retry.error
-          }
-          if (saleErr) {
-            if (isInvoiceNoConflict(saleErr)) {
-              lastError = saleErr
-              continue
-            }
-            throw saleErr
-          }
-          // `.single()` answering with neither a row nor an error is not a state
-          // PostgREST should ever produce, but the retry above made `sale`
-          // mutable and a mutable value is not narrowed by the throw above. Say
-          // it out rather than asserting: an unexplained missing sale should
-          // read as an error, not as a half-finished checkout.
-          if (!sale) {
-            throw new Error(
-              'the sale insert returned no row and no error - the order was NOT saved',
-            )
-          }
-
-          if (items.length) {
-            const rows: SaleItemInsert[] = items.map((i) => ({ ...i, sale_id: sale.id }))
-            const { error: itemsErr } = await supabase.from('sale_items').insert(rows)
-            if (itemsErr) throw itemsErr
-
-            const movements = items.map((i) => ({
-              product_id: i.product_id,
-              qty: -i.qty,
-              type: 'sale',
-              ref_no: sale.invoice_no,
-              note: `POS Sale: ${sale.invoice_no}`,
-              created_at: new Date().toISOString(),
-            }))
-            const { error: movErr } = await supabase.from('stock_movements').insert(movements)
-            if (movErr) throw movErr
-          }
-
-          if (exams.length) {
-            const exRows: OrderExaminationInsert[] = exams.map((e) => ({
-              ...e,
-              doctor_name: (e as any).doctor_name || input.doctorName || null,
-              sale_id: sale.id,
-            }))
-            let { error: exErr } = await supabase.from('order_examinations').insert(exRows)
-            // If image_path column does not exist in user's schema (42703 / undefined column), retry without image_path
-            if (exErr && (exErr.code === '42703' || /image_path/i.test(exErr.message ?? ''))) {
-              const stripped = exRows.map(({ image_path: _unused, ...rest }: any) => rest)
-              const retry = await supabase.from('order_examinations').insert(stripped)
-              exErr = retry.error
-            }
-            if (exErr) throw exErr
-          }
-
-          // Payment lines (migration 011). Legacy databases without the ledger
-          // keep the header amount_paid only; running 011 later backfills rows.
-          if (pay.length) {
-            const payRows = pay.map((p) => ({
-              sale_id: sale.id,
-              amount: p.amount,
-              method: p.method,
-            }))
-            const { error: payErr } = await supabase.from('sale_payments').insert(payRows)
-            if (payErr && !isMissingPaymentLedger(payErr)) throw payErr
-          }
-
-          return sale
-        } catch (err: any) {
-          if (isInvoiceNoConflict(err) && attempt < 2) {
-            lastError = err
-            continue
-          }
-          throw err
-        }
-      }
-      throw lastError
-    },
+    mutationFn: createSaleMutationFn,
     onSuccess: () => {
       void invalidateSales(qc)
       qc.invalidateQueries({ queryKey: KEY })
@@ -796,6 +830,14 @@ export type UpdateSaleFullInput = CreateSaleInput & {
   invoiceNo: string
   /** Whether the sale had examinations BEFORE this re-checkout. */
   previousHadExams: boolean
+  /** The amount_paid the client last saw (migration 030). The server refuses
+   *  the re-checkout if a payment or refund landed since, instead of
+   *  reconciling the ledger to a tender list that never saw it. */
+  expectedAmountPaid?: number
+  /** The per-method tenders the client last saw on the ledger (migration 030).
+   *  The server refuses if History changed the split since, even at the same
+   *  total (e.g. 100 cash refunded and 100 collected by card). */
+  expectedTenders?: PaymentLine[]
 }
 
 /**
@@ -825,6 +867,8 @@ export function useUpdateSaleFull() {
       payments,
       rxImagePath,
       frameImagePath,
+      expectedAmountPaid,
+      expectedTenders,
     }: UpdateSaleFullInput): Promise<Sale> => {
       // Payment lines (migration 011): explicit split from the POS, or one
       // synthesized line so a caller that doesn't know about the ledger still
@@ -854,16 +898,11 @@ export function useUpdateSaleFull() {
         lab_status: exams.length ? 'Not Started' : null,
         rx_image_path: rxImagePath ?? null,
         frame_image_path: frameImagePath ?? null,
+        // Ignored by a pre-030 database (jsonb_populate_record drops unknown keys).
+        ...(expectedAmountPaid !== undefined ? { expected_amount_paid: expectedAmountPaid } : {}),
+        ...(expectedTenders ? { expected_tenders: expectedTenders.map(({ method, amount }) => ({ method, amount })) } : {}),
       }
-      const linePayload = items.map((i) => ({
-        product_id: i.product_id,
-        qty: i.qty,
-        unit_price: i.unit_price,
-        total_price: i.total_price,
-        name: i.name,
-        discount: i.discount ?? 0,
-        discount_reason: i.discount_reason ?? null,
-      }))
+      const linePayload = toRpcItems(items)
 
       const rpc = await supabase.rpc('update_sale_order', {
         p_sale_id: saleId,

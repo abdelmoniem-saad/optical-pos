@@ -33,12 +33,15 @@ grant usage on schema public to anon, authenticated, service_role;
 
 -- Everything the migrations create is owned by the connecting superuser; hand
 -- `authenticated` its privileges up-front (Supabase grants the same defaults).
+-- anon gets the same defaults as on Supabase, so a gate that asserts something
+-- is closed to anon proves the migration closed it, not that the harness never
+-- opened it (030_security_hardening_test S3b).
 alter default privileges in schema public
-  grant all privileges on tables to authenticated;
+  grant all privileges on tables to anon, authenticated;
 alter default privileges in schema public
-  grant all privileges on sequences to authenticated;
+  grant all privileges on sequences to anon, authenticated;
 alter default privileges in schema public
-  grant execute on functions to authenticated;
+  grant execute on functions to anon, authenticated;
 
 -- ---------- 2) auth schema (used by 008's auth_store_id(), 011's FKs) ----------
 create schema if not exists auth;

@@ -128,6 +128,7 @@ Migrations run in numeric order in the Supabase SQL editor:
 | 018 | `018_purchase_stock.sql` | Receiving a delivery into stock (idempotent, weighted-average cost), and per-customer balances / debtor list |
 | 019 | 19_lab_dwell.sql | How long a job has been waiting in the lab - the status is stamped by a trigger, so the badge cannot go stale |
 | 020 | `020_version_gate.sql` | Makes the drift check trustworthy: a migration that forgets to record its own version now fails CI |
+| 030 | `030_money_fixes.sql` | Re-checkout appends ledger and stock deltas (never deletes refunds or re-dates history) and refuses to give money back until it is refunded from History, legacy tenders take no new money, a stale per-tender view is refused, `price_cart` keeps the net with line discounts, a queued checkout's device time is bounded, a partly refunded sale can be voided, a checkout replay is answered before the permission/licence gates, invoice numbers unique per store; security: `link_staff_ids` and `staff_id_problems` dropped, `contact_lens_types` closed, `search_path` pinned on seven functions. Ship with the matching web client (see `RELEASE_030.md`) |
 
 > **Note on 000:** it is the original bootstrap the app shipped with. The live
 > project has drifted from it (e.g. Supabase Auth now owns passwords, not the

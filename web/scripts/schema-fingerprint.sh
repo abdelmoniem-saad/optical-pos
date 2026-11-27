@@ -59,6 +59,16 @@ fi
 # fires on every push and means nothing. Every backslash-prefixed line is
 # dropped instead of matching the token, because the exact spelling has
 # already changed once across versions and may again.
+#
+# The `grep -Ev '^-- Dumped ...'` is the same lesson a second time. A plain
+# dump's header names the exact tools that made it:
+#   -- Dumped from database version 16.x
+#   -- Dumped by pg_dump version 18.7 (Ubuntu 18.7-1.pgdg26.04+5)
+# --no-comments does NOT remove these (it only drops COMMENT ON statements),
+# so the hash used to change whenever the runner image shipped a rebuilt
+# client package: PR #3 got two different "stable" fingerprints for the same
+# schema from pg_dump 18.7 builds +2 and +5. Only these two version lines are
+# dropped; comments inside function bodies stay part of the shape.
 pg_dump "$DB_URL" \
   --schema-only \
   --no-comments \
@@ -66,6 +76,7 @@ pg_dump "$DB_URL" \
   --no-privileges \
   | sed -e 's/[[:space:]]\+/ /g' -e 's/^ //' -e 's/ $//' \
   | grep -v '^\\' \
+  | grep -Ev '^-- Dumped (from database|by pg_dump) version' \
   | grep -v '^$' \
   | sha256sum \
   | cut -d' ' -f1

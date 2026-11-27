@@ -24,14 +24,19 @@ short on purpose: an item here is a decision with a reason, not a task list.
 
 ## Known, measured, not yet acted on
 
-- **Production security-advisor follow-up (2026-10-19).** The connected project
-  reports anonymous access to the legacy `staff_id_problems` auth diagnostic
-  view, missing RLS on `contact_lens_types`, and mutable search paths on seven
-  existing functions. Review and restrict these with regression tests in the
-  next database hardening change. The advisor also flags executable definer
-  functions; inspect their internal authorization rather than treating every
-  intentional RPC as an exposure. This release does not claim a clean security
-  audit or strict per-module read isolation.
+- **Production security-advisor follow-up (2026-10-19) - closed by 030.**
+  `staff_id_problems` and the anon-callable `link_staff_ids()` are dropped,
+  `contact_lens_types` has RLS and no grants, and the seven functions pin
+  `search_path` (`tests/030_security_hardening_test.sql`, which also fails on
+  any new table without RLS, owner-rights view or unpinned function). Still
+  open: the advisor flags SECURITY DEFINER functions executable by anon; a
+  review on 2026-11-27 traced them for an anonymous caller and for a signed-up
+  login with no staff row and found none that leaks data or writes, so they are
+  left as intentional RPCs.
+  Public sign-up on the live project should be off (RELEASE_030.md). The
+  `prescriptions` bucket is public by design (`storage.ts` uses public URLs):
+  anyone with an image's URL can open it. This is not a clean security audit
+  or strict per-module read isolation.
 
 - **`platform_report_window` is the one slow report.** Measured at 50k-row scale
   (`npm run bench:db`): every single-store report is 20–55 ms, but the 025
