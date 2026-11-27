@@ -49,11 +49,13 @@ export function computeTotals(items: CartLine[], p: PricingInput): Totals {
  */
 export function receiptTotals(items: CartLine[], t: Totals): Totals {
   const itemsGross = items.reduce((sum, i) => sum + (i.total_price || 0), 0)
-  const [gross, discount] =
-    t.net <= itemsGross + 0.01
-      ? [itemsGross, Math.max(0, Math.round((itemsGross - t.net) * 100) / 100)]
-      : [t.net, 0]
-  return { ...t, itemsTotal: itemsGross, gross, discount }
+  if (t.net > itemsGross + 0.01) return { ...t, itemsTotal: itemsGross, gross: t.net, discount: 0 }
+  // price_cart snaps a net within 1 cent ABOVE the catalogue to the catalogue
+  // (net = total - discount), so the stored net - and this receipt - is
+  // itemsGross - discount, not the cart's figure.
+  const discount = Math.max(0, Math.round((itemsGross - t.net) * 100) / 100)
+  const net = Math.round((itemsGross - discount) * 100) / 100
+  return { ...t, itemsTotal: itemsGross, gross: itemsGross, discount, net, balance: net - t.amountPaid }
 }
 
 /**

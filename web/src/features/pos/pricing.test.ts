@@ -193,6 +193,18 @@ describe('receiptTotals (M6)', () => {
     expect(receiptTotals(items, t)).toEqual(t)
   })
 
+  it('a net within 1 cent above the catalogue is snapped to it, as price_cart stores it', () => {
+    const items = [line({ total_price: 100, unit_price: 100 })]
+    for (const typed of [100.01, 100.005]) {
+      const t = computeTotals(items, { discount: 0, amountPaid: 0, grossOverride: typed })
+      const r = receiptTotals(items, t)
+      expect([r.gross, r.discount, r.net, r.balance]).toEqual([100, 0, 100, 100])
+    }
+    // 2 cents above is a negotiated price (T5): kept as typed
+    const t2 = computeTotals(items, { discount: 0, amountPaid: 0, grossOverride: 100.02 })
+    expect(receiptTotals(items, t2).net).toBe(100.02)
+  })
+
   it('a gross typed ABOVE the catalog is stored as gross = net, no discount (012 T5)', () => {
     const items = [line({ total_price: 100, unit_price: 100 })]
     const t = computeTotals(items, { discount: 0, amountPaid: 0, grossOverride: 120 })

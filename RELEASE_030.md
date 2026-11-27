@@ -123,5 +123,5 @@ hashed it. `web/scripts/schema-fingerprint.sh` now drops the two
 CI run 45923850035 (after the first-checkout tender and stock-date fixes) (stable across the step's two runs, every
 pgTAP gate green in the same job).
 
-Local verification: production build, 298 frontend tests, 448 pgTAP assertions
+Local verification: production build, 299 frontend tests, 448 pgTAP assertions
 (365 before 030 plus 83 in the seven 030 gates).
