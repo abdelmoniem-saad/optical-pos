@@ -698,7 +698,7 @@ safe to re-run. What it changes (no table gains or loses a column):
   the tender and the reason, then reopens the invoice. The server never decides
   which tender the drawer paid out from.
 - **Tenders are checked.** An unknown tender is refused
-  (`Invalid payment method`). A legacy tender already on the invoice (`visa`,
+  (`Invalid payment method`), on the first checkout as on a re-checkout. A legacy tender already on the invoice (`visa`,
   `cash + instapay`, from the 011 backfill or an old re-checkout) may be kept or
   reduced but takes no new money, because no Z report counts it as drawer cash.
   An app that opened the invoice before a later payment or refund is told to
@@ -707,7 +707,8 @@ safe to re-run. What it changes (no table gains or loses a column):
 - **The device clock is bounded.** A checkout queued offline keeps the time
   Finish was pressed, but only inside [the store's latest closed shift's end, at
   most 2 days back, now]; outside it the time moves to the nearest bound, so a
-  late replay never lands in a shift whose cash is already counted.
+  late replay never lands in a shift whose cash is already counted. The sale's
+  stock movement carries the same time.
 - **Line discounts are no longer charged back.** `price_cart` kept the line
   discounts out of the stored discount, so a re-checkout of an order with a line
   discount raised its net and left a phantom balance. The stored discount is now
@@ -735,7 +736,7 @@ Gates: [`tests/030_recheckout_ledger_test.sql`](./tests/030_recheckout_ledger_te
 [`tests/030_void_after_refund_test.sql`](./tests/030_void_after_refund_test.sql),
 [`tests/030_sale_time_bounds_test.sql`](./tests/030_sale_time_bounds_test.sql),
 [`tests/030_money_fixes_test.sql`](./tests/030_money_fixes_test.sql)
-(79 assertions).
+(83 assertions).
 
 ## Schema baseline (recommended, ~2 minutes)
 

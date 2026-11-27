@@ -208,8 +208,9 @@ revoke execute on function public.sale_event_time(uuid, timestamptz) from public
 -- ============================================================
 -- 3) create_sale_order: a replay is answered before the gates
 -- ============================================================
--- 029's body with three changes: client times go through sale_event_time
--- (2b), the idempotency lookup runs FIRST, keyed on the
+-- 029's body with these changes: an unknown tender is refused, client times
+-- go through sale_event_time (2b) - for the sale, its payments and its stock
+-- movements - the idempotency lookup runs FIRST, keyed on the
 -- caller's own users.store_id (no is_active / role / licence check - returning
 -- the existing row only acknowledges a sale that already happened, and the
 -- random v4 key names exactly that one sale), and the reservation check looks
@@ -252,6 +253,17 @@ begin
   if (p_sale->>'customer_id') is not null and not exists(select 1 from public.customers where id=(p_sale->>'customer_id')::uuid and store_id=public.auth_store_id()) then raise exception 'Customer not found in this store'; end if;
   if exists(select 1 from jsonb_to_recordset(p_items) as i(product_id uuid) where i.product_id is not null and not exists(select 1 from public.inventory where id=i.product_id and store_id=public.auth_store_id())) then raise exception 'Product not found in this store'; end if;
   if exists(select 1 from jsonb_to_recordset(p_payments) as p(amount numeric) where p.amount < 0) then raise exception 'Use the refund action to return money'; end if;
+  -- A tender must be one the shop takes (030), as update_sale_order and
+  -- collect_sale_payment already require: money taken on 'visa' or a display
+  -- summary like 'Cash + InstaPay' is income no Z report counts as a drawer.
+  -- A missing method is cash, as below.
+  if exists (
+    select 1 from jsonb_populate_recordset(null::public.sale_payments, p_payments) r
+     where r.amount is not null and r.amount <> 0
+       and coalesce(lower(trim(r.method)), 'cash') not in ('cash', 'wallet', 'instapay', 'card')
+  ) then
+    raise exception 'Invalid payment method';
+  end if;
   perform public.require_perm('pos.create');
   if not public.is_platform_admin() and not public.license_write_ok(public.auth_store_id()) then raise exception 'Store licence does not allow writes'; end if;
   v_store := public.auth_store_id();
@@ -354,10 +366,12 @@ begin
          r.name, coalesce(r.discount, 0), r.discount_reason
     from jsonb_populate_recordset(null::public.sale_items, p_items) r;
 
+  -- Dated with the sale (v_at), so a checkout replayed from the offline queue
+  -- takes its stock off the shelf when it was sold, not when it synced.
   insert into public.stock_movements
     (product_id, store_id, qty, type, ref_no, note, created_at)
   select r.product_id, v_store, -r.qty, 'sale', v_sale.invoice_no,
-         'POS Sale: ' || coalesce(v_sale.invoice_no, ''), now()
+         'POS Sale: ' || coalesce(v_sale.invoice_no, ''), v_at
     from jsonb_populate_recordset(null::public.sale_items, p_items) r;
 
   insert into public.order_examinations
@@ -775,5 +789,5 @@ grant execute on function public.create_sale_order(jsonb,jsonb,jsonb,jsonb,uuid)
 -- ============================================================
 -- 7) stamp THIS migration (020 makes an unstamped file a red build)
 -- ============================================================
-select public.record_schema_version(30, 'money fixes: re-checkout appends ledger/stock deltas (refund first, legacy tenders cannot take new money, per-tender stale check), price_cart keeps the net with line discounts, void after refund, idempotent replay first, per-store invoice numbers, bounded client time');
+select public.record_schema_version(30, 'money fixes: re-checkout appends ledger/stock deltas (refund first, legacy tenders cannot take new money, per-tender stale check), price_cart keeps the net with line discounts, void after refund, idempotent replay first, per-store invoice numbers, bounded client time for sale/payments/stock, known tenders only');
 commit;

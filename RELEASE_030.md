@@ -84,14 +84,16 @@ never with real financial transactions:
   payment or refund was recorded after the invoice was opened in the POS - also
   when the total did not change (refund 100 cash + collect 100 card); reopen it
   and try again.
-- Re-checkout with a tender that is neither a known method nor already on the
-  invoice is refused (`Invalid payment method`). A legacy tender already on the
+- A first checkout with a tender that is not a known method, or a re-checkout
+  with one that is neither known nor already on the invoice, is refused
+  (`Invalid payment method`). A legacy tender already on the
   invoice (`visa`, `cash + instapay`, from the 011 backfill or an old
   re-checkout) is shown read-only in the POS: it can be kept or refunded, never
   given new money. History's refund form now offers those legacy tenders.
 - A sale's time comes from the device when it is queued offline, bounded by the
   server: never in the future, never inside a shift already closed, never more
-  than 2 days back.
+  than 2 days back. Its stock movement carries the same time, not the time it
+  synced.
 - A sale that was "Saved on this device" but never reached the shop - the
   server refused it when it was replayed, or the held queue was discarded by
   signing out or by the 24-hour cache limit - is shown in a red strip on every
@@ -121,5 +123,5 @@ hashed it. `web/scripts/schema-fingerprint.sh` now drops the two
 CI run 45898341885 after that fix (stable across the step's two runs, every
 pgTAP gate green in the same job).
 
-Local verification: production build, 298 frontend tests, 444 pgTAP assertions
-(365 before 030 plus 79 in the seven 030 gates).
+Local verification: production build, 298 frontend tests, 448 pgTAP assertions
+(365 before 030 plus 83 in the seven 030 gates).

@@ -7,12 +7,13 @@
 -- pressed) only inside [latest closed shift's to_at, and at most 2 days back,
 -- now()]. A slow device clock or a late replay must not put money into a shift
 -- whose expected cash is already frozen, a fast one must not date a sale in the
--- future, and a 2020 clock must not reach back years.
+-- future, and a 2020 clock must not reach back years. The stock movement is
+-- dated with the sale, and an unknown tender is refused on the first checkout.
 --
 -- now() is the transaction's start time, so every bound below is exact.
 begin;
 create extension if not exists pgtap;
-select plan(11);
+select plan(15);
 
 insert into public.stores (id, name, time_zone)
 values ('aaaaaaaa-aaaa-4aaa-8aaa-000000000501', 'clock shop', 'Africa/Cairo')
@@ -84,6 +85,31 @@ select is((select count(*)::int from public.sale_payments
 select _co('after', now() - interval '10 minutes');
 select is(_paid('after'), now() - interval '10 minutes', 'K7 a time after the close is kept');
 select is((select count(*)::int from _k where err is not null), 0, 'K8 no checkout was refused for its clock');
+
+-- The stock movement is dated with the sale, not with the sync.
+reset role;
+create function _moved(p_k text) returns timestamptz language sql as $$
+  select max(sm.created_at) from public.stock_movements sm
+   where sm.type = 'sale'
+     and sm.ref_no = (select s.invoice_no from public.sales s where s.id = (select sale_id from _k where k = p_k))
+     and sm.store_id = k_store() $$;
+set role authenticated;
+select is(_moved('replay'), now() - interval '3 hours',
+  'K9 a replayed checkout takes its stock off the shelf when it was sold, not when it synced');
+select is(_moved('slow'), now() - interval '30 minutes', 'K9b ... within the same bounds as the sale');
+
+-- The first checkout refuses a tender the shop does not take, like re-checkout
+-- and collect_sale_payment: income on 'visa' is a drawer no Z report counts.
+select throws_ok($$ select public.create_sale_order(
+    '{"total_amount":100,"discount":0,"net_amount":100,"amount_paid":100}'::jsonb,
+    '[{"product_id":"aaaaaaaa-aaaa-4aaa-8aaa-0000000005d1","qty":1,"unit_price":100,"total_price":100,"name":"K Frame"}]'::jsonb,
+    '[]'::jsonb, '[{"method":"visa","amount":100}]'::jsonb, gen_random_uuid()) $$,
+  'P0001', 'Invalid payment method', 'K10 a first checkout on an unknown tender is refused');
+select lives_ok($$ select public.create_sale_order(
+    '{"total_amount":100,"discount":0,"net_amount":100,"amount_paid":100}'::jsonb,
+    '[{"product_id":"aaaaaaaa-aaaa-4aaa-8aaa-0000000005d1","qty":1,"unit_price":100,"total_price":100,"name":"K Frame"}]'::jsonb,
+    '[]'::jsonb, '[{"method":" Card ","amount":100}]'::jsonb, gen_random_uuid()) $$,
+  'K10b ... while a known tender in any case and spacing is taken');
 
 select * from finish();
 rollback;
