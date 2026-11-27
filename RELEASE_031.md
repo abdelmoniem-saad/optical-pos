@@ -72,8 +72,10 @@ scripts against production.
 ## Repository CI gate
 
 031 changes the schema fingerprint (four constraints dropped, five indexes and a
-function added). The new hash is taken from the PR's CI step summary, as for
-029 and 030.
+function added, `set_staff_access` redefined). The recorded 031 hash,
+`8386994f8562a2ff9bd8871098d8be1c5107a9a678ba82084ea040c1f7806ec1`, comes from CI
+run 46063861477, stable across the step's two runs, with every pgTAP gate green
+in the same job.
 
 Local verification: production build, 309 frontend tests, 473 pgTAP assertions
 (449 before 031 plus 24 in `031_per_store_unique_test.sql`).
