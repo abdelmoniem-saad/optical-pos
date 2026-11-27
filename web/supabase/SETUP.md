@@ -563,7 +563,7 @@ Paste [`023_z_report.sql`](./023_z_report.sql).
 > ```
 
 Gate: [`tests/023_z_report_test.sql`](./tests/023_z_report_test.sql)
-(21 assertions).
+(24 assertions).
 
 ## Step 20 — `024_closing_permission.sql` (reading numbers ≠ counting the drawer)
 
@@ -755,6 +755,42 @@ Gates: [`tests/030_recheckout_ledger_test.sql`](./tests/030_recheckout_ledger_te
 [`tests/030_money_fixes_test.sql`](./tests/030_money_fixes_test.sql),
 [`tests/030_security_hardening_test.sql`](./tests/030_security_hardening_test.sql)
 (97 assertions).
+
+## Step 28 — `031_per_store_unique.sql` (names per store, a safe photo sweep)
+
+**Paste this before deploying the matching web app** (see
+[`RELEASE_031.md`](../../RELEASE_031.md)): the app saves settings against
+`(store_id, key)`, which only 031 creates, and expects version **31**.
+
+- A product SKU and the name of a lens type, frame type or frame colour are
+  unique **per store** instead of across every store. The per-store index is
+  built before each global rule is dropped, so uniqueness never lapses and the
+  build cannot fail on data the global rule allowed. Blank SKUs become NULL.
+- `settings` gains a per-store `(store_id, key)` unique index. The global
+  `settings_key_key` stays until migration 032, so a device still on the
+  previous app keeps saving settings.
+- `referenced_image_paths(p_store, p_after, p_limit)` (platform admins only)
+  returns a store's referenced photo paths in pages of up to 1,000, so the
+  platform "Scan storage" sweep sees all of them; the app also never lists a
+  photo younger than 14 days.
+
+Check it:
+
+```sql
+select public.schema_version();   -- 31
+select indexname from pg_indexes
+ where indexname in ('inventory_store_sku_key', 'lens_types_store_name_key',
+                     'frame_types_store_name_key', 'frame_colors_store_name_key',
+                     'settings_store_key_key');   -- five rows
+```
+
+- The staff limit counts **active** staff: `set_staff_access` refuses switching
+  someone back on when the store is at `store_licenses.max_staff`.
+
+Then deploy `create-user` (a switched-off staff member no longer takes a seat).
+
+Gate: [`tests/031_per_store_unique_test.sql`](./tests/031_per_store_unique_test.sql)
+(24 assertions).
 
 ## Schema baseline (recommended, ~2 minutes)
 

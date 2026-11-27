@@ -21,8 +21,22 @@
  * live one is a lost prescription. So the bias is unmistakably toward KEEP.
  */
 
-/** A file as the storage API lists it: `name` is the path WITHIN the folder. */
-export type StorageFile = { name: string }
+/** A file as the storage API lists it: `name` is the path WITHIN the folder,
+ *  `created_at` the upload time (ISO string) the listing reports. */
+export type StorageFile = { name: string; created_at?: string | null }
+
+/** A file younger than this is never an orphan (design 4.1, Phase 0b). A photo
+ *  is uploaded when the cashier attaches it in the cart, and its sale row is
+ *  written only at checkout - possibly much later, or from the offline queue
+ *  the next day. Until then nothing references it, yet it is not abandoned. */
+export const ORPHAN_MIN_AGE_MS = 14 * 24 * 60 * 60 * 1000
+
+/** True only when the listing proves the file is older than the age gate. A
+ *  missing or unreadable upload time counts as young: the bias is toward KEEP. */
+function oldEnough(f: StorageFile, now: number, minAgeMs: number): boolean {
+  const t = f?.created_at ? Date.parse(f.created_at) : Number.NaN
+  return Number.isFinite(t) && now - t >= minAgeMs
+}
 
 /**
  * The set of image paths that are still referenced by sales rows, already
@@ -49,12 +63,14 @@ function norm(p: string | null | undefined): string | null {
  *
  * The `.emptyFolderPlaceholder` that Supabase writes into an empty folder is
  * never an orphan: deleting it is meaningless and would just make the next
- * list re-create it.
+ * list re-create it. Neither is a file younger than `minAgeMs` (14 days by
+ * default), or one whose upload time the listing does not give.
  */
 export function findOrphanedImages(
   files: readonly StorageFile[],
   referenced: ReferencedPaths,
   folderPrefix: string,
+  { now = Date.now(), minAgeMs = ORPHAN_MIN_AGE_MS }: { now?: number; minAgeMs?: number } = {},
 ): string[] {
   const prefix = folderPrefix.replace(/\/+$/, '')
   const keep = new Set<string>()
@@ -73,6 +89,7 @@ export function findOrphanedImages(
     // referenced - defensive, so a caller that passed unprefixed paths still
     // protects its files rather than deleting them.
     if (keep.has(full) || keep.has(name)) continue
+    if (!oldEnough(f, now, minAgeMs)) continue
     orphans.push(full)
   }
   return orphans
