@@ -201,6 +201,15 @@ Its gate is [`tests/014_server_rbac_test.sql`](./tests/014_server_rbac_test.sql)
 
 ## Step 10 - `015_link_staff_ids.sql` (repair a staff row that is not linked)
 
+> **Since 030 this is a one-off.** 030 (step 27) drops `link_staff_ids()` and
+> `staff_id_problems`: the function could be called by anyone, signed in or not,
+> and with public sign-up it could hand an unlinked staff account to a stranger.
+> On a new project paste 015 here as before - it runs its repair as it is
+> pasted, and closes both to everyone but the SQL Editor - and 030 removes them
+> later. **Never re-paste 015 after 030.** To list
+> unlinked staff rows after 030, run the query in `RELEASE_030.md` in the SQL
+> Editor.
+
 **Paste this immediately after step 9.** 014 cuts a fallback that was quietly
 papering over a real problem: a staff row whose `id` is not the Supabase Auth
 `id` of the same person. That is exactly the state left behind by **step 2**,
@@ -232,8 +241,9 @@ the healthy outcome.
 
 Re-running it repairs nothing, so it is safe to paste twice.
 
-Its gate is [`tests/015_link_staff_ids_test.sql`](./tests/015_link_staff_ids_test.sql)
-(13 assertions), also run by `npm run test:db` and CI.
+Its gate, `tests/015_link_staff_ids_test.sql`, was removed with the function in
+030 (it is in git history); `tests/030_security_hardening_test.sql` asserts both
+are gone.
 
 ## Step 11 - `016_reporting.sql` (reports in the database, and one "today")
 
@@ -720,6 +730,13 @@ safe to re-run. What it changes (no table gains or loses a column):
   lapsed, it gets the sale that already exists instead of an error.
 - **Invoice numbers are unique per store**, like the counter that issues them.
   A second store no longer collides with the first store's numbers.
+- **Security advisor findings closed.** `link_staff_ids()` (anyone could call
+  it, and with public sign-up it could hand an unlinked staff account to a
+  stranger) and the `staff_id_problems` view (anonymous visitors could read
+  staff usernames) are dropped - the app uses neither. `contact_lens_types`
+  (unused, no store, open to anonymous reads and writes) gets RLS and loses
+  every grant; its rows are kept. Seven functions get a fixed `search_path`.
+  **Never re-paste 015 after this** (step 10).
 
 Check it:
 
@@ -735,8 +752,9 @@ Gates: [`tests/030_recheckout_ledger_test.sql`](./tests/030_recheckout_ledger_te
 [`tests/030_price_cart_line_discounts_test.sql`](./tests/030_price_cart_line_discounts_test.sql),
 [`tests/030_void_after_refund_test.sql`](./tests/030_void_after_refund_test.sql),
 [`tests/030_sale_time_bounds_test.sql`](./tests/030_sale_time_bounds_test.sql),
-[`tests/030_money_fixes_test.sql`](./tests/030_money_fixes_test.sql)
-(83 assertions).
+[`tests/030_money_fixes_test.sql`](./tests/030_money_fixes_test.sql),
+[`tests/030_security_hardening_test.sql`](./tests/030_security_hardening_test.sql)
+(97 assertions).
 
 ## Schema baseline (recommended, ~2 minutes)
 

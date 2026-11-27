@@ -47,8 +47,37 @@ per-store unique index `sales_store_invoice_no_key (store_id, invoice_no)`. A
 database that satisfied the global rule satisfies the per-store one, so the index
 build cannot fail on existing data.
 
+030 also closes the security advisor findings (section 6 of the file): it drops
+`link_staff_ids()` and the `staff_id_problems` view (015), closes
+`contact_lens_types`, and pins `search_path` on seven functions. If the drop
+fails because something in the project depends on one of them, the whole of 030
+rolls back; keep the error. **Never re-paste `015_link_staff_ids.sql` after
+030** - it would bring the function back.
+
+The view showed staff rows that have no matching login (such a person cannot
+sign in). To see them after 030, run this in the SQL Editor (it runs as the
+project owner, so it is not exposed to the app):
+
+```sql
+select u.id, u.username, u.store_id,
+       (select count(*) from auth.users a
+         where split_part(coalesce(a.email, ''), '@', 1) = u.username) as logins_with_this_name
+  from public.users u
+ where not exists (select 1 from auth.users a where a.id = u.id);
+```
+
+## Supabase dashboard (once)
+
+Turn off public sign-up: **Authentication -> Sign In / Providers -> "Allow new
+users to sign up" -> off**, then save. The app never signs anyone up itself:
+staff logins are made by the `create-user` Edge Function with the admin API,
+which this setting does not block. With sign-up on, anyone who knows the project
+URL and the public key (both are in the web app) can create a login. 030 removes
+the function that made such a login dangerous, but an unused door is better
+shut.
+
 None of the `*_test.sql` files belong in the production SQL Editor, including the
-seven `030_*_test.sql` gates. They use test fixtures and the pgTAP harness. Do not
+eight `030_*_test.sql` gates. They use test fixtures and the pgTAP harness. Do not
 run `_shim.sql` or the local database setup scripts against production.
 
 ## Web client
@@ -123,5 +152,6 @@ hashed it. `web/scripts/schema-fingerprint.sh` now drops the two
 CI run 45923850035 (after the first-checkout tender and stock-date fixes) (stable across the step's two runs, every
 pgTAP gate green in the same job).
 
-Local verification: production build, 299 frontend tests, 448 pgTAP assertions
-(365 before 030 plus 83 in the seven 030 gates).
+Local verification: production build, 299 frontend tests, 449 pgTAP assertions
+(352 before 030 plus 97 in the eight 030 gates; the 13-assertion 015 gate was
+removed with the function it tested).

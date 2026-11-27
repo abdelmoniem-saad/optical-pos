@@ -12,7 +12,7 @@ Revision 2 replaces revision 1 (written against `main` at cf78ca5). It answers e
 
 ## 0. Status and what changed since revision 1
 
-Phase 0 is **built and CI-green in PR #3, not deployed**. It contains `030_money_fixes.sql` (793 lines, stamped at 030:792): append-only re-checkout with refund first, legacy tenders take no new money, per-tender stale check (`expected_tenders`), `price_cart` keeps the net with line discounts (the header discount is the WHOLE discount), void after a partial refund, idempotent replay before the gates, per-store invoice uniqueness (`sales_store_invoice_no_key`, 030:82-84, with the per-store existence check at 030:325-330), client time bounded by `sale_event_time` (030:196-205) for the sale, its payments and its stock movements (030:371-375), and `create_sale_order` refusing unknown tenders (030:260-266). Client side: offline-queued first checkout with a default `mutationFn`, a checkout journal and banner for failed or lost queued sales, a refund-first pre-check, `receiptTotals` so the receipt matches the stored header, and access no longer polled. Gates: 299 vitest, 448 pgTAP assertions in 25 gate files; the schema fingerprint excludes pg_dump's version header (a0bcafc).
+Phase 0 is **built and CI-green in PR #3, not deployed**. It contains `030_money_fixes.sql` (843 lines, stamped at 030:842): append-only re-checkout with refund first, legacy tenders take no new money, per-tender stale check (`expected_tenders`), `price_cart` keeps the net with line discounts (the header discount is the WHOLE discount), void after a partial refund, idempotent replay before the gates, per-store invoice uniqueness (`sales_store_invoice_no_key`, 030:90-92, with the per-store existence check at 030:333-338), client time bounded by `sale_event_time` (030:204-213) for the sale, its payments and its stock movements (030:379-383), and `create_sale_order` refusing unknown tenders (030:268-274). It also closes the live security advisor findings (030 section 6, moved forward from 031): `link_staff_ids` and `staff_id_problems` dropped, `contact_lens_types` closed, `search_path` pinned on seven functions. Client side: offline-queued first checkout with a default `mutationFn`, a checkout journal and banner for failed or lost queued sales, a refund-first pre-check, `receiptTotals` so the receipt matches the stored header, and access no longer polled. Gates: 299 vitest, 449 pgTAP assertions in 25 gate files (`015_link_staff_ids_test.sql` removed, `030_security_hardening_test.sql` added); the schema fingerprint excludes pg_dump's version header (a0bcafc).
 
 What changes in this revision, in one list:
 1. The `_impl`/`p_mode` refactor of about 30 audited RPCs is dropped (OE1). The register path gets thin `_ingest_<kind>` writers and one flag evaluator. The online money RPCs (030's create/update/void, 028's refund, 029's collect) are untouched; the other body changes are listed in §4: the `receive_purchase` cost fix (029:588-675) and the `resolve_can`/`is_store_admin` store guard (029:44-71) in 032, `my_permissions` (029:81-89) in 033, and `my_license_state` (026:82-101) and `license_feature` (027:54-65) refactored onto store-parameterised internals in 034.
@@ -110,8 +110,8 @@ The SQL is the specification and the SQL tests are the oracle. Sources are the *
 |---|---|
 | `money.ts` | Integer minor units. `toMinor(x)` parses the shortest decimal string (`String(x)`, what JSON sends PostgREST) and rounds half away from zero, like `round(x::numeric, 2)`. `parseMoneyInput`, `fromMinor`, `divRoundHalfAway` (BigInt). |
 | `tender.ts` | `tenderKey(m) = (m ?? '').replace(/^ +\| +$/g, '').toLowerCase() \|\| 'cash'`, the twin of SQL `tender_key()` (§4.2). Whitelist `cash|wallet|instapay|card` for **new money only**. |
-| `pricing.ts` | `price_cart` (030:92-185): exact catalogue check against local `inventory.sale_price`, line discount ≤ line, stock check when `allow_negative_stock=false`, the net-snapping branch (030:173-178). |
-| `sale.ts` | `createSale` (030:218-402, idempotency lookup first, never renumbers); `recheckout` (030:411-695: stale check against the live ledger, refund first, legacy tenders take no new money, `history.refund` on any negative delta, deltas appended); `voidSale` (030:704-777, honours `p_restock`, one refund per exact stored method); `refundSale` (028:96-169, exact-method ceiling); `collectPayment` (029:800-817); `setLabStatus` (029:748-756, 019:76-104); `updateHeader` (029:774-793 whitelist); `replaceExams` (029:758-770). |
+| `pricing.ts` | `price_cart` (030:100-193): exact catalogue check against local `inventory.sale_price`, line discount ≤ line, stock check when `allow_negative_stock=false`, the net-snapping branch (030:181-186). |
+| `sale.ts` | `createSale` (030:226-410, idempotency lookup first, never renumbers); `recheckout` (030:419-703: stale check against the live ledger, refund first, legacy tenders take no new money, `history.refund` on any negative delta, deltas appended); `voidSale` (030:712-785, honours `p_restock`, one refund per exact stored method); `refundSale` (028:96-169, exact-method ceiling); `collectPayment` (029:800-817); `setLabStatus` (029:748-756, 019:76-104); `updateHeader` (029:774-793 whitelist); `replaceExams` (029:758-770). |
 | `zreport.ts` | `z_report` (023:112-169): cash = `lower(method)='cash'` (no trim, as SQL), tenders grouped by exact string; `close_shift` (024:121-182) without a licence gate. |
 | `time.ts` | `store_time_zone` (016:170-179) and `store_day_range` via `Intl.DateTimeFormat`. |
 | `perms.ts` | `resolve_can` (029:52-71: no role or loading means deny), `is_store_admin`, staff guards (029:93-182), reserved names, seat cap. |
@@ -122,7 +122,7 @@ The SQL is the specification and the SQL tests are the oracle. Sources are the *
 
 **Comparison rule.** The PC may be stricter than SQL, never looser. Ceilings compare exactly with no 0.01 tolerance, so every fact the PC accepts passes the server's tolerant checks. The only tolerance mirrored on purpose is the price_cart snapping branch, because it changes a stored value.
 
-**Methods.** New money is normalised with `tenderKey` before commit. Refund, void and restock rows keep the **exact stored method** of the ledger rows they reverse (030:757-767 groups by `sp.method`; 028:143-151 matches exactly). Writers store methods verbatim, so PC and cloud rows are identical.
+**Methods.** New money is normalised with `tenderKey` before commit. Refund, void and restock rows keep the **exact stored method** of the ledger rows they reverse (030:765-775 groups by `sp.method`; 028:143-151 matches exactly). Writers store methods verbatim, so PC and cloud rows are identical.
 
 **Receipt.** The register prints the stored local header and recomputes nothing. In the cloud build, `receiptTotals` (pricing.ts) returns `net = round2(itemsGross - discount)` in the snapping branch (fixed in PR #3), so `receiptTotals(items, computeTotals(…))` equals the price_cart header for every parity vector, including net = items + 0.01 (M6 fully closed).
 
@@ -255,7 +255,7 @@ Evaluated by `_register_flags` against pre-op state, or returned by writers:
 
 Writer contract, for the 23 writers named in §4.4 (one per row of the table below, with the log-only kinds and `noop` sharing `_ingest_log`): signature `(p_store uuid, p_actor uuid, p_at timestamptz, p jsonb) returns text[]`; SECURITY DEFINER, `search_path=public`, revoked from public, anon and authenticated; `store_id = p_store` on every insert (never from the payload); every actor column = `p_actor`; every time column = `p_at`; every id = the PC's id; every row looked up by `(id, store_id = p_store)`; references checked with `_ingest_ref(tbl, id, store)`. A writer never calls a public RPC, `price_cart`, `sale_event_time`, `next_invoice_no`, `auth_store_id()`, `license_write_ok()` or `require_perm()`. Inside one op, positive ledger rows are inserted before negative ones (the `amount_paid >= 0` CHECK is evaluated per row, 011/013:231-247).
 
-**Money-column flag.** `sales_money_guard` (013:208-227) raises 42501 on any UPDATE that changes `total_amount`, `discount`, `net_amount` or `amount_paid` unless `lensy.money_write = '1'`, and `sync_sale_amount_paid` resets that flag to `''` after every ledger row it syncs (013:231-247). A writer that updates those columns therefore calls `set_config('lensy.money_write','1',true)` immediately before that UPDATE, issues the header UPDATE **before** any ledger insert, and calls `set_config('lensy.money_write','',true)` after its last ledger insert (the order 030 uses: flag 030:622, header 030:623, ledger 030:681, clear 030:689). Only `_ingest_sale_recheckout` needs it: `sale.create` inserts the header (the guard is BEFORE UPDATE only), `sale.void` changes only `voided_*` (030:769), and `amount_paid` moves through the ledger trigger. Without it every re-checkout raises 42501, which classifies as FAULT and holds the queue.
+**Money-column flag.** `sales_money_guard` (013:208-227) raises 42501 on any UPDATE that changes `total_amount`, `discount`, `net_amount` or `amount_paid` unless `lensy.money_write = '1'`, and `sync_sale_amount_paid` resets that flag to `''` after every ledger row it syncs (013:231-247). A writer that updates those columns therefore calls `set_config('lensy.money_write','1',true)` immediately before that UPDATE, issues the header UPDATE **before** any ledger insert, and calls `set_config('lensy.money_write','',true)` after its last ledger insert (the order 030 uses: flag 030:630, header 030:631, ledger 030:689, clear 030:697). Only `_ingest_sale_recheckout` needs it: `sale.create` inserts the header (the guard is BEFORE UPDATE only), `sale.void` changes only `voided_*` (030:777), and `amount_paid` moves through the ledger trigger. Without it every re-checkout raises 42501, which classifies as FAULT and holds the queue.
 
 **Money kinds.** `MONEY_KINDS` = `sale.create`, `sale.recheckout`, `sale.refund`, `sale.void`, `payment.collect`, `shift.close`, `purchase.receive`, `purchase.payment.add`, `purchase.payment.delete`, `stock.adjust`. It is one constant in `src/lib/register/ops.ts` and the `money boolean` column of `_register_kind_perms`; the generated parity vectors (§8 Phase 2) carry the list so vitest and pgTAP compare the two. It drives the Skip refusal (§3.8, `money_skip_forbidden`) and `in_closed_shift`. `product.upsert` with `initial` stock is not in it, but as an entity create it can never be skipped anyway.
 
@@ -298,19 +298,19 @@ There is no inventory-delete kind (M5). Images are not ops (§2.9).
 
 | 030 guard | On the PC | At ingest |
 |---|---|---|
-| Refund first (030:568-579) | Refusal | Flag `refund_first` |
-| `expected_amount_paid` / `expected_tenders` (030:474-503) | Checked against the live ledger inside the commit | `expect` compared with the server ledger grouped by `tender_key` → `divergence` (the canary) |
-| Legacy tender takes no new money (030:602-609); unknown tenders refused (030:260-266) | Refusal | `unknown_tender` |
-| `history.refund` when a tender goes down (030:614-616) | Refusal without the permission | `perm:history.refund` |
-| New-units stock guard (030:536-554) | Refusal | `negative_stock` |
-| Catalogue price check (030:141-152) | Exact match required | `price_changed` (no catalogue lock) |
-| Header shape (030:173-182) | Computed exactly | `header_rule`; the 012/013 CHECKs still hold |
-| Void per tender (030:755-767) | Rows derived per exact method | Stored verbatim; compared → `void_derivation_differs` |
-| Idempotency first (030:243-251) | Local index lookup before gates | Replaced by seq/op_id; `(store_id, idempotency_key)` unique (012:170-172) still enforced |
-| Per-store invoice (030:82-84) | Local unique index | Unique violation → INT hold |
-| `sale_event_time` (030:196-205) | Not applicable | **Not applied.** It would replace a `t` older than 2 days, or after a close, with the ingest time. `t` is stored verbatim and flagged (`clock_*`, `in_closed_shift`); every row of an op gets `t` |
+| Refund first (030:576-587) | Refusal | Flag `refund_first` |
+| `expected_amount_paid` / `expected_tenders` (030:482-511) | Checked against the live ledger inside the commit | `expect` compared with the server ledger grouped by `tender_key` → `divergence` (the canary) |
+| Legacy tender takes no new money (030:610-617); unknown tenders refused (030:268-274) | Refusal | `unknown_tender` |
+| `history.refund` when a tender goes down (030:622-624) | Refusal without the permission | `perm:history.refund` |
+| New-units stock guard (030:544-562) | Refusal | `negative_stock` |
+| Catalogue price check (030:149-160) | Exact match required | `price_changed` (no catalogue lock) |
+| Header shape (030:181-190) | Computed exactly | `header_rule`; the 012/013 CHECKs still hold |
+| Void per tender (030:763-775) | Rows derived per exact method | Stored verbatim; compared → `void_derivation_differs` |
+| Idempotency first (030:251-259) | Local index lookup before gates | Replaced by seq/op_id; `(store_id, idempotency_key)` unique (012:170-172) still enforced |
+| Per-store invoice (030:90-92) | Local unique index | Unique violation → INT hold |
+| `sale_event_time` (030:204-213) | Not applicable | **Not applied.** It would replace a `t` older than 2 days, or after a close, with the ingest time. `t` is stored verbatim and flagged (`clock_*`, `in_closed_shift`); every row of an op gets `t` |
 
-The online re-checkout and void still stamp `now()` (030:665, 686, 748, 761); that matters only for stores not on a register.
+The online re-checkout and void still stamp `now()` (030:673, 686, 748, 761); that matters only for stores not on a register.
 
 ### 3.8 Holds, Skip and the vendor park
 
@@ -354,13 +354,12 @@ Every file ends with `select public.record_schema_version(N, …)` (020 gate, `s
 ### 4.1 `031_per_store_unique.sql` (live, Phase 0b)
 
 - `update inventory set sku = null where btrim(sku) = ''`.
-- For `inventory.sku` and the `name` of `lens_types`, `frame_types`, `frame_colors`: create the per-store unique index first, then drop the global constraint. Only the index-before-drop order is 030's idiom (030:82-84); 030 drops `sales_invoice_no_key` by name, whereas 031 looks the constraint name up in `pg_constraint` by `conrelid` and `conkey` (new code, because these constraints were created inline in 000 and their generated names are not guaranteed). Global uniqueness implies per-store, so no data fix is needed and uniqueness never lapses.
+- For `inventory.sku` and the `name` of `lens_types`, `frame_types`, `frame_colors`: create the per-store unique index first, then drop the global constraint. Only the index-before-drop order is 030's idiom (030:90-92); 030 drops `sales_invoice_no_key` by name, whereas 031 looks the constraint name up in `pg_constraint` by `conrelid` and `conkey` (new code, because these constraints were created inline in 000 and their generated names are not guaranteed). Global uniqueness implies per-store, so no data fix is needed and uniqueness never lapses.
 - `settings`: add `settings_store_key_key (store_id, key)` only. The global `settings_key_key` (000:280) stays until 032, so cached clients still sending `onConflict:'key'` keep working. Client `settings.ts:31` → `onConflict:'store_id,key'` (valid while both exist; `tenant_fill_store_id` fills `store_id` before arbitration, 008:240-247).
-- `contact_lens_types`: no `store_id`, no RLS, unused by the client; `revoke all … from anon, authenticated` (a live cross-tenant leak).
-- Identity hardening (a live leak independent of v2): `drop view if exists public.staff_id_problems; drop function if exists public.link_staff_ids();`. 015 is left unchanged; SETUP.md says "do not re-paste 015".
+- Done in 030 (section 6), no longer here: `contact_lens_types` closed (RLS on, every grant revoked), `link_staff_ids` and `staff_id_problems` dropped, `search_path` pinned on seven functions. SETUP.md says "never re-paste 015 after 030".
 - **Orphan scan fix** (a live data-loss path for every tenant, moved from Phase 5): today `referencedPaths()` (`data/storageCleanup.ts:38-50`) selects every sale's photo paths in one unpaged request, so under the PostgREST row cap the platform scan can list live photos as orphans and the Delete button removes them; it has no age gate either. 031 adds `referenced_image_paths(p_store uuid, p_after text, p_limit int)` (platform admin only, keyset-paged over the store's `rx_image_path`/`frame_image_path`); `useOrphanScan` pages through it per store, and `findOrphanedImages` ignores files younger than 14 days (the storage listing's `created_at`), which protects a photo uploaded at cart entry whose sale row is not yet written. From Phase 1 (033) the scan also skips `register_only` stores (§2.9).
 - Not here: `sales.invoice_no` (done in 030), roles (029:6-7), `users.username` (033).
-- **Tests** `tests/031_per_store_unique_test.sql`: two stores share sku and each metadata name; same-store duplicate → 23505 in each table; two null skus coexist; old constraints absent; `on conflict (store_id, key)` upserts as authenticated; `contact_lens_types` not selectable/insertable by anon or authenticated; `link_staff_ids` and `staff_id_problems` do not exist. `tests/015_link_staff_ids_test.sql` is **replaced** by these assertions. vitest: `useSetSetting` sends `onConflict:'store_id,key'`.
+- **Tests** `tests/031_per_store_unique_test.sql`: two stores share sku and each metadata name; same-store duplicate → 23505 in each table; two null skus coexist; old constraints absent; `on conflict (store_id, key)` upserts as authenticated; vitest: `useSetSetting` sends `onConflict:'store_id,key'`.
 
 ### 4.2 `032_actor_core.sql` (live, ≥ 7 days after the 0b client and every shop device reloaded)
 
@@ -413,7 +412,7 @@ Every file ends with `select public.record_schema_version(N, …)` (020 gate, `s
 | Owner lockout | Cut at every step: protected owner row, `revoke_register` keyed on `stores.owner_uid` (which only the vendor and create-register write), owner re-claim on a new epoch. |
 | Forged actor / actor trust | The actor must be a `users` row of the store (`foreign_actor` refusal). Owner-attributed forgery is visible only through `no_session` and seq conflict; session and credential ops give the phone a who-was-at-the-till trail. |
 | Staff revocation | Owner command from the phone (`owner_deactivate_staff`), applied by the PC as an ordinary op when online. While the PC is offline, physical access is the control; the phone says so. Banned cashier JWTs stay valid up to 1 h after cutover; the guard trigger already blocks their writes. |
-| `link_staff_ids` / `staff_id_problems` | Dropped in 031 (takeover primitive, sync-killing FK swap, cross-tenant leak with anonymous access per DEFERRED.md:27-29). |
+| `link_staff_ids` / `staff_id_problems` | Dropped in 030 (takeover primitive, sync-killing FK swap, cross-tenant leak with anonymous access). |
 | Cross-tenant probing | `resolve_can`/`is_store_admin` store guard (032). |
 | Platform admin / service role / create-user writes under `register_only` | Guard trigger; create-user 409. Platform admins keep licence control and `set_store_owner`, `revoke_register`, `end_register_mode`, `register_resolve_held`, `register_revert_ops`. Migrations do not modify `register_only` stores (§4 preamble). |
 | Storage | Register insert-only; owner phone writes blocked; register file names unguessable; the public bucket itself is an existing risk noted for the vendor. |
@@ -421,10 +420,10 @@ Every file ends with `select public.record_schema_version(N, …)` (020 gate, `s
 | Clock rollback | Licence floor `serverNow`; 45-day/45-close contact allowance; backwards-clock banner; `clock_back` flags. |
 | Cloned PC or restored backup | A restore is a takeover with a new epoch; the old epoch gets `current:false, reason:'replaced'` and goes `stranded` (business commits refused, export kept). A clone that keeps the old epoch collides on seq → quarantine. |
 | Register credential at rest | In IndexedDB `meta.register`, read only by the lock holder; excluded from backups and exports; revocation makes re-sign-in fail. |
-| `contact_lens_types` | Revoked from anon and authenticated (031). |
+| `contact_lens_types` | RLS on and every grant revoked (030). |
 | Op payload privacy | `register_ops.payload` holds customer PII; readable only through summaries for the owner and in full by platform admins; credentials never appear; pruned after 400 days. |
 | Public sign-up | SETUP.md requires it disabled; a 033 assertion shows a login with no users row and no register row gets `auth_store_id()` and `register_store_id()` both null. |
-| Remaining advisor items (mutable `search_path` on seven functions, DEFERRED.md:27-34) | Not v2 work; new functions all set `search_path`. |
+| Mutable `search_path` on seven functions (advisor) | Pinned in 030; `030_security_hardening_test.sql` S6 fails on any new function without it. |
 
 ---
 
@@ -441,7 +440,7 @@ Every file ends with `select public.record_schema_version(N, …)` (020 gate, `s
 2. `replaceStores` from the file; `invoiceNext = max(file, local) + 1000`; `epoch = null`; state `reclaim_required`. Selling continues; new ops are numbered locally but not sent.
 3. Re-claim (online, owner): create-register `restore` → new epoch, returns `L = last_seq` and the cloud's numeric `max_invoice`; the PC sets `invoiceNext = greatest(invoiceNext, max_invoice + 1)`. The offline `+ 1000` of step 2 is only a guess made before the cloud max is known, and is wrong when more than 1000 sales were acked after the backup.
 4. Re-hydrate with the owner session: page `register_export_ops(ackedSeq + 1)` to `L`. A cloud op whose `i` is in the local outbox deletes that local op. A full-row upsert/delete cloud op whose id is touched by a later local op is skipped; partial kinds are applied in seq order and the local ops re-applied after. Everything else goes through `applyOp`.
-5. Invoice collisions, before the rebase: any unsent local `sale.create` whose `invoice_no` now equals a re-hydrated sale's number gets the next free number from `invoiceNext`, in one transaction that rewrites the op payload (adding `renumbered_from`), the mirror header and any local image paths that embed the number. The server flags it `invoice_renumbered` (§3.5), and the PC shows the cashier the list of old and new numbers, because those receipts were already printed. Without this the per-store unique `sales_store_invoice_no_key` (030:82-83) would make an INT hold on a money op.
+5. Invoice collisions, before the rebase: any unsent local `sale.create` whose `invoice_no` now equals a re-hydrated sale's number gets the next free number from `invoiceNext`, in one transaction that rewrites the op payload (adding `renumbered_from`), the mirror header and any local image paths that embed the number. The server flags it `invoice_renumbered` (§3.5), and the PC shows the cashier the list of old and new numbers, because those receipts were already printed. Without this the per-store unique `sales_store_invoice_no_key` (030:90-91) would make an INT hold on a money op.
 6. Rebase: renumber remaining local ops to `L+1…` in order, set `nextSeq`, `epoch`, `idle`, drain.
 
 Restore from cloud (no file, or past retention) is setup again; it is refused while the outbox or `skipped` store is non-empty until the admin has exported them and typed "DISCARD" (v1 lost skipped sales this way, `v1:sync.ts:948-980`).
@@ -531,7 +530,7 @@ Developer-days for one developer, remaining after the built Phase 0. Global gate
 **Total ≈ 62-92 developer-days; the pilot starts after ≈ 60-87.** Path C (v2 server, v1 client infrastructure) is chosen over rebasing v1 (60-90 d, nothing shippable until the end) and over v2 without reuse (rebuilds what v1 has).
 
 **Phase tests (beyond §4):**
-- **0** Already green. Ship steps (RELEASE_030.md): merge; at closing run `select * from lensy_schema_versions` and confirm 29 is latest; paste 030 and confirm 30; deploy `lensy-web` and reload every shop device that evening; run the release checks (split-tender re-checkout after a partial refund, void after refund, receipt vs header) in a **test store**, never with real money in the shop. The only transition cost is a cached pre-PR#3 tab until it reloads (it sends no `expected_tenders`, which is optional at 030:485-488).
+- **0** Already green. Ship steps (RELEASE_030.md): merge; at closing run `select * from lensy_schema_versions` and confirm 29 is latest; paste 030 and confirm 30; deploy `lensy-web` and reload every shop device that evening; run the release checks (split-tender re-checkout after a partial refund, void after refund, receipt vs header) in a **test store**, never with real money in the shop. The only transition cost is a cached pre-PR#3 tab until it reloads (it sends no `expected_tenders`, which is optional at 030:493-496).
 - **0b** `031_per_store_unique_test.sql` (plus `referenced_image_paths` pages past 1,000 rows and is refused for non-platform callers); vitest for `onConflict`; `storageOrphans.test.ts` (a file younger than 14 days is never an orphan; a store with 1,500 sales keeps every referenced photo); `createUserAuthz`/index test that inactive users do not count against `max_staff`.
 - **1** `032_actor_core_test.sql`, `033_register_test.sql`; the 034 files run on the branch; all 25 existing files green with `register_only` false (015 replaced, 018 G-P4b corrected); vitest `readOnlyPerms.test.tsx` (no write controls on the gated components; banner; Revoke only for `isOwner`), `createRegisterAuthz.test.ts`.
 - **3a** Existing vitest green; `backendSeam.test.ts` (lib/supabase imported only by `data/backend/cloud/**` and the four cloud-only files); a fixture of a paused checkout serialised by the pre-3a build resumes; no `indexedDB` or `lensy-register` string in the cloud bundle; a cloud build with no register flags passes the wrong-build guard. Deploy at closing with every journal empty.
@@ -609,7 +608,7 @@ Defaults in brackets.
 | H1 | §4 preamble, §4.3, §4.4, §4.5 | Guard trigger covers platform admins, service role and migrations; its bypass is set only in the named definer functions (incl. `set_store_owner` and the conversion helpers); migrations never modify `register_only` stores (corrections ship as ops); create-user 409; register-scoped time-boxed export incl. private notes; catalogue hash in responses. |
 | H2 | §2.8, §4.3 | `my_permissions` returns `read_only`, `is_admin:false`, `is_owner`; existing gates hide writes unchanged. |
 | H3 | §3.3, §3.4, §3.9, §4.3, §4.4, §5, §6.3 | Protected targets refused; `revoke_register` on `owner_uid`; insert-only register storage (RESTRICTIVE policy; `lensy_storage_all` unchanged); seq-conflict quarantine and alert; `current:false` carries a reason so quarantine and revoke keep the till selling; forged ops reverted from the undo log before re-claim. |
-| H4 | §2.6 | Invoice allocated at cart entry in its own transaction; drafts in IndexedDB; collision renumbers draft-only photos; 030 already made the online check per-store (030:325-330). |
+| H4 | §2.6 | Invoice allocated at cart entry in its own transaction; drafts in IndexedDB; collision renumbers draft-only photos; 030 already made the online check per-store (030:333-338). |
 | H5 | §1.6, §2.3, §2.5 | Wall-clock stamps; `high` only for a banner; server-time licence floor; Use internet time; owner clock reset op; the licence gate lives in `commit()` for business kinds only, log kinds always commit. |
 | H6 | §2.4 | Integer minor units, decimal-string parsing, half-away rounding, generated parity vectors against SQL. |
 | H7 | §2.4, §3.6, §4.2 | Derived refund/restock/delta rows sent verbatim; `tender_key`/`tenderKey` twins; server flags differences. |
@@ -626,7 +625,7 @@ Defaults in brackets.
 | OE1 | §3.6, §4.4 | Adopted: 23 thin writers listed by name; no online money RPC refactor; writers raise `lensy.money_write` around the re-checkout header UPDATE; the 448 assertions stay the oracle. |
 | OE2 | §2.1 | Adopted: two builds; `lensy-phone` and `VITE_READ_ONLY` dropped. |
 | OE3 | §3.5 | Adopted: `licence` flag when `t` is outside `[starts_at, expires_at)` or revoked; no `revoked_at` history. |
-| OE4 | §4.1 | Overruled: `link_staff_ids` and `staff_id_problems` are dropped in 031 (verified takeover and anonymous-read leak). |
+| OE4 | §4.1 | Overruled: `link_staff_ids` and `staff_id_problems` are dropped in 030 (verified takeover and anonymous-read leak). |
 | Bandwidth notes | §3.9, §3.10, §2.9, §2.8 | Non-ok results only; `autoRefreshToken:false`; photo cache after first view; polls already removed in PR #3; phone reports paged in Phase 5. |
 
 ### A.2 Critique "Missing tests"
@@ -664,11 +663,11 @@ Defaults in brackets.
 | SM-10 | register cannot read tables, so restore needs an export | §4.4, §6.2 | Time-boxed `register_export`; owner-session `register_export_ops`. |
 | SM-11 | rows audited as the device admin | §4.3 | `audit_row` uses `lensy.actor` under the ingest gate; `via_register`, `event_at`. |
 | SM-12 | main-map wrongly says v1 writes sale_payments | §7 | Noted: v1's problem is the missing ledger, recorded in the reuse table. |
-| MR-0 | create_sale_order had no tender whitelist | §0 | Superseded: 030:260-266 now refuses unknown tenders (commit 6560015). |
+| MR-0 | create_sale_order had no tender whitelist | §0 | Superseded: 030:268-274 now refuses unknown tenders (commit 6560015). |
 | MR-1 | v1 deletes on money tables silently dropped | §3.4, §7 | Do-not-port; ingest flags `delete_missing` and never acks silently. |
 | MR-2 | v1 011 would replace main's `auth_store_id` | §7 | Do-not-port item 5. |
 | MR-3 | v1 re-checkout not serialised | §2.3 | One strict IndexedDB transaction per op with the rule inside. |
-| MR-4 | sale movements stamped `now()` | §0 | Superseded: 030:371-375 dates them with the sale; ingest uses `t`. |
+| MR-4 | sale movements stamped `now()` | §0 | Superseded: 030:379-383 dates them with the sale; ingest uses `t`. |
 | MR-5 | design's 031 plan stale | §4.1 | Rewritten. |
 | MR-6 | v1 `cloudMaxInvoice` sorts as text | §2.6, §7 | Seed from `invoice_counter` and numeric max; do-not-port item 8. |
 | MR-7 | 030 test file list | §0 | Recorded as the Phase 0 gate (7 files of 25). |
@@ -676,8 +675,8 @@ Defaults in brackets.
 | AS-1 | v1 unreserved `superadmin` escalation | §2.7, §3.4 | `superadmin`/`register` reserved; refused at ingest. |
 | AS-2 | v1 per-window session is shared | §2.7 | Memory-only per-window sessions. |
 | AS-3 | v1 `belongsTo` is a no-op | §2.7 | Identity by `users.id`; no name-to-email mapping. |
-| AS-4 | `staff_id_problems` leaks across tenants, anon access | §4.1 | Dropped in 031. |
-| AS-5 | `link_staff_ids` swap kills sync | §4.1 | Dropped in 031. |
+| AS-4 | `staff_id_problems` leaks across tenants, anon access | §4.1 | Dropped in 030. |
+| AS-5 | `link_staff_ids` swap kills sync | §4.1 | Dropped in 030. |
 | AS-6 | v2 lost remote staff revocation | §2.7, §4.3 | Owner command channel. |
 | AS-7 | v1 never pulled demotions | §2.7 | Not ported; commands replace it. |
 | AS-8 | v1 setup matches by name | §4.5, §7 | create-register checks `owner_uid` server-side. |
@@ -714,7 +713,7 @@ Defaults in brackets.
 | AS-p10 | owner verifier seeded from cloud password | §2.7 | New PC PIN at setup. |
 | AS-p11 | client licence type lacks `pending` | §2.5 | Added in the cloud build and on the PC. |
 | R-1 | weighted cost averages after the trigger (4.67 vs 5.00) | §4.2 | Fixed in 032; 018 G-P4b corrected. |
-| R-2 | `contact_lens_types` untenanted and open to anon | §4.1 | Grants revoked in 031. |
+| R-2 | `contact_lens_types` untenanted and open to anon | §4.1 | Closed in 030. |
 | R-3 | `receiptTotals` keeps net = items + 0.01 | §2.4 | Fixed in PR #3. |
 | R-4 | browser vs Postgres tzdata skew | §3.2 | `store_day` from `_store_day_range(p_store)` (not the auth-scoped `store_day_range`) in responses; `tz_mismatch` banner and flag. |
 | R-5 | public bucket with guessable names | §2.9, §5 | Random register file names; bucket privacy left to the vendor. |
@@ -728,7 +727,7 @@ Defaults in brackets.
 | ID | Finding | Section | Resolution |
 |---|---|---|---|
 | G-1 | `current:false` had no reason, so a quarantine or Revoke stranded the genuine PC | §3.3, §3.9, §6.3, §6.4 | `reason` `replaced` → stranded; `quarantined` → diverged; `revoked` → reclaim_required; the last two keep selling. 034 asserts each reason; vitest that the PC keeps selling. |
-| G-2 | Re-checkout header UPDATE raised 42501 (`sales_money_guard`), a FAULT hold | §3.6 | Writer contract sets `lensy.money_write` before the header UPDATE, which precedes the ledger inserts, and clears it after (030:622-689 order). 034 re-checkout with a changed total. |
+| G-2 | Re-checkout header UPDATE raised 42501 (`sales_money_guard`), a FAULT hold | §3.6 | Writer contract sets `lensy.money_write` before the header UPDATE, which precedes the ledger inserts, and clears it after (030:630-697 order). 034 re-checkout with a changed total. |
 | G-3 | Guard bypass missing in `set_store_owner` and the conversion helpers | §4.3 | Bypass set in those three as well (and in `register_revert_ops`), honoured only for the definer owner. 033 assertions. |
 | G-4 | `store_day` used the auth-scoped `store_day_range` (UTC under the register JWT) | §3.2, §4.4 | `_store_day_range(p_store)` on `store_time_zone_for` (025:64-73). 034 Cairo assertion. |
 | G-5 | `license_feature` has no store parameter | §3.5, §4.4 | `_license_feature_for(p_store, p_name)`; `license_feature` refactored onto it. 034 `feature:lab` test. |
@@ -750,7 +749,7 @@ Defaults in brackets.
 | F-1 | `license_feature` called "with a store" (§3.5, AS-p8) | §3.5, A.4 | Corrected (see G-5). |
 | F-2 | v1 `withLock` "refuses without locks" | §7 | Corrected: v1 runs unlocked (`v1:db.ts:199-200`); verdict Rework. |
 | F-3 | §0 "029/030 RPC bodies untouched" | §0 | Corrected (see G-17). |
-| F-4 | 031 "conkey (030:79-84 idiom)" | §4.1 | Corrected: 030 drops by name (030:84); the conkey lookup is new. |
+| F-4 | 031 "conkey (030:87-92 idiom)" | §4.1 | Corrected: 030 drops by name (030:92); the conkey lookup is new. |
 | F-5 | `CHECKOUT_MUTATION_KEY` at queryClient.ts:50-56 | §2.2 | Corrected: defined at offlineMutations.ts:34, registered at queryClient.ts:53. |
 | F-6 | Compression sizes attributed to storage.ts:26-42 | §2.9 | Corrected: today 1600 px q 0.82; 1280/1024 is the Phase 4 change. |
 | F-7 | `lensy_storage_all` "write branches" | §4.3 | Corrected (see G-14). |

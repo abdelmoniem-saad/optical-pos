@@ -2,8 +2,9 @@
 -- 030 - money fixes (offline-v2 Phase 0)
 --
 -- Six defects in the checkout/refund functions, fixed together because they
--- share the same functions and the same client release. None changes a table's
--- columns; every function keeps its signature and grants.
+-- share the same functions and the same client release, plus the open security
+-- advisor findings (7). None changes a table's columns; every money function
+-- keeps its signature and grants.
 --
 -- 1) RE-CHECKOUT REWROTE HISTORY (H1/H2). update_sale_order deleted every
 --    sale_payments row of the invoice - refund rows written by refund_sale (028)
@@ -61,6 +62,13 @@
 --    the nearest bound: a slow clock or a late replay can no longer put money
 --    into a shift whose expected cash is already frozen, and a fast clock
 --    cannot date a sale in the future.
+--
+-- 7) SECURITY (section 6 below). The live project's security advisor findings:
+--    link_staff_ids() could be called by anyone and could hand an unlinked
+--    staff account to a stranger's sign-up; staff_id_problems showed staff
+--    usernames to anonymous visitors; contact_lens_types was open to anonymous
+--    reads and writes; seven functions had no fixed search_path. The first two
+--    are dropped (unused by the app), the table is closed, the paths pinned.
 --
 -- SHIP WITH THE CLIENT. The web client that sends line discounts on the first
 -- checkout must not run against a database without (2), and the client is what
@@ -777,7 +785,49 @@ begin
 end $$;
 
 -- ============================================================
--- 6) grants (same as 013/029; re-stated so a re-run cannot lose them)
+-- 6) security hardening (production security advisor, DEFERRED.md)
+-- ============================================================
+-- Three findings on the live project, fixed here rather than in a later
+-- migration because 030 is the next thing every shop runs anyway.
+--
+-- a) link_staff_ids() (015) is SECURITY DEFINER and, like every function, was
+--    executable by PUBLIC - so by `anon`, over /rest/v1/rpc. It matches staff
+--    rows to Supabase Auth logins by the email's local part, and a project with
+--    public sign-up enabled lets anyone create such a login (unconfirmed is
+--    enough: the match reads auth.users, not the confirmation). Calling it then
+--    re-points an unlinked staff row - its role, store and sales history - to
+--    the stranger's login, or creates a staff row at the first store for any
+--    login that has none. It was a one-off repair (015 ran it as it was pasted)
+--    and the app never calls it, so it is dropped, not narrowed.
+-- b) staff_id_problems (015) is a view, so it runs with its owner's rights and
+--    ignores RLS: it read auth.users for anyone, `anon` included through the
+--    project's default grants - usernames and store ids of every unlinked staff
+--    row in every store. Not used by the app; dropped. The same query is in
+--    RELEASE_030.md for an operator to run in the SQL Editor.
+-- c) contact_lens_types (000) has no store_id, no RLS and the default
+--    ALL grant to anon and authenticated: anyone could read, insert or delete
+--    rows. Nothing in the app uses it. RLS on, no policies, grants revoked;
+--    the table and its rows are kept.
+-- d) Seven functions ran with the caller's search_path ("function search path
+--    mutable"). None is SECURITY DEFINER, so this is hygiene rather than an
+--    exposure; they now pin search_path = public like every other function in
+--    this schema. A later CREATE OR REPLACE of any of them must keep the clause.
+drop function if exists public.link_staff_ids();
+drop view if exists public.staff_id_problems;
+
+alter table public.contact_lens_types enable row level security;
+revoke all on table public.contact_lens_types from public, anon, authenticated;
+
+alter function public.auth_uid() set search_path = public;
+alter function public.guard_sale_money() set search_path = public;
+alter function public.lab_status_stamp() set search_path = public;
+alter function public.normalise_movement_kind() set search_path = public;
+alter function public.sync_sale_amount_paid() set search_path = public;
+alter function public.sync_stock_qty() set search_path = public;
+alter function public.assert_versions_recorded(text[]) set search_path = public;
+
+-- ============================================================
+-- 7) grants (same as 013/029; re-stated so a re-run cannot lose them)
 -- ============================================================
 grant execute on function public.price_cart(jsonb, numeric, boolean) to authenticated;
 revoke execute on function public.create_sale_order(jsonb,jsonb,jsonb,jsonb,uuid),
@@ -787,7 +837,7 @@ grant execute on function public.create_sale_order(jsonb,jsonb,jsonb,jsonb,uuid)
   public.void_sale(uuid,text,boolean) to authenticated;
 
 -- ============================================================
--- 7) stamp THIS migration (020 makes an unstamped file a red build)
+-- 8) stamp THIS migration (020 makes an unstamped file a red build)
 -- ============================================================
-select public.record_schema_version(30, 'money fixes: re-checkout appends ledger/stock deltas (refund first, legacy tenders cannot take new money, per-tender stale check), price_cart keeps the net with line discounts, void after refund, idempotent replay first, per-store invoice numbers, bounded client time for sale/payments/stock, known tenders only');
+select public.record_schema_version(30, 'money fixes: re-checkout appends ledger/stock deltas (refund first, legacy tenders cannot take new money, per-tender stale check), price_cart keeps the net with line discounts, void after refund, idempotent replay first, per-store invoice numbers, bounded client time for sale/payments/stock, known tenders only; security: link_staff_ids and staff_id_problems dropped, contact_lens_types closed, search_path pinned on seven functions');
 commit;

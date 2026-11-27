@@ -165,4 +165,11 @@ select u.id,
   from public.users u
  where not exists (select 1 from auth.users a where a.id = u.id);
 
-grant select on public.staff_id_problems to authenticated;
+-- Operator tools only (030 drops both). link_staff_ids() is SECURITY DEFINER
+-- and every function is executable by PUBLIC by default - so by anon, over
+-- /rest/v1/rpc - and with public sign-up it would hand an unlinked staff row
+-- to a stranger's login. The view reads auth.users with its owner's rights.
+-- Closed here as well, so a project built step by step is never exposed
+-- between this step and 030. The SQL Editor runs as the owner and still works.
+revoke execute on function public.link_staff_ids() from public, anon, authenticated;
+revoke all on public.staff_id_problems from public, anon, authenticated;
