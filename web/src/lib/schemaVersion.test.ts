@@ -109,6 +109,8 @@ describe('schema version', () => {
     // 030 (money fixes) changes re-checkout, price_cart, void_sale and
     // create_sale_order; the client sends line discounts that only a 030
     // database prices correctly, so the banner must flag a shop still on 29.
-    expect(EXPECTED_SCHEMA_VERSION).toBe(30)
+    // 031 (per-store unique) adds the (store_id, key) settings index the app
+    // now upserts on; without it every settings save fails.
+    expect(EXPECTED_SCHEMA_VERSION).toBe(31)
   })
 })

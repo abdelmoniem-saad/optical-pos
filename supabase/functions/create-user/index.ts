@@ -94,6 +94,9 @@ Deno.serve(async (req) => {
         .from('users')
         .select('id', { count: 'exact', head: true })
         .eq('store_id', storeId)
+        // A switched-off staff member holds no seat (offline-v2 Phase 0b):
+        // deactivating someone must free a place for the replacement.
+        .eq('is_active', true)
       if (countError) throw countError
       plan = { maxStaff: row?.max_staff ?? null, currentStaff: count ?? 0 }
     }

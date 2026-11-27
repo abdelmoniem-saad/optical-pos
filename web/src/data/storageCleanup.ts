@@ -34,19 +34,29 @@ export type OrphanScan = {
   error?: string
 }
 
-/** Every image path still referenced by ANY sale, as full storage paths. */
-async function referencedPaths(): Promise<string[]> {
-  const { data, error } = await supabase
-    .from('sales')
-    .select('rx_image_path, frame_image_path')
-  if (error) throw error
+const REFERENCED_PAGE = 1000
+
+/** Every image path a sale references in this store's folder (or any sale of
+ *  the store), walked page by page to the END (migration 031). The old version
+ *  read every sale in one select, which PostgREST caps at 1,000 rows: past
+ *  that, live photos were missing from the keep-list and listed as orphans.
+ *  A page shorter than the limit is the last; an error fails the whole scan,
+ *  never returns a partial list. */
+export async function referencedPaths(storeId: string): Promise<string[]> {
   const out: string[] = []
-  for (const row of data ?? []) {
-    const r = row as { rx_image_path: string | null; frame_image_path: string | null }
-    if (r.rx_image_path) out.push(r.rx_image_path)
-    if (r.frame_image_path) out.push(r.frame_image_path)
+  let after: string | null = null
+  for (;;) {
+    const res: { data: unknown; error: unknown } = await supabase.rpc('referenced_image_paths', {
+      p_store: storeId,
+      p_after: after,
+      p_limit: REFERENCED_PAGE,
+    })
+    if (res.error) throw res.error
+    const page: string[] = ((res.data ?? []) as { path: string }[]).map((r) => r.path)
+    out.push(...page)
+    if (page.length < REFERENCED_PAGE) return out
+    after = page[page.length - 1]
   }
-  return out
 }
 
 /**
@@ -56,11 +66,13 @@ async function referencedPaths(): Promise<string[]> {
  */
 async function scanStore(
   store: { id: string; name: string },
-  referenced: Set<string>,
 ): Promise<OrphanScan> {
   const folder = `store/${store.id}/orders`
   try {
-    const files: { name: string; size?: number; metadata?: { size?: number } }[] = []
+    // The keep-list is read BEFORE the listing: a file uploaded in between is
+    // listed but young, and the age gate keeps it.
+    const referenced = new Set(await referencedPaths(store.id))
+    const files: { name: string; created_at?: string | null; size?: number; metadata?: { size?: number } }[] = []
     const PAGE = 100
     for (let offset = 0; ; offset += PAGE) {
       const { data, error } = await supabase.storage
@@ -104,9 +116,8 @@ export function useOrphanScan() {
         .order('created_at')
         .returns<{ id: string; name: string }[]>()
       if (error) throw error
-      const referenced = new Set(await referencedPaths())
       const out: OrphanScan[] = []
-      for (const s of stores ?? []) out.push(await scanStore(s, referenced))
+      for (const s of stores ?? []) out.push(await scanStore(s))
       return out
     },
   })
