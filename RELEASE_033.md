@@ -9,12 +9,13 @@ web app or deploy the Edge Function.
 it. The shop keeps working online exactly as today. These two migrations lay the
 server groundwork the offline register (Phases 2-4) will use.
 
-## Earliest date: 2026-12-04
+## Before you start: reload the shop's devices
 
-032 removes the old global settings rule that a pre-031 app still uses. Paste it
-only when the 031 web app (PR #4, deployed 2026-11-27) has been live for **7
-days** AND every shop device (the PC, any phone or tablet) has been reloaded
-since. Before that, a stale tab would fail to save settings.
+032 removes an old global settings rule that only a pre-031 website build uses
+(031 went live with PR #4 on 2026-11-27). So before pasting, reload LensyPOS on
+every device the shop uses (the PC, any phone or tablet: close the tab and open
+it again). There is no waiting period. A device that was not reloaded only fails
+to save a setting until it is reloaded; nothing else breaks.
 
 ## What changes for the shop
 
@@ -112,8 +113,10 @@ scripts against production.
 
 ## Repository CI gate
 
-032 and 033 change the schema fingerprint. The new hash is taken from the PR's
-CI step summary, as for 029-031.
+032 and 033 change the schema fingerprint. The recorded hash,
+`39865ed6ecc056522fe9cff8b347bda17ba523554da79481718cb71cac82d11a`, comes from CI
+run on commit afd30e4 (PR #5), stable across the step's two runs, with every
+pgTAP gate green on CI's PostgreSQL 16 in the same job.
 
 Local verification: production build, 366 frontend tests, 729 pgTAP assertions
 (473 before Phase 1 plus 67 in `032_actor_core_test.sql`, 189 in

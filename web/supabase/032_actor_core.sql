@@ -4,9 +4,9 @@
 --       (offline-v2 Phase 1, docs/offline-v2/design.md section 4.2)
 --
 -- !! APPLY RULE - READ BEFORE PASTING !!
---    Paste 032 only when the 031 web client (Phase 0b, PR #4) has been
---    deployed for AT LEAST 7 DAYS and EVERY shop device has been reloaded
---    since. Change (7) drops the global settings_key_key. A tab still running
+--    Paste 032 only when the 031 web client (Phase 0b, PR #4) is live and
+--    EVERY shop device (PC, phone, tablet) has been reloaded since, so no
+--    tab still runs an older build. Change (7) drops the global settings_key_key. A tab still running
 --    a pre-031 build upserts a setting with ON CONFLICT (key); once that
 --    constraint is gone the upsert fails ("there is no unique or exclusion
 --    constraint matching the ON CONFLICT specification") and the shop cannot

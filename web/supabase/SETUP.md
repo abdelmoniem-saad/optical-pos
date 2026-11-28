@@ -794,8 +794,8 @@ Gate: [`tests/031_per_store_unique_test.sql`](./tests/031_per_store_unique_test.
 
 ## Step 29 — `032_actor_core.sql` (who did it, and the right cost)
 
-**Not before 7 days after step 28's web app was deployed and every shop device
-reloaded**: 032 drops the global `settings_key_key` that older apps upsert on.
+**After step 28's web app is live and every shop device has been reloaded**:
+032 drops the global `settings_key_key` that older (pre-031) apps upsert on.
 Run the checks in [`RELEASE_033.md`](../../RELEASE_033.md) first (payments with
 no store, money actions by a login with no staff row).
 
