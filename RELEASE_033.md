@@ -1,9 +1,10 @@
 # Release 032 + 033 (offline-v2 Phase 1a)
 
-Release status: NOT deployed. Migrations 032 and 033, the matching web client and
-the `create-user` change are on branch `offline-v2-phase1` only. Tests ran in the
-disposable local Postgres database. Pushing code does not apply SQL, deploy the
-web app or deploy the Edge Function.
+Release status (2026-11-28): DEPLOYED. 032 and 033 applied to production
+(version 33), `create-user` deployed, PR #5 merged (1499640). 033's owner
+backfill found two admin logins in Main Store, so the owner (`admin`) is set by
+the vendor with `set_store_owner`. The steps below are kept for reference and
+for setting up a new project.
 
 033 ships **dark**: no store becomes register-only and no register exists after
 it. The shop keeps working online exactly as today. These two migrations lay the
@@ -86,7 +87,21 @@ those ids to the right staff id (or NULL), then run
    select public.set_store_owner('<store id>', '<owner auth uid>');
    ```
 
-   Setting `stores.owner_uid` directly is refused from 033 on.
+   Equivalent in a plain SQL Editor session (postgres), acting as the vendor
+   account for that one statement - this is what set Main Store's owner:
+
+   ```sql
+   do $
+   begin
+     perform set_config('request.jwt.claims',
+       '{"sub":"<vendor auth uid>","role":"authenticated"}', true);
+     perform public.set_store_owner('<store id>', '<owner auth uid>');
+   end $;
+   ```
+
+   The owner must be an active admin login of that store, with a Supabase
+   login, and not a platform (vendor) account. Setting `stores.owner_uid`
+   directly is refused from 033 on.
 3. **Edge Function `create-user`.** Deploy `supabase/functions/create-user/`
    (`index.ts` and `authz.ts` changed):
 
