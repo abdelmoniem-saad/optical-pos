@@ -2,7 +2,7 @@
 
 Read this first if you are picking the project up with no history. It says what
 is live, what is waiting, what comes next and how to work in this repository
-without tripping over its quirks. Last updated 2026-11-28.
+without tripping over its quirks. Last updated 2026-11-28 (after PR #5 merged).
 
 ## 1. What the project is
 
@@ -10,7 +10,7 @@ LensyPOS is a point-of-sale system for one optical shop (one store, one shop PC,
 the owner's phone), built so it can host more stores later.
 
 - `web/` - the app: React 19 + Vite + TanStack Query 5, talking to Supabase.
-- `web/supabase/NNN_*.sql` - numbered database migrations (000 to 033). Each is
+- `web/supabase/NNN_*.sql` - numbered database migrations (000 to 033, all applied in production). Each is
   pasted by hand into the Supabase SQL Editor, in order; each is one
   transaction, safe to paste twice, and records its own number
   (`record_schema_version(N, ...)`).
@@ -31,21 +31,12 @@ the owner's phone), built so it can host more stores later.
 | 029 | Effective staff permissions (PR #1) | Live |
 | 030 | Money fixes, offline checkout queue, security hardening (PR #3) | Live (applied 2026-11-27) |
 | 031 | Per-store names, safe photo sweep, active staff seats (PR #4) | Live (applied 2026-11-27, `create-user` deployed) |
-| 032 + 033 | Offline register groundwork, shipped dark; read-only phone client (PR #5, branch `offline-v2-phase1`) | **Built, CI green, NOT applied, NOT merged.** Steps in `RELEASE_033.md` |
+| 032 + 033 | Offline register groundwork, shipped dark; read-only phone client (PR #5) | Live (applied 2026-11-28, `create-user` deployed, merged as 1499640) |
 | 034 | Register ingest (Phase 1b) | Not started |
 
-Production database version today: **31**. After PR #5's steps it is 33.
+Production database version today: **33**. No store is register-only; the shop works online as before.
 
-### PR #5: what the owner must do (`RELEASE_033.md` has the exact text)
-
-1. Reload LensyPOS on every shop device (no waiting period).
-2. SQL Editor: run the prechecks in `RELEASE_033.md`.
-3. Paste `web/supabase/032_actor_core.sql`, confirm `select public.schema_version();` = 32.
-4. Paste `web/supabase/033_register.sql` (shop closed), confirm 33, then
-   `select id, name, owner_uid from public.stores;`. If `owner_uid` is empty,
-   the vendor sets it with `set_store_owner` (see `RELEASE_033.md`).
-5. Deploy `create-user` (`index.ts` and `authz.ts` changed).
-6. Merge PR #5 (Render deploys the web app, which expects version 33), reload devices.
+**Store owner.** Main Store (`d2fa0efc-5aab-445d-8888-ac68f8088928`) has two admin logins (`admin`, `d`), so 033's backfill left `owner_uid` empty. The owner chose `admin` (`c6abb73f-3f73-4aef-8bbe-b07bc88ab268`); it is set by the vendor with `set_store_owner` (command in `RELEASE_033.md`, run as the `superadmin` platform account). Confirm with `select id, name, owner_uid from public.stores;` before Phase 4 setup. `teststore` has no owner yet; give it one before the dry run. Staff row `o` has no login (cannot sign in): recreate or switch off.
 
 ## 3. The big goal: an offline-first register
 
@@ -77,7 +68,7 @@ Other background in `docs/offline-v2/`: `critique.md` (review of revision 1) and
 |---|---|---|---|
 | 0 | Money fixes (030) | - | Live |
 | 0b | 031 | - | Live |
-| 1a | 032 + 033 + read-only phone client + create-user 409 | - | PR #5, waiting on the owner's SQL steps |
+| 1a | 032 + 033 + read-only phone client + create-user 409 | - | Live (PR #5) |
 | 1b | 034 `register_ingest` (23 writers, undo log, revert, export) - written and tested, kept on its branch, applied only in Phase 4 | ~8-12 | **Next** |
 | 3a | Cloud half of the data seam (refactor, ships live) | 6-9 | |
 | 2 | PC database and rules (`lib/register/*`) | 12-16 | |
