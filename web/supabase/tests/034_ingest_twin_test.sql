@@ -21,9 +21,18 @@
 -- Compared: the ledger per invoice and method (sum, row counts by kind,
 -- notes), the header money, the lines, the stock movements per invoice and
 -- type, stock_qty, _z_report of the window and the stored close.
+--   9 (stores C online / D register) the close's window END: close_shift
+--     ends it at the next midnight in the STORE's zone after to_at's UTC
+--     date (report_window, 016:199-210), so a sale between store midnight
+--     and UTC midnight is outside it. D's close payload is computed here
+--     independently, by that rule (as the PC's zreport.ts must), not copied
+--     from C's close.
+-- The session runs in UTC, as CI and Supabase do: a local server in
+-- Africa/Cairo would otherwise hide a rounding done in the session's zone.
 begin;
+set local timezone = 'UTC';
 create extension if not exists pgtap;
-select plan(10);
+select plan(12);
 
 -- ===== fixtures ============================================================
 create function u(p text) returns uuid language sql immutable as $$
@@ -278,6 +287,100 @@ select is(moves(s_b()), moves(s_a()), 'T7 the stock movements per invoice and ty
 select is(stock(s_b()), stock(s_a()), 'T8 stock_qty');
 select is(zr(s_b()), zr(s_a()), 'T9 _z_report of the window');
 select is(closes(s_b()), closes(s_a()), 'T10 the stored close (expected figures, variance, counts, note)');
+
+-- ===== 9: the window end is the STORE's midnight ============================
+-- C (online, admin 13) and D (register, owner 23, register login 74), both
+-- Africa/Cairo. dd: yesterday 00:00 UTC (030's sale_event_time keeps online
+-- times within 2 days); sm: the store's midnight after dd's UTC date (21:00
+-- or 22:00 UTC, by DST). X at sm - 1 hour is inside the window [dd + 8 h,
+-- dd + 12 h) as close_shift rounds it; Y at sm + 30 min is after the
+-- store's midnight but before UTC midnight, so it is outside.
+create function z(p text) returns uuid language sql immutable as $$
+  select ('34710000-0000-4000-8000-0000000000' || p)::uuid $$;
+create function s_c() returns uuid language sql immutable as $$ select z('c0') $$;
+create function s_d() returns uuid language sql immutable as $$ select z('d0') $$;
+create function dd() returns timestamptz language sql stable as $$
+  select ((now() at time zone 'UTC')::date - 1)::timestamp at time zone 'UTC' $$;
+create function sm() returns timestamptz language sql stable as $$
+  select ((dd() at time zone 'UTC')::date + 1)::timestamp at time zone 'Africa/Cairo' $$;
+insert into public.stores (id, name, time_zone) values
+  (s_c(), 'Twin C34', 'Africa/Cairo'), (s_d(), 'Twin D34', 'Africa/Cairo');
+insert into public.store_licenses (store_id, license_key, plan, starts_at, expires_at) values
+  (s_c(), 'TWIN-C34', 'pro', '2000-01-01', null), (s_d(), 'TWIN-D34', 'pro', '2000-01-01', null);
+insert into public.roles (id, name, store_id) values (z('c5'), 'Admin', s_c()), (z('d5'), 'Admin', s_d());
+insert into auth.users (id, email) values (z('13'), 'c@twin34'), (z('23'), 'd@twin34'), (z('74'), 'register.d.1@twin34');
+insert into public.users (id, username, password_hash, store_id, role_id, is_active) values
+  (z('13'), 'admin_twin_c34', 'supabase-auth', s_c(), z('c5'), true),
+  (z('23'), 'owner_twin_d34', 'supabase-auth', s_d(), z('d5'), true);
+insert into public.inventory (id, name, sku, category, sale_price, cost_price, store_id) values
+  (z('c1'), 'Frame T', 'TW-F', 'Frame', 500, 200, s_c());
+insert into public.stock_movements (product_id, qty, type, note, store_id) values (z('c1'), 10, 'initial', 'seed', s_c());
+set role authenticated; select _as(u('61'));
+select public.set_store_owner(s_d(), z('23'));
+reset role;
+set role service_role; select _as(null);
+select public._register_install(s_d(), z('74'), z('23'));
+reset role;
+create table _sd (s bigint primary key, k text, st text, v text[], held text);
+create function opd(p_k text, p_p jsonb, p_t timestamptz) returns void language plpgsql as $$
+declare
+  v_s bigint := (select last_seq + 1 from public.store_registers where store_id = s_d());
+  v_r jsonb;
+begin
+  perform _as(z('74'));
+  v_r := public.register_ingest(1, 1, 0, null, jsonb_build_array(jsonb_build_object(
+           's', v_s, 'i', gen_random_uuid(), 'k', p_k, 'v', 1, 'a', z('23'), 'sid', z('5d'),
+           't', to_jsonb(p_t), 'p', p_p)));
+  insert into _sd
+  select v_s, p_k, coalesce(o.status, 'held'), o.violations, v_r -> 'held' ->> 'msg'
+    from (select 1) x left join public.register_ops o on o.store_id = s_d() and o.seq = v_s;
+end $$;
+
+-- C online: X (cash) and Y (card), then the close of [dd + 8 h, dd + 12 h)
+set role authenticated; select _as(z('13'));
+select public.create_sale_order(
+  jsonb_build_object('invoice_no', '710001', 'net_amount', 500, 'payment_method', 'Cash', 'kind', 'sale',
+                     'order_date', sm() - interval '1 hour'),
+  jsonb_build_array(jsonb_build_object('product_id', z('c1'), 'qty', 1, 'unit_price', 500, 'total_price', 500, 'name', 'line')),
+  '[]', jsonb_build_array(jsonb_build_object('method', 'cash', 'amount', 500, 'paid_at', sm() - interval '1 hour')), z('f1'));
+select public.create_sale_order(
+  jsonb_build_object('invoice_no', '710002', 'net_amount', 500, 'payment_method', 'Card', 'kind', 'sale',
+                     'order_date', sm() + interval '30 minutes'),
+  jsonb_build_array(jsonb_build_object('product_id', z('c1'), 'qty', 1, 'unit_price', 500, 'total_price', 500, 'name', 'line')),
+  '[]', jsonb_build_array(jsonb_build_object('method', 'card', 'amount', 500, 'paid_at', sm() + interval '30 minutes')), z('f2'));
+select public.close_shift(dd() + interval '8 hours', dd() + interval '12 hours', 500, 'zone');
+reset role;
+
+-- D through register_ingest, the same sales at the same times
+select opd('session.start', jsonb_build_object('sid', z('5d'), 'user_id', z('23')), sm() - interval '2 hours');
+select opd('product.upsert', jsonb_build_object('id', z('d1'), 'name', 'Frame T', 'sku', 'TW-F', 'category', 'Frame',
+  'sale_price', 500, 'cost_price', 200, 'initial', jsonb_build_object('movement_id', z('e1'), 'qty', 10)), sm() - interval '2 hours');
+select opd('sale.create', jsonb_build_object('id', z('d2'), 'invoice_no', '710001', 'idempotency_key', z('f1'), 'kind', 'sale',
+  'total_amount', 500, 'discount', 0, 'net_amount', 500, 'payment_method', 'Cash', 'lab_status', null,
+  'items', jsonb_build_array(li(z('d3'), z('d1'), 1, 500, 0, z('41'))), 'exams', '[]'::jsonb,
+  'payments', jsonb_build_array(pa(z('81'), 'cash', 500))), sm() - interval '1 hour');
+select opd('sale.create', jsonb_build_object('id', z('d4'), 'invoice_no', '710002', 'idempotency_key', z('f2'), 'kind', 'sale',
+  'total_amount', 500, 'discount', 0, 'net_amount', 500, 'payment_method', 'Card', 'lab_status', null,
+  'items', jsonb_build_array(li(z('d6'), z('d1'), 1, 500, 0, z('42'))), 'exams', '[]'::jsonb,
+  'payments', jsonb_build_array(pa(z('82'), 'card', 500))), sm() + interval '30 minutes');
+-- the PC's close, computed by the rule (X in, Y out): written out here
+select opd('shift.close', jsonb_build_object('id', z('5c'), 'from_at', dd() + interval '8 hours',
+  'to_at', dd() + interval '12 hours', 'counted_cash', 500, 'expected_cash', 500,
+  'expected_by_tender', jsonb_build_object('cash', 500), 'expected_total', 500, 'variance', 0,
+  'order_count', 1, 'prescription_count', 0, 'void_count', 0, 'refund_total', 0, 'lab_delivered', 0,
+  'note', 'zone'), now());
+
+select ok(current_setting('TimeZone') = 'UTC'
+          and sm() - interval '1 hour' >= dd() + interval '12 hours'
+          and sm() + interval '30 minutes' < dd() + interval '24 hours'
+          and (select coalesce(string_agg(s || ' ' || k || ' ' || st || coalesce(' ' || v::text, '') || coalesce(' ' || held, ''), '; '), '')
+                 from _sd where st <> 'ok') = ''
+          and (select count(*) from _sd) = 5,
+  'T11 a sale between the store''s midnight and UTC midnight: D''s shift.close, figured by the store-zone rule, applies ok (no z_mismatch) under a UTC session');
+select ok(closes(s_d()) = closes(s_c())
+          and (select expected_total = 500 and expected_by_tender = '{"cash": 500}'::jsonb and order_count = 1
+                 from public.shift_closes where store_id = s_c()),
+  'T12 ...and equals the online close_shift of C, which also leaves the later sale out (500 of 1000)');
 
 select * from finish();
 rollback;

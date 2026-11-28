@@ -66,11 +66,17 @@
 --     snapshot; register_ops_foreign; last_seq back; re-claim; the genuine
 --     ops apply. Refused for non-platform callers and unquarantined stores.
 -- FG  register_fill_gap. EO register_export_ops (owner only). EX the setup
---     exports and their window. PR prune (skeletons, undo by ingest time),
---     retention, undo_pruned.
+--     exports and their window. RD reverting updates and deletes (a
+--     customer with a prescription, a note with note_seen rows). AT the
+--     revert boundary comes from the genuine PC's attestation (design 6.3),
+--     not from the forger's conflict_seq. PR prune (skeletons, undo by
+--     ingest time), retention, undo_pruned.
+-- The session runs in UTC, as CI and Supabase do (a local server in
+-- Africa/Cairo would hide a rounding done in the session's zone).
 begin;
+set local timezone = 'UTC';
 create extension if not exists pgtap;
-select plan(248);
+select plan(268);
 
 -- ===== fixtures ============================================================
 create function u(p text) returns uuid language sql immutable as $$
@@ -706,6 +712,11 @@ select one('c_price', 'sale.create', u('11'), sc(w('23'), '340003', jsonb_build_
 select ok(vi('c_price') = '{price_changed}' and (select unit_price from public.sale_items where id = w('24')) = 450
           and (det('c_price') -> 'price_changed' -> 0 ->> 'catalogue')::numeric = 500,
   'M12 price_changed: a line below the catalogue price (stored as sent; both prices in detail)');
+select one('c_unk', 'sale.create', u('11'), sc(w('c1'), '340002', jsonb_build_array(li(w('c2'), null, 1, 75)), '[]', 75));
+select ok(vi('c_unk') = '{unknown_product}'
+          and (select product_id is null and unit_price = 75 from public.sale_items where id = w('c2'))
+          and det('c_unk') -> 'unknown_product' = jsonb_build_array(jsonb_build_object('id', w('c2'), 'name', 'line', 'unit_price', 75)),
+  'M12b unknown_product: a line with no product (price_cart refuses the cart, 030:132-139) is stored as sent and flagged, the line in detail');
 select one('c_tender', 'sale.create', u('11'), sc(w('26'), '340004', jsonb_build_array(li(w('27'), w('01'), 1, 500, 0, w('28'))),
   jsonb_build_array(pa(w('29'), 'visa', 500)), 500));
 select ok(vi('c_tender') = '{unknown_tender}' and (select method from public.sale_payments where id = w('29')) = 'visa',
@@ -769,6 +780,9 @@ select ok(vi('r_neg') = '{negative_stock}' and qty(w('05')) = -4,
 select one('r_price', 'sale.recheckout', u('11'), rc(w('40'),
   jsonb_build_array(li(w('41'), w('01'), 1, 490), li(w('4a'), w('05'), 5, 20)), 590, '[]', '[]'));
 select ok(vi('r_price') = '{price_changed}' and (sal(w('40'))).net_amount = 590, 'M25 price_changed on a re-checkout');
+select one('r_unk', 'sale.recheckout', u('11'), rc(w('40'), ib2() || jsonb_build_array(li(w('c3'), null, 1, 0)), 600, '[]', '[]'));
+select ok(vi('r_unk') = '{unknown_product}' and exists (select 1 from public.sale_items where id = w('c3') and product_id is null),
+  'M25b unknown_product on a re-checkout');
 select one('r_hdr', 'sale.recheckout', u('11'), rc(w('40'), ib2(), 550, '[]', '[]',
   '{"total_amount": 550, "discount": 0, "net_amount": 550}'));
 select ok(vi('r_hdr') = '{header_rule}', 'M26 header_rule on a re-checkout');
@@ -859,7 +873,9 @@ select ok(vi('v_rest') = '{void_derivation_differs}' and (det('v_rest') -> 'void
 
 -- ---- shift.close: the recompute equals the PC figures; z_mismatch ----
 -- t3: 10:00 UTC three days ago, so close_shift's window rounding (to the
--- next midnight, 016:35-43) cannot reach another op of this test.
+-- next midnight in the store's zone after to_at's UTC date, report_window
+-- 016:199-210; 22:00 or 21:00 UTC for Cairo) cannot reach another op of
+-- this test. The twin gate's case 9 covers a sale past that midnight.
 create table _t3 (t timestamptz);
 insert into _t3 values (((date_trunc('day', now() at time zone 'UTC') - interval '3 days') + interval '10 hours') at time zone 'UTC');
 create function t3() returns timestamptz language sql stable as $$ select t from _t3 $$;
@@ -1338,7 +1354,8 @@ select is((select coalesce(string_agg(f || '/' || r, ','), '')
              from unnest(array['public._ingest_protected(uuid, uuid)', 'public._ingest_admin_role(uuid)',
                                'public._ingest_seats_full(uuid)', 'public._ingest_code(jsonb)',
                                'public._register_undo_capture()', 'public._register_undo_keep(text, text)',
-                               'public._register_export_cols()', 'public._register_export_store()']) f,
+                               'public._register_export_cols()', 'public._register_export_store()',
+                               'public._register_forged_from(uuid)']) f,
                   unnest(array['anon', 'authenticated', 'service_role']) r
             where has_function_privilege(r, f, 'execute')),
   '', 'V12 step 3''s internals are closed to every client role');
@@ -1347,19 +1364,22 @@ select is((select coalesce(string_agg(f, ','), '')
                                'public.register_export_heads()', 'public.register_snapshot_done()',
                                'public.register_export_ops(bigint, integer)',
                                'public.register_fill_gap(uuid, bigint, bigint, text)',
-                               'public.prune_register_ops(timestamptz)']) f
+                               'public.prune_register_ops(timestamptz)',
+                               'public.register_revert_preview(uuid, bigint)']) f
             where not has_function_privilege('authenticated', f, 'execute') or has_function_privilege('anon', f, 'execute')),
-  '', 'V13 revert, exports, export_ops, fill_gap and prune: authenticated (each checks its caller), never anon');
+  '', 'V13 revert (and its preview), exports, export_ops, fill_gap and prune: authenticated (each checks its caller), never anon');
 select ok((select bool_and(relrowsecurity and relforcerowsecurity) from pg_class
              where oid in ('public.register_undo'::regclass, 'public.register_ops_foreign'::regclass))
           and not has_table_privilege('authenticated', 'public.register_undo', 'select')
           and not has_table_privilege('authenticated', 'public.register_ops_foreign', 'select')
-          and (select count(*) from pg_trigger where tgname = 'zz_register_undo' and not tgisinternal) = 25
+          and (select count(*) from pg_trigger where tgname = 'zz_register_undo' and not tgisinternal) = 26
           and (select count(*) from pg_trigger where tgname = 'zz_register_only' and not tgisinternal) = 25
           and not exists (select 1 from pg_trigger g where g.tgname = 'zz_register_only'
                              and not exists (select 1 from pg_trigger h where h.tgname = 'zz_register_undo'
-                                                and h.tgrelid = g.tgrelid)),
-  'V14 register_undo and register_ops_foreign: RLS forced, no client privilege; zz_register_undo on exactly the guard''s 25 tables');
+                                                and h.tgrelid = g.tgrelid))
+          and exists (select 1 from pg_trigger where tgname = 'zz_register_undo' and tgrelid = 'public.note_seen'::regclass)
+          and not exists (select 1 from pg_trigger where tgname = 'zz_register_only' and tgrelid = 'public.note_seen'::regclass),
+  'V14 register_undo and register_ops_foreign: RLS forced, no client privilege; zz_register_undo on the guard''s 25 tables plus note_seen (which stays unguarded)');
 
 -- ===== ST: staff and RBAC, an ok test for each kind ========================
 select one('st_create', 'staff.create', u('11'), jsonb_build_object('id', v3('01'), 'username', 'nour_a34',
@@ -1537,7 +1557,7 @@ begin
   foreach t in array array['customers', 'inventory', 'stock_movements', 'sales', 'sale_items', 'order_examinations',
                            'sale_payments', 'shift_closes', 'invoice_counter', 'suppliers', 'purchases', 'purchase_items',
                            'purchase_payments', 'notes', 'settings', 'lens_types', 'frame_colors', 'frame_types',
-                           'prescriptions', 'warehouses', 'users', 'roles'] loop
+                           'prescriptions', 'warehouses', 'users', 'roles', 'note_seen'] loop
     execute format('select coalesce(jsonb_agg(to_jsonb(x) order by to_jsonb(x)::text), ''[]'') from public.%I x where x.store_id = $1', t)
       into v_x using p;
     v := v || jsonb_build_object(t, v_x);
@@ -1552,7 +1572,7 @@ begin
   return v || jsonb_build_object('stores', v_x);
 end $$;
 create table _snap (k text primary key, j jsonb);
-grant all on _snap to authenticated;
+grant all on _snap to authenticated, service_role;
 create function lq() returns bigint language sql stable as $$ select (j #>> '{}')::bigint from _snap where k = 'last' $$;
 insert into _snap values ('before', snap(s_a())), ('last', to_jsonb((rg()).last_seq));
 -- the thief, with the register's token, sends three ops first
@@ -1589,6 +1609,17 @@ select throws_ok(format('select public.register_revert_ops(%L, %s, %L)', s_a(), 
 select _as(u('61'));
 select throws_ok(format('select public.register_revert_ops(%L, 1, %L)', s_c(), 'not stolen'),
   '55000', null, 'RV4 ...and for a store whose register is neither quarantined nor revoked');
+reset role;
+-- create-register reclaim (Phase 4) records the genuine PC's attestation:
+-- acked through lq(), its two unsent ops in the outbox
+set role service_role; select _as(null);
+insert into _r select 'rv_att', public._register_attest(s_a(), lq(),
+  array(select (e ->> 'i')::uuid from _r, jsonb_array_elements(_r.j) e where _r.k = 'rv_genuine'));
+reset role;
+select ok((select (j ->> 'from_seq')::bigint = lq() + 1 and (j ->> 'conflict_seq')::bigint = lq() + 1 from _r where k = 'rv_att')
+          and (rg()).attested_acked_seq = lq() and cardinality((rg()).attested_op_ids) = 2 and (rg()).attested_epoch = (rg()).epoch,
+  'RV9 the genuine PC''s attestation (acked_seq, the outbox op ids) puts the boundary at the first forged seq');
+set role authenticated; select _as(u('61'));
 insert into _r select 'rv', public.register_revert_ops(s_a(), lq() + 1, 'stolen register token');
 reset role;
 select is(snap(s_a()), (select j from _snap where k = 'before'),
@@ -1738,6 +1769,13 @@ select ok((select (j -> 'heads' ->> 'notes')::bigint = (select count(*) from pub
 select _as(v3('74'));
 select one('rd_sale', 'sale.create', u('11'), sc(v3('50'), '349100', jsonb_build_array(li(v3('51'), w('03'), 1, 300, 0, v3('52'))),
   jsonb_build_array(pa(v3('53'), 'cash', 300)), 300, '{"lab_status": "Not Started"}'));
+-- the customer has a prescription and the note two note_seen rows: both
+-- foreign keys cascade, so the writers must delete them first (fixtures)
+select _token(s_a(), true);
+insert into public.prescriptions (id, customer_id, store_id, notes) values (v3('56'), v3('41'), s_a(), 'rx');
+insert into public.note_seen (id, note_id, user_id, store_id) values
+  (v3('57'), v3('20'), u('11'), s_a()), (v3('58'), v3('20'), u('13'), s_a());
+select _token(s_a(), false);
 insert into _snap values ('rd_before', snap(s_a())), ('rd_last', to_jsonb((rg()).last_seq));
 insert into _r select 'rd_forge', ing(jsonb_build_array(
   op(nx(),     'sale.lab_status', u('11'), jsonb_build_object('sale_id', v3('50'), 'status', 'Ready')),
@@ -1752,13 +1790,116 @@ select ok(st('rd_sale') in ('ok', 'flagged') and (sal(v3('50'))).voided_at is no
           and not exists (select 1 from public.customers where id = v3('41'))
           and (rg()).last_seq = (select (j #>> '{}')::bigint from _snap where k = 'rd_last') + 4,
   'RD1 (the forged lab status, void, note.delete and customer.delete apply)');
+create function rdl() returns bigint language sql stable as $$ select (j #>> '{}')::bigint from _snap where k = 'rd_last' $$;
+grant execute on function rdl() to authenticated, service_role;
+create function un(p_seq bigint, p_tbl text) returns bigint[] language sql stable as $$
+  select array_agg(n order by n) from public.register_undo where store_id = s_a() and seq = p_seq and table_name = p_tbl $$;
+select ok(cardinality(un(rdl() + 3, 'note_seen')) = 2 and cardinality(un(rdl() + 3, 'notes')) = 1
+          and (un(rdl() + 3, 'note_seen'))[2] < (un(rdl() + 3, 'notes'))[1]
+          and cardinality(un(rdl() + 4, 'prescriptions')) = 1 and cardinality(un(rdl() + 4, 'customers')) = 1
+          and (un(rdl() + 4, 'prescriptions'))[1] < (un(rdl() + 4, 'customers'))[1]
+          and not exists (select 1 from public.prescriptions where id = v3('56'))
+          and not exists (select 1 from public.note_seen where note_id = v3('20')),
+  'RD3 the forged note.delete took its note_seen rows and customer.delete its prescription, each child captured in the undo log BEFORE its parent');
 set role authenticated; select _as(u('61'));
 select public.revoke_register(s_a());
-insert into _r select 'rd', public.register_revert_ops(s_a(), (select (j #>> '{}')::bigint + 1 from _snap where k = 'rd_last'),
-                                                       'forged void');
+reset role;
+set role service_role; select _as(null);
+select public._register_attest(s_a(), rdl(), '{}');
+reset role;
+set role authenticated; select _as(u('61'));
+select lives_ok(format('insert into _r select %L, public.register_revert_ops(%L, %s, %L)', 'rd', s_a(), rdl() + 1, 'forged void'),
+  'RD4 the revert of a customer.delete with a prescription and a note.delete with note_seen rows succeeds (no FK violation)');
 reset role;
 select is(snap(s_a()), (select j from _snap where k = 'rd_before'),
   'RD2 a revoked register''s forged updates and deletes revert: the sale live again with amount_paid back from its ledger, its lab times, the restocked units, the deleted rows re-inserted');
+select ok(exists (select 1 from public.prescriptions where id = v3('56') and customer_id = v3('41'))
+          and (select count(*) from public.note_seen where note_id = v3('20') and id in (v3('57'), v3('58'))) = 2,
+  'RD5 ...the prescription and both note_seen rows are back');
+
+-- ===== AT: the revert boundary is the genuine PC's (design 6.3) ============
+-- The reviewer's case: the genuine PC's two ops are acked (it drops them
+-- from its outbox), the thief adds one op at the head, then sends an op at
+-- an OLD seq to collide: conflict_seq is the first genuine op, not the
+-- forged one. Re-claim first (A is revoked after RD): register v3('75'),
+-- epoch 4.
+insert into auth.users (id, email) values (v3('75'), 'register.a.4@t34');
+set role service_role; select _as(null);
+select public._register_install(s_a(), v3('75'), u('11'));
+reset role;
+select set_config('test.epoch', '4', true);
+select _as(v3('75'));
+insert into _snap values ('at_last', to_jsonb((rg()).last_seq));
+create function al() returns bigint language sql stable as $$ select (j #>> '{}')::bigint from _snap where k = 'at_last' $$;
+grant execute on function al() to authenticated, service_role;
+select one('at_g1', 'customer.upsert', u('11'), jsonb_build_object('id', v3('60'), 'name', 'Genuine one'));
+select one('at_g2', 'customer.upsert', u('11'), jsonb_build_object('id', v3('61'), 'name', 'Genuine two'));
+set role service_role; select _as(null);
+select throws_ok(format('select public._register_attest(%L, %s, %L)', s_a(), al() + 2, '{}'),
+  '55000', null, 'AT1 _register_attest: refused while the register is current (neither quarantined nor revoked)');
+reset role;
+select _as(v3('75'));
+select one('at_f', 'customer.upsert', u('11'), jsonb_build_object('id', v3('62'), 'name', 'Forged one'));
+insert into _r select 'at_collide', ing(jsonb_build_array(op(al() + 1, 'session.start', u('11'), '{}')));
+select ok(st('at_g1') in ('ok', 'flagged') and st('at_g2') in ('ok', 'flagged') and st('at_f') in ('ok', 'flagged')
+          and (select j ->> 'reason' = 'quarantined' from _r where k = 'at_collide')
+          and (rg()).conflict_seq = al() + 1 and (rg()).last_seq = al() + 3,
+  'AT2 (the thief''s colliding op at an old seq quarantines with conflict_seq = the first GENUINE op)');
+set role authenticated; select _as(u('61'));
+select throws_like(format('select public.register_revert_ops(%L, %s, %L)', s_a(), al() + 3, 'no attestation yet'),
+  'no attestation%', 'AT3 register_revert_ops: refused without the genuine PC''s attestation');
+reset role;
+select ok(has_function_privilege('service_role', 'public._register_attest(uuid, bigint, uuid[])', 'execute')
+          and not has_function_privilege('authenticated', 'public._register_attest(uuid, bigint, uuid[])', 'execute')
+          and not has_function_privilege('anon', 'public._register_attest(uuid, bigint, uuid[])', 'execute')
+          and (select p.prosecdef and 'search_path=public' = any(p.proconfig) from pg_proc p
+                where p.oid = 'public._register_attest(uuid, bigint, uuid[])'::regprocedure),
+  'AT4 _register_attest: the service role only (create-register reclaim), SECURITY DEFINER, search_path=public');
+set role service_role; select _as(null);
+select throws_ok(format('select public._register_attest(%L, %s, %L)', s_a(), al() + 4, '{}'),
+  '22023', null, 'AT5 _register_attest: an acked_seq beyond the log is refused');
+insert into _r select 'at_att', public._register_attest(s_a(), al() + 2, array[gen_random_uuid()]);
+reset role;
+select ok((select (j ->> 'from_seq')::bigint = al() + 3 and (j ->> 'conflict_seq')::bigint = al() + 1
+                  and (j ->> 'epoch')::int = 4 from _r where k = 'at_att')
+          and (rg()).attested_acked_seq = al() + 2 and (rg()).attested_epoch = 4 and (rg()).attested_at is not null,
+  'AT6 the attestation (acked_seq = the last genuine ack, an unsent op in the outbox) puts the boundary at the forged op, not at conflict_seq');
+set role authenticated; select _as(u('11'));
+select throws_ok(format('select * from public.register_revert_preview(%L)', s_a()),
+  '42501', null, 'AT7 register_revert_preview: platform admins only');
+select _as(u('61'));
+select ok((select array_agg(seq order by seq) = array[al() + 3] and bool_and(kind = 'customer.upsert' and actor = u('11')
+                  and t is not null and received_at is not null)
+             from public.register_revert_preview(s_a()))
+          and (select array_agg(seq order by seq) from public.register_revert_preview(s_a(), al() + 1))
+              = array[al() + 1, al() + 2, al() + 3],
+  'AT8 the preview lists what a revert would undo: the attested boundary (the forged op only), or from a given seq');
+select throws_ok(format('select public.register_revert_ops(%L, %s, %L)', s_a(), al() + 1, 'per the old runbook'),
+  '22023', null, 'AT9 a revert from conflict_seq (design 6.3''s old runbook) is refused: it would undo acked genuine ops');
+select lives_ok(format('insert into _r select %L, public.register_revert_ops(%L, %s, %L)', 'at_rv', s_a(), al() + 3, 'attested'),
+  'AT10 ...the revert from the attested boundary runs');
+reset role;
+select ok(exists (select 1 from public.customers where id = v3('60')) and exists (select 1 from public.customers where id = v3('61'))
+          and not exists (select 1 from public.customers where id = v3('62'))
+          and (rg()).last_seq = al() + 2
+          and (select count(*) from public.register_ops where store_id = s_a() and seq in (al() + 1, al() + 2)) = 2
+          and exists (select 1 from public.register_ops_foreign where store_id = s_a() and seq = al() + 3 and kind = 'customer.upsert')
+          and (rg()).attested_at is null and (rg()).attested_acked_seq is null and (rg()).attested_op_ids is null,
+  'AT11 the genuine customers are kept, the forged one is gone, last_seq is the PC''s acked_seq; the attestation is spent');
+set role authenticated; select _as(u('61'));
+select throws_like(format('select public.register_revert_ops(%L, %s, %L)', s_a(), al() + 2, 'again'),
+  'no attestation%', 'AT12 a second revert needs a new attestation');
+reset role;
+set role service_role; select _as(null);
+insert into _r select 'at_att2', public._register_attest(s_a(), al() + 2, '{}');
+reset role;
+set role authenticated; select _as(u('61'));
+select ok((select j -> 'from_seq' = 'null'::jsonb from _r where k = 'at_att2')
+          and not exists (select 1 from public.register_revert_preview(s_a())),
+  'AT13 re-attested after the revert: nothing is forged (from_seq null, empty preview)');
+select throws_like(format('select public.register_revert_ops(%L, %s, %L)', s_a(), al() + 2, 'nothing left'),
+  'nothing to revert%', 'AT14 ...and a revert is refused');
+reset role;
 
 -- ===== PR: retention ========================================================
 update public.register_ops set received_at = now() - interval '401 days' where store_id = s_c() and seq <= 100;

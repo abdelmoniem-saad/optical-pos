@@ -198,10 +198,11 @@
 --    purchase.upsert changing a received line or naming another purchase's
 --    line -> 'state:'; shift.close variance <> counted - expected -> MAL;
 --    a bad shape -> MAL; ids already present / CHECKs / FKs -> INT.
---    Flags: price_changed, negative_stock, unknown_tender, overpaid,
---    header_rule, kind_rule, invoice_renumbered (create); refund_first,
---    unknown_tender, perm:history.refund, perm:lab.edit,
---    photo_replace_not_admin, price_changed, divergence (expect, or
+--    Flags: price_changed, unknown_product (a line with no product_id,
+--    which price_cart refuses, 030:132-139), negative_stock, unknown_tender,
+--    overpaid, header_rule, kind_rule, invoice_renumbered (create);
+--    refund_first, unknown_tender, perm:history.refund, perm:lab.edit,
+--    photo_replace_not_admin, price_changed, unknown_product, divergence (expect, or
 --    movements that are not the quantity change), refund_exceeds_tender
 --    (a tender the op took money off is below zero), overpaid, header_rule,
 --    negative_stock (recheckout); perm:lab.edit, photo_replace_not_admin,
@@ -209,7 +210,8 @@
 --    overpaid, divergence (collect); refund_exceeds_tender, divergence
 --    (refund); void_derivation_differs, void_not_zero, divergence (void);
 --    z_mismatch (shift.close; the server's _z_report over close_shift's
---    window, which report_window ends at the next midnight, 016:35-43);
+--    window, which report_window, 016:199-210, ends at the next midnight
+--    in the STORE's zone after to_at's UTC date - not the session's);
 --    perm:suppliers.create|edit, delete_missing (purchase.upsert/delete);
 --    delete_missing (purchase.payment.delete); cost_mismatch
 --    (purchase.receive: the PC's cost_after stored, the server's weighted
@@ -255,12 +257,31 @@
 --    UNDO LOG (design 4.4, 6.3). register_undo (store_id, seq, n, table_name,
 --      pk, action, before_row), RLS forced, no client grant. The AFTER row
 --      trigger zz_register_undo -> _register_undo_capture() on the 25 tables
---      of 033's guard writes one row per changed row, ONLY under the ingest
---      gate (_register_ingest_store()), keyed by lensy.seq. Cascades are
---      caught too (stock_qty and amount_paid syncs, invoice_counter, FK
---      cascades): they run inside the op.
+--      of 033's guard and on note_seen (not guarded; note.delete removes its
+--      rows) writes one row per changed row, ONLY under the ingest gate
+--      (_register_ingest_store()), keyed by lensy.seq. Trigger cascades are
+--      caught too (stock_qty and amount_paid syncs, invoice_counter): they
+--      run inside the op and are captured before their cause. FK cascades
+--      would be captured AFTER their parent, which the reverse replay cannot
+--      undo, so no writer relies on one: a writer deletes the children
+--      first (prescriptions, note_seen, purchase lines and payments).
+--    ATTESTATION (design 6.3). _register_attest(store, acked_seq, outbox
+--      op ids) - the service role only (create-register `reclaim`, Phase 4),
+--      while the register is quarantined or revoked: records what the
+--      GENUINE PC holds (store_registers.attested_acked_seq,
+--      attested_op_ids, attested_epoch, attested_at) and answers from_seq =
+--      _register_forged_from(store): the first seq above acked_seq whose op
+--      id is not in the outbox ('lost' rows aside), or null when nothing is
+--      forged. acked_seq must be 0..last_seq. The forger's conflict_seq is
+--      only a hint: the forger picks it (any old s collides), and a revert
+--      from it would undo genuine ops the PC already dropped as acked.
+--    register_revert_preview(store, from_seq = null -> the attested
+--      boundary) - platform admins, read-only: the ops (seq, kind, actor, t,
+--      received_at) a revert from that seq would undo.
 --    register_revert_ops(store, from_seq, reason) - platform admins only;
---      the register must be quarantined or revoked and from_seq <= last_seq.
+--      the register must be quarantined or revoked, from_seq <= last_seq,
+--      an attestation of the current epoch must exist and from_seq must
+--      EQUAL its boundary (else 55000 / 22023); the attestation is consumed.
 --      Under 033's 'admin' token it replays the undo rows of seq >= from_seq
 --      in reverse n order (insert -> delete; update -> before_row; delete ->
 --      re-insert), never writing inventory.stock_qty or sales.amount_paid
@@ -666,7 +687,12 @@ end $$;
 -- 5) the writers built in step 1
 -- ============================================================
 -- customer.upsert (full row) / customer.delete {id}. A delete of a customer
--- with sales fails its foreign key (INT hold; the PC refuses it first).
+-- with sales fails its foreign key (INT hold; the PC refuses it first). The
+-- customer's prescriptions go FIRST, explicitly, although their foreign key
+-- cascades (prescriptions_customer_id_fkey): rows an RI cascade deletes are
+-- captured in the undo log AFTER their parent, and the revert's reverse
+-- replay would then re-insert the prescription before its customer (part 7,
+-- "no writer relies on an FK cascade").
 create or replace function public._ingest_customer(p_store uuid, p_actor uuid, p_at timestamptz, p jsonb, p_kind text)
 returns text[]
 language plpgsql security definer set search_path = public as $$
@@ -679,6 +705,7 @@ begin
     if not v_has then
       return array['delete_missing'];
     end if;
+    delete from public.prescriptions where customer_id = v_id and store_id = p_store;
     delete from public.customers where id = v_id and store_id = p_store;
     return v_flags;
   end if;
@@ -894,6 +921,9 @@ end $$;
 -- actor on a new note and kept on an edit. note_authorship mirrors 029's
 -- note policies (029:825-832): a note is written by its author, a private
 -- note (user_id) is the author's own, a delete is the author's or an admin's.
+-- A delete removes the note's note_seen rows FIRST, explicitly (their
+-- foreign key cascades, but cascaded rows are captured after their parent;
+-- see _ingest_customer and part 7); note_seen carries zz_register_undo.
 create or replace function public._ingest_note(p_store uuid, p_actor uuid, p_at timestamptz, p jsonb, p_kind text)
 returns text[]
 language plpgsql security definer set search_path = public as $$
@@ -916,6 +946,7 @@ begin
     if v_old.created_by is distinct from p_actor and not public._is_store_admin_for(p_actor, p_store) then
       v_flags := v_flags || 'note_authorship'::text;
     end if;
+    delete from public.note_seen where note_id = v_id and store_id = p_store;
     delete from public.notes where id = v_id and store_id = p_store;
     return v_flags;
   end if;
@@ -1261,10 +1292,17 @@ end $$;
 
 -- price_changed: a line whose unit price is not the catalogue's
 -- (030:149-160, tolerance 0.01; no catalogue lock at ingest).
+-- unknown_product: a line with no product_id at all. price_cart refuses
+-- the whole cart for it ('unknown product in cart', 030:132-139: the lookup
+-- of a NULL id finds nothing), so the PC never derives one; it is stored as
+-- sent and flagged, its lines {id, name, unit_price} in detail. (A
+-- product_id that exists nowhere fails sale_items' foreign key: INT hold.)
 create or replace function public._ingest_price_changed(p_store uuid, p_items jsonb) returns text[]
 language plpgsql security definer set search_path = public as $$
 declare
-  v jsonb;
+  v       jsonb;
+  v_unk   jsonb;
+  v_flags text[] := '{}';
 begin
   select jsonb_agg(jsonb_build_object('product_id', i.id, 'unit_price', (e ->> 'unit_price')::numeric,
                                       'catalogue', i.sale_price))
@@ -1274,9 +1312,18 @@ begin
    where abs(coalesce((e ->> 'unit_price')::numeric, 0) - coalesce(i.sale_price, 0)) > 0.01;
   if v is not null then
     perform public._ingest_detail(jsonb_build_object('price_changed', v));
-    return array['price_changed'];
+    v_flags := v_flags || 'price_changed'::text;
   end if;
-  return '{}';
+  select jsonb_agg(jsonb_build_object('id', e -> 'id', 'name', e -> 'name', 'unit_price', e -> 'unit_price')
+                   order by e ->> 'id')
+    into v_unk
+    from jsonb_array_elements(p_items) e
+   where public._ingest_uuid(e ->> 'product_id') is null;
+  if v_unk is not null then
+    perform public._ingest_detail(jsonb_build_object('unknown_product', v_unk));
+    v_flags := v_flags || 'unknown_product'::text;
+  end if;
+  return v_flags;
 end $$;
 
 -- negative_stock: the store forbids it and a product this op took units of
@@ -1814,8 +1861,12 @@ end $$;
 -- CHECK and unique (023:84) hold as INT. z_mismatch when the server's
 -- _z_report for the same window differs; both figure sets go to detail.
 -- The window is close_shift's (024:121-182): it reads z_report, whose
--- report_window (016:35-43) moves the end up to the next UTC midnight, so
--- the recompute does the same (the PC's zreport.ts ports that rounding).
+-- report_window (the SECOND definition, 016:199-210) moves the end to the
+-- next midnight IN THE STORE'S ZONE after to_at's UTC date:
+--   ((to_at at time zone 'UTC')::date + 1)::timestamp at time zone <store zone>
+-- so the recompute does exactly that, with store_time_zone_for(p_store)
+-- (never the session zone: Supabase runs in UTC, a local run may not). The
+-- PC's zreport.ts must port the same rounding (design 3.7).
 create or replace function public._ingest_shift_close(p_store uuid, p_actor uuid, p_at timestamptz, p jsonb, p_kind text)
 returns text[]
 language plpgsql security definer set search_path = public as $$
@@ -1861,7 +1912,8 @@ begin
      (v_pc ->> 'order_count')::bigint, (v_pc ->> 'prescription_count')::bigint, (v_pc ->> 'void_count')::bigint,
      (v_pc ->> 'refund_total')::numeric, (v_pc ->> 'lab_delivered')::bigint, nullif(btrim(p ->> 'note'), ''));
 
-  select * into z from public._z_report(p_store, v_from, ((v_to at time zone 'UTC')::date + 1)::timestamptz);
+  select * into z from public._z_report(p_store, v_from,
+    ((v_to at time zone 'UTC')::date + 1)::timestamp at time zone public.store_time_zone_for(p_store));
   v_srv := jsonb_build_object(
     'expected_cash', z.expected_cash, 'expected_by_tender', z.expected_by_tender, 'expected_total', z.expected_total,
     'order_count', z.order_count, 'prescription_count', z.prescription_count, 'void_count', z.void_count,
@@ -2853,6 +2905,14 @@ create index if not exists register_ops_foreign_seq_idx on public.register_ops_f
 -- The seq prefix prune_register_ops has emptied, per store.
 alter table public.store_registers add column if not exists undo_pruned_seq bigint not null default 0;
 alter table public.store_registers add column if not exists payload_pruned_seq bigint not null default 0;
+-- What the GENUINE PC attests during a reclaim (design 6.3): the last seq
+-- the cloud acked to it and the op ids still in its outbox. Written by
+-- _register_attest only, read by the revert; attested_epoch ties it to the
+-- register incarnation (a re-install bumps the epoch and makes it stale).
+alter table public.store_registers add column if not exists attested_acked_seq bigint;
+alter table public.store_registers add column if not exists attested_op_ids uuid[];
+alter table public.store_registers add column if not exists attested_epoch integer;
+alter table public.store_registers add column if not exists attested_at timestamptz;
 
 do $$
 declare t text;
@@ -2899,9 +2959,26 @@ end $$;
 revoke execute on function public._register_undo_capture() from public, anon, authenticated, service_role;
 
 -- zz_ so it fires after the sync and audit triggers of the same row (AFTER
--- triggers fire in name order); the cascades those run are nested
--- statements whose own rows are captured first, so the reverse replay
--- undoes the row before what it caused.
+-- triggers fire in name order). The rows those TRIGGERS write (stock_qty,
+-- amount_paid, invoice_counter) are nested plpgsql statements whose own
+-- AFTER triggers fire at the end of that nested statement, so they are
+-- captured BEFORE the row that caused them, and the reverse replay undoes
+-- the cause first. FOREIGN-KEY CASCADES are the opposite: Postgres runs an
+-- RI action (ON DELETE CASCADE / SET NULL) with its triggers queued behind
+-- the outer statement's, so a cascaded child is captured AFTER its parent,
+-- and the replay would re-insert (or re-point) the child before the parent
+-- exists: a foreign-key violation that rolls the whole revert back. Hence
+-- NO WRITER RELIES ON AN FK CASCADE: every writer that deletes a parent
+-- deletes its cascading children itself, first (customer.delete:
+-- prescriptions; note.delete: note_seen; purchase.delete: purchase_items
+-- and purchase_payments). Of the tables a writer deletes from, only
+-- customers, notes and purchases have ON DELETE CASCADE / SET NULL
+-- children; suppliers, lens_types, frame_colors, frame_types, sale_items,
+-- order_examinations, purchase_items, purchase_payments, role_permissions
+-- and user_permissions have none.
+-- The guard's 25 tables, plus note_seen: it is NOT under 033's guard (staff
+-- mark notes seen online, by design) but note.delete removes its rows, so
+-- they must come back on a revert. Only ingest writes are captured.
 do $$
 declare
   t    text;
@@ -2912,7 +2989,8 @@ begin
     'order_examinations', 'sale_payments', 'shift_closes', 'invoice_counter',
     'suppliers', 'purchases', 'purchase_items', 'purchase_payments', 'notes',
     'settings', 'lens_types', 'frame_colors', 'frame_types', 'prescriptions',
-    'warehouses', 'users', 'roles', 'role_permissions', 'user_permissions', 'stores'
+    'warehouses', 'users', 'roles', 'role_permissions', 'user_permissions', 'stores',
+    'note_seen'
   ] loop
     select string_agg(quote_literal(a.attname), ', ' order by array_position(i.indkey::int2[], a.attnum))
       into v_pk
@@ -2937,12 +3015,89 @@ language sql immutable security definer set search_path = public as $$
                               ('stores', 'register_only'), ('stores', 'owner_uid'))
 $$;
 
+-- The revert boundary (design 6.3): the first seq above the genuine PC's
+-- attested acked_seq whose op the PC does not hold in its outbox. Ops at or
+-- below acked_seq were acked TO THE PC, so they are its own (it dropped them
+-- from its outbox); above it, an op whose id the outbox holds is the PC's
+-- own op whose response was lost. The first one it does not hold is where
+-- the forger started (the genuine PC always sends from its head, so nothing
+-- after that is genuine). 'lost' rows (register_fill_gap) carry no op and
+-- are skipped; a dup_import row is matched on the op id it carried. NULL:
+-- no attestation of the current epoch, or nothing forged.
+create or replace function public._register_forged_from(p_store uuid) returns bigint
+language sql stable security definer set search_path = public as $$
+  select min(o.seq)
+    from public.store_registers r
+    join public.register_ops o on o.store_id = r.store_id and o.seq > r.attested_acked_seq
+   where r.store_id = p_store
+     and r.attested_at is not null and r.attested_epoch = r.epoch
+     and o.status <> 'lost'
+     and coalesce(coalesce(o.op_id, public._ingest_uuid(o.detail ->> 'op_id')) <> all (r.attested_op_ids), true)
+$$;
+
+-- The genuine PC's attestation, recorded by create-register `reclaim`
+-- (service role, Phase 4) while the register is quarantined or revoked.
+-- Replaces any earlier attestation; answers the boundary (from_seq, null
+-- when nothing is forged) so reclaim can refuse with foreign_ops{from_seq}.
+create or replace function public._register_attest(p_store uuid, p_acked_seq bigint, p_outbox uuid[])
+returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare
+  r      public.store_registers;
+  v_ids  uuid[] := coalesce(array(select distinct x from unnest(p_outbox) x where x is not null order by x), '{}');
+  v_from bigint;
+begin
+  select * into r from public.store_registers where store_id = p_store for update;
+  if not found then
+    raise exception 'this shop has no register' using errcode = 'P0002';
+  end if;
+  if r.quarantined_at is null and r.revoked_at is null then
+    raise exception 'the register is neither quarantined nor revoked: nothing to attest' using errcode = '55000';
+  end if;
+  if p_acked_seq is null or p_acked_seq < 0 or p_acked_seq > r.last_seq then
+    raise exception 'acked_seq % is outside the log (0..%): not this register''s PC', p_acked_seq, r.last_seq
+      using errcode = '22023';
+  end if;
+  update public.store_registers
+     set attested_acked_seq = p_acked_seq, attested_op_ids = v_ids, attested_epoch = epoch, attested_at = now()
+   where store_id = p_store;
+  v_from := public._register_forged_from(p_store);
+  insert into public.audit_log (actor, store_id, table_name, row_id, action, before_row, after_row)
+  values (auth.uid(), p_store, 'store_registers', p_store::text, 'attest',
+          jsonb_build_object('last_seq', r.last_seq, 'conflict_seq', r.conflict_seq, 'epoch', r.epoch),
+          jsonb_build_object('acked_seq', p_acked_seq, 'outbox', cardinality(v_ids), 'from_seq', v_from));
+  return jsonb_build_object('store_id', p_store, 'epoch', r.epoch, 'acked_seq', p_acked_seq,
+                            'last_seq', r.last_seq, 'conflict_seq', r.conflict_seq, 'from_seq', v_from);
+end $$;
+
+-- What a revert from p_from_seq (null: the attested boundary) would undo,
+-- for the vendor to read before running it. Platform admins; read-only.
+create or replace function public.register_revert_preview(p_store uuid, p_from_seq bigint default null)
+returns table (seq bigint, kind text, actor uuid, t timestamptz, received_at timestamptz)
+language plpgsql stable security definer set search_path = public as $$
+declare
+  v_from bigint := p_from_seq;
+begin
+  if not public.is_platform_admin() then
+    raise exception 'only the vendor can preview a revert' using errcode = '42501';
+  end if;
+  if v_from is null then
+    v_from := public._register_forged_from(p_store);
+  end if;
+  return query
+  select o.seq, o.kind, o.actor, o.occurred_at, o.received_at
+    from public.register_ops o
+   where o.store_id = p_store and v_from is not null and o.seq >= v_from
+   order by o.seq;
+end $$;
+
 create or replace function public.register_revert_ops(p_store uuid, p_from_seq bigint, p_reason text)
 returns jsonb
 language plpgsql security definer set search_path = public as $$
 declare
   r         public.store_registers;
   u         public.register_undo;
+  v_from    bigint;
   v_prev    text := coalesce(current_setting('lensy.register_admin', true), '');
   v_tok     boolean;
   v_pk      text;
@@ -2974,6 +3129,21 @@ begin
   if p_from_seq <= r.undo_pruned_seq then
     raise exception 'undo_pruned: the undo log up to seq % is pruned; seq % cannot be reverted',
       r.undo_pruned_seq, p_from_seq using errcode = '55000';
+  end if;
+  -- design 6.3: the boundary comes from the GENUINE PC, never from the
+  -- conflict (the forger chooses conflict_seq: any old s it sends collides)
+  if r.attested_at is null or r.attested_epoch is distinct from r.epoch then
+    raise exception 'no attestation: the genuine PC''s acked_seq and outbox (create-register reclaim) must be recorded first'
+      using errcode = '55000';
+  end if;
+  v_from := public._register_forged_from(p_store);
+  if v_from is null then
+    raise exception 'nothing to revert: the PC (acked_seq %) holds every op above it', r.attested_acked_seq
+      using errcode = '55000';
+  end if;
+  if p_from_seq <> v_from then
+    raise exception 'from_seq % is not the forged suffix: the genuine PC attests acked_seq %, the first op it does not hold is seq %',
+      p_from_seq, r.attested_acked_seq, v_from using errcode = '22023';
   end if;
 
   v_tok := public._register_bypass(p_store, 'admin', true);
@@ -3046,11 +3216,15 @@ begin
          max_t         = v_max_t,
          skipped_total = greatest(skipped_total - v_skipped, 0),
          parked_total  = greatest(parked_total - v_parked, 0),
-         held_seq = null, held_code = null, held_error = null, held_at = null, held_op = null
+         held_seq = null, held_code = null, held_error = null, held_at = null, held_op = null,
+         -- the attestation is spent: a further revert needs a new one
+         attested_acked_seq = null, attested_op_ids = null, attested_epoch = null, attested_at = null
    where store_id = p_store;
   insert into public.audit_log (actor, store_id, table_name, row_id, action, before_row, after_row)
   values (auth.uid(), p_store, 'register_ops', p_from_seq::text, 'revert',
-          jsonb_build_object('last_seq', r.last_seq, 'from_seq', p_from_seq, 'ops', v_ops),
+          jsonb_build_object('last_seq', r.last_seq, 'from_seq', p_from_seq, 'ops', v_ops,
+                             'conflict_seq', r.conflict_seq, 'attested_acked_seq', r.attested_acked_seq,
+                             'attested_outbox', cardinality(r.attested_op_ids)),
           jsonb_build_object('last_seq', p_from_seq - 1, 'undo_rows', v_undo, 'reason', p_reason));
 
   perform set_config('lensy.register_admin', v_prev, true);
@@ -3358,7 +3532,9 @@ begin
     'public._ingest_protected(uuid, uuid)', 'public._ingest_admin_role(uuid)',
     'public._ingest_seats_full(uuid)', 'public._ingest_code(jsonb)',
     'public._register_undo_capture()', 'public._register_undo_keep(text, text)',
-    'public._register_export_cols()', 'public._register_export_store()'] loop
+    'public._register_export_cols()', 'public._register_export_store()',
+    -- review fix: the revert boundary
+    'public._register_forged_from(uuid)'] loop
     execute format('revoke execute on function %s from public, anon, authenticated, service_role', f);
   end loop;
   -- every writer the kind table names
@@ -3393,9 +3569,16 @@ grant execute on function
   public.register_fill_gap(uuid, bigint, bigint, text),
   public.prune_register_ops(timestamptz)
   to authenticated;
+revoke execute on function public.register_revert_preview(uuid, bigint) from public, anon, service_role;
+grant  execute on function public.register_revert_preview(uuid, bigint) to authenticated;
+
+-- The service role only (create-register `reclaim`, Phase 4), like 033's
+-- _register_install.
+revoke execute on function public._register_attest(uuid, bigint, uuid[]) from public, anon, authenticated;
+grant  execute on function public._register_attest(uuid, bigint, uuid[]) to service_role;
 
 -- ============================================================
 -- 9) stamp THIS migration (working number, see the header)
 -- ============================================================
-select public.record_schema_version(34, 'register ingest: register_ingest/register_ping/register_resolve_held, _register_kind_perms, _register_guard/_register_flags, the 23 _ingest_<kind> writers, _license_state/_license_feature_for/_store_day_range (my_license_state and license_feature re-pointed, same answers), undo log (register_undo, zz_register_undo) and register_revert_ops/register_ops_foreign, register_export/_heads/_snapshot_done, register_export_ops, register_fill_gap, prune_register_ops');
+select public.record_schema_version(34, 'register ingest: register_ingest/register_ping/register_resolve_held, _register_kind_perms, _register_guard/_register_flags, the 23 _ingest_<kind> writers, _license_state/_license_feature_for/_store_day_range (my_license_state and license_feature re-pointed, same answers), undo log (register_undo, zz_register_undo) and register_revert_ops/register_ops_foreign, register_export/_heads/_snapshot_done, register_export_ops, register_fill_gap, prune_register_ops, _register_attest and register_revert_preview (the revert boundary is the genuine PC''s, design 6.3)');
 commit;

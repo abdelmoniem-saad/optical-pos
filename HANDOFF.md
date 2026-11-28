@@ -2,7 +2,7 @@
 
 Read this first if you are picking the project up with no history. It says what
 is live, what is waiting, what comes next and how to work in this repository
-without tripping over its quirks. Last updated 2026-11-28 (after PR #5 merged).
+without tripping over its quirks. Last updated 2026-11-28 (Phase 1b built).
 
 ## 1. What the project is
 
@@ -32,7 +32,7 @@ the owner's phone), built so it can host more stores later.
 | 030 | Money fixes, offline checkout queue, security hardening (PR #3) | Live (applied 2026-11-27) |
 | 031 | Per-store names, safe photo sweep, active staff seats (PR #4) | Live (applied 2026-11-27, `create-user` deployed) |
 | 032 + 033 | Offline register groundwork, shipped dark; read-only phone client (PR #5) | Live (applied 2026-11-28, `create-user` deployed, merged as 1499640) |
-| 034 | Register ingest (Phase 1b) | Not started |
+| 034 | Register ingest (Phase 1b) | **Built and reviewed, NOT applied, NOT merged.** Branch `offline-v2-phase1b`, draft PR #7 (do not merge before Phase 4). Contracts: `docs/offline-v2/034-contract.md` |
 
 Production database version today: **33**. No store is register-only; the shop works online as before.
 
@@ -69,8 +69,8 @@ Other background in `docs/offline-v2/`: `critique.md` (review of revision 1) and
 | 0 | Money fixes (030) | - | Live |
 | 0b | 031 | - | Live |
 | 1a | 032 + 033 + read-only phone client + create-user 409 | - | Live (PR #5) |
-| 1b | 034 `register_ingest` (23 writers, undo log, revert, export) - written and tested, kept on its branch, applied only in Phase 4 | ~8-12 | **Next** |
-| 3a | Cloud half of the data seam (refactor, ships live) | 6-9 | |
+| 1b | 034 `register_ingest` (23 writers, undo log, revert, export) - written and tested, kept on its branch, applied only in Phase 4 | - | Built (draft PR #7) |
+| 3a | Cloud half of the data seam (refactor, ships live) | 6-9 | **Next** |
 | 2 | PC database and rules (`lib/register/*`) | 12-16 | |
 | 3b | Register shell, PIN lock screen, local backend | 12-18 | |
 | 4 | Sync, setup, backup/restore, phone status, QR photo drop, parity test; then 034 applied | 15-21 | |
@@ -86,19 +86,32 @@ the PC or by QR from a phone (QR needs the PC online); **no offline time limit**
 chosen; the register runs as an installed Google Chrome app in one fixed Windows
 user and Chrome profile. Unanswered items keep the defaults in brackets.
 
-### Phase 1b starting points
+### Phase 1b result (034) and what it means for the next phases
 
-- Spec: design section 4.4 and its Tests bullet, plus sections 3.1-3.10
-  (envelope, outcomes, flag codes, the per-op table 3.6, money semantics 3.7).
-- 033 adds a **token contract** 034 must follow (033 header, part 4):
-  `register_ingest` opens `_register_bypass(store, 'ingest', true)` while it
-  sets `lensy.ingest`/`lensy.store` and closes it before returning;
-  `register_revert_ops` opens the `'admin'` token. Without them the guard
-  refuses the writes.
-- Revision 3 removed the 45-day contact limit; 4.4 still says undo rows are
-  pruned after 60 days "longer than the 45-day contact limit" - revisit that
-  retention when writing 034.
-- 034 is a working number: it ships under the next free number when applied.
+- `web/supabase/034_register_ingest.sql` (~3,400 lines) on branch
+  `offline-v2-phase1b`, draft PR #7. Built in three steps by separate agents,
+  then reviewed independently for security and money parity; five confirmed
+  findings fixed (design Appendix A.6, R34-1 to R34-5). Gates
+  `tests/034_register_ingest_test.sql` (268) and `tests/034_ingest_twin_test.sql`
+  (12); full suite 1009, green in a Cairo session and in UTC.
+- It is a WORKING NUMBER and must not be pasted into production or merged to
+  `main` before Phase 4 (design 4.4): applied early, every Phase 4 change would
+  need another migration. When applied it takes the next free number with its
+  stamp, test files and the register build's `EXPECTED_SCHEMA_VERSION`.
+- Everything the PC code and `create-register` must honour (payload shapes,
+  outcomes, the store-zone shift-close window, the attested revert boundary,
+  export/re-hydrate) is in `docs/offline-v2/034-contract.md`.
+- Later branches that need 034 (Phase 4's parity test) should branch from or
+  merge `offline-v2-phase1b`.
+
+### Next: Phase 3a
+
+Design section 2.2 (data seam) and section 8's Phase 3a row and tests: split the
+cloud data access behind a backend interface so the register's local backend can
+replace it later. A pure refactor that ships live; existing vitest must stay
+green, plus `backendSeam.test.ts` (only `data/backend/cloud/**` and four
+cloud-only files import `lib/supabase`). Phase 2 (the PC database and rules) can
+start in parallel; it does not touch the cloud build.
 
 ## 4. How to work here
 
