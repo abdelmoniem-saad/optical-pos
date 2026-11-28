@@ -201,12 +201,16 @@ select is(
 -- priced delivery onto a NON-empty shelf, so it is asserted rather than claimed:
 -- a re-order must not retroactively rewrite the cost of stock already held.
 --
--- The expected value was WRONG on the first run and the database was right.
--- 10 units @ 4, then 10 units @ 6, gives (10*4 + 10*6) / 20 = 4.666..., which
--- rounds to 4.67. I wrote 5 - I had computed the total money (100) instead of
--- the two cost-weighted terms (40 + 60). Recorded because the fix is "change
--- the expectation", and that is only legitimate because the arithmetic can be
--- checked by hand here: an assertion nobody can recompute is not a test.
+-- 10 units @ 4, then 10 units @ 6, gives (10*4 + 10*6) / 20 = 5.00.
+--
+-- History, kept because it is the lesson: the first run returned 4.67 and this
+-- expectation was changed from 5 to 4.67 to match it, with a note blaming the
+-- arithmetic. The arithmetic was right and the DATABASE was wrong: the average
+-- ran after the stock trigger had already added the delivery, so it computed
+-- (20*4 + 10*6) / 30 = 4.67, counting the new units twice. 032 fixed
+-- receive_purchase (offline-v2 design R-1) and this assertion is corrected back
+-- to 5.00. An expectation that can be recomputed by hand is recomputed by hand,
+-- not copied from the output.
 insert into public.purchases (id, supplier_id, total_amount, amount_paid, store_id)
 values ('ffffffff-ffff-4fff-8fff-000000000133', null, 60, 0, _rstore())
 on conflict (id) do nothing;
@@ -222,8 +226,8 @@ select public.receive_purchase('ffffffff-ffff-4fff-8fff-000000000133');
 select is(
   (select cost_price from public.inventory
     where id = 'ffffffff-ffff-4fff-8fff-000000000121')::numeric,
-  4.67::numeric,
-  'G-P4b cost_price is the WEIGHTED AVERAGE (4.67), not simply the newest price (6)'
+  5.00::numeric,
+  'G-P4b cost_price is the WEIGHTED AVERAGE (5.00), not simply the newest price (6)'
 );
 
 select is(

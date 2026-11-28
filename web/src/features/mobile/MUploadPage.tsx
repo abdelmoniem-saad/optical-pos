@@ -75,6 +75,19 @@ export function MUploadPage() {
     return <MobileLogin />
   }
 
+  // A store that records on its register PC (033): photos are taken at the
+  // PC, so this phone upload page is closed (design 2.8).
+  if (access.readOnly) {
+    return (
+      <div dir="rtl" className="flex min-h-full flex-col items-center justify-center bg-surface p-6 text-center">
+        <p className="max-w-xs rounded-xl bg-brand-bg px-4 py-3 text-sm font-semibold text-brand-dark">
+          {t('Read-only: the shop PC is the system of record')}
+        </p>
+        <p className="mt-2 max-w-xs text-xs text-muted">{t('Attach photos from the shop PC.')}</p>
+      </div>
+    )
+  }
+
   return (
     <div dir="rtl" className="min-h-full bg-surface pb-10">
       <header className="border-b border-line/40 bg-white px-4 py-3 text-center font-bold text-brand-dark">

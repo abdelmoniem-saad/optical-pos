@@ -186,13 +186,14 @@ function ShipmentCard({ purchase }: { purchase: Purchase }) {
               step="any"
               className={cls}
               placeholder={t('Amount Paid')}
+              disabled={!access.can('suppliers.edit')}
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && submitPayment()}
             />
             <label className="flex items-center gap-1 text-xs text-faint">
               {t('Date')}
-              <input type="date" className={`${cls} w-36`} value={date} onChange={(e) => setDate(e.target.value)} />
+              <input type="date" className={`${cls} w-36`} disabled={!access.can('suppliers.edit')} value={date} onChange={(e) => setDate(e.target.value)} />
             </label>
             <button
               onClick={submitPayment}
@@ -357,6 +358,7 @@ function Shipments({ supplier }: { supplier: Supplier }) {
   const access = usePermissions()
   const purchases = usePurchases(supplier.id)
   const [adding, setAdding] = useState(false)
+  const canAddShipment = access.can('suppliers.create') && access.can('suppliers.edit')
 
   return (
     <div className="rounded-xl border border-line bg-white p-4">
@@ -366,12 +368,16 @@ function Shipments({ supplier }: { supplier: Supplier }) {
         </h3>
         {/* New shipments start UNPAID; any cash handed over at delivery is simply
             recorded as the first payment on the card below. */}
-        <button
-          onClick={() => setAdding(true)}
-          className="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white"
-        >
-          {t('+ Add Shipment')}
-        </button>
+        {/* Offered only to whoever may submit it (the form below has the same
+            gate): read-only (033) and a non-editor see no dead button. */}
+        {canAddShipment && (
+          <button
+            onClick={() => setAdding(true)}
+            className="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white"
+          >
+            {t('+ Add Shipment')}
+          </button>
+        )}
       </div>
 
       {(purchases.data?.length ?? 0) === 0 ? (
@@ -384,7 +390,7 @@ function Shipments({ supplier }: { supplier: Supplier }) {
         </ul>
       )}
 
-      {adding && access.can('suppliers.create') && access.can('suppliers.edit') && <ShipmentForm supplier={supplier} onClose={() => setAdding(false)} />}
+      {adding && canAddShipment && <ShipmentForm supplier={supplier} onClose={() => setAdding(false)} />}
     </div>
   )
 }

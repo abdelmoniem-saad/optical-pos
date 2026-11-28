@@ -34,6 +34,8 @@
 import { createClient } from 'jsr:@supabase/supabase-js@2'
 import {
   authorizeCreateUser,
+  precheckCreateUser,
+  registerOnlyValue,
   rpcValue,
   type CreateUserCaller,
 } from './authz.ts'
@@ -101,8 +103,21 @@ Deno.serve(async (req) => {
       plan = { maxStaff: row?.max_staff ?? null, currentStaff: count ?? 0 }
     }
 
+    // --- 3. a store that records on its register PC (033) -------------
+    // Its staff are added at the PC. Asked as the caller, about the store
+    // the account would land in, BEFORE anything is created; a database
+    // before 033 has no such function and answers false. Only a caller who
+    // passes the request and permission checks gets this far: a cashier
+    // without staff.create keeps its 403, never a 400 from this query.
+    const pre = precheckCreateUser(caller, body)
+    if (!pre.ok) return json({ error: pre.error }, pre.status)
+    const target = pre.storeId
+    const registerOnly = registerOnlyValue(
+      await asCaller.rpc('store_is_register_only', { p_store: target }),
+    )
+
     const domain = Deno.env.get('AUTH_EMAIL_DOMAIN') ?? 'lensypos.local'
-    const verdict = authorizeCreateUser(caller, body, { domain, plan })
+    const verdict = authorizeCreateUser(caller, body, { domain, plan, registerOnly })
     if (!verdict.ok) {
       return json({ error: verdict.error }, verdict.status)
     }
@@ -110,7 +125,7 @@ Deno.serve(async (req) => {
       p_role: verdict.roleId, p_store: verdict.storeId,
     })) !== true) return json({ error: 'Cannot assign this position' }, 403)
 
-    // --- 3. only now, with the service-role key -------------------------
+    // --- 4. only now, with the service-role key -------------------------
     const admin = createClient(
       Deno.env.get('SUPABASE_URL')!,
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,

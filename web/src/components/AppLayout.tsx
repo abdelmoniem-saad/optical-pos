@@ -7,6 +7,7 @@ import { Calculator } from './Calculator'
 import { PermissionsProvider, usePermissions } from '../data/permissions'
 import { useMyLicense, useIsPlatformAdmin } from '../lib/licensing'
 import { NAV_ITEMS } from '../routes/nav'
+import { ReadOnlyBanner } from './ReadOnlyBanner'
 
 /** Protected shell: redirects to /login when there's no Supabase session.
  *  Sidebar entries are filtered by the signed-in user's permissions. */
@@ -167,6 +168,8 @@ function AppShell() {
 
       <main className="flex min-w-0 flex-1 flex-col overflow-hidden">
         {perms.error && <div role="alert" className="bg-warning-bg px-4 py-2 text-sm text-warning">{t(perms.error)}</div>}
+        {/* Read-only phone view (033 register_only). Renders nothing otherwise. */}
+        <ReadOnlyBanner />
         {licenseGrace && (
           <div className="bg-warning-bg px-4 py-2 text-center text-xs font-semibold text-warning">
             {t('License expired - data is read-only during the grace period. Renew to continue working.')}

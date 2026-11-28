@@ -4,8 +4,12 @@ import { describe, expect, it } from 'vitest'
 // only collects src/** - and importing it from here is what puts it inside
 // 	sc -b, so these rules stay type-checked with the rest of the app.
 import {
+  REGISTER_ONLY_ERROR,
   authorizeCreateUser,
+  precheckCreateUser,
+  registerOnlyValue,
   rpcValue,
+  targetStoreId,
   type CreateUserCaller,
 } from '../../../supabase/functions/create-user/authz'
 
@@ -173,5 +177,79 @@ describe('authorizeCreateUser', () => {
   it('accepts a full email address as the username', () => {
     const d = authorizeCreateUser(manager, { ...req, username: 'a@b.com' }, opts)
     expect(d.ok && d.email).toBe('a@b.com')
+  })
+})
+
+describe('a store that records on its register PC (033 register_only)', () => {
+  it('refuses with 409 "Add staff at the shop PC"', () => {
+    const d = authorizeCreateUser(manager, req, { ...opts, registerOnly: true })
+    expect(d).toEqual({ ok: false, status: 409, error: 'Add staff at the shop PC' })
+    expect(REGISTER_ONLY_ERROR).toBe('Add staff at the shop PC')
+  })
+
+  it('refuses the vendor too: the PC is the only place staff are added', () => {
+    const d = authorizeCreateUser(vendor, { ...req, store_id: 'store-b' }, { ...opts, registerOnly: true })
+    expect(d).toMatchObject({ ok: false, status: 409 })
+  })
+
+  it('is decided before the seat limit and the role, so nothing is created', () => {
+    const d = authorizeCreateUser(
+      manager,
+      { ...req, role_id: 'cashier-role' },
+      { ...opts, registerOnly: true, plan: { maxStaff: 1, currentStaff: 1 } },
+    )
+    expect(d).toMatchObject({ ok: false, status: 409 })
+  })
+
+  it('does not tell a cashier anything new: permission is refused first', () => {
+    expect(authorizeCreateUser(cashier, req, { ...opts, registerOnly: true })).toMatchObject({ ok: false, status: 403 })
+  })
+
+  it('is inert when the store is not register_only or the answer is absent', () => {
+    expect(authorizeCreateUser(manager, req, { ...opts, registerOnly: false }).ok).toBe(true)
+    expect(authorizeCreateUser(manager, req, opts).ok).toBe(true)
+  })
+
+  it('asks about the store the account would land in', () => {
+    expect(targetStoreId(manager, { ...req, store_id: 'store-b' })).toBe('store-a')
+    expect(targetStoreId(vendor, { ...req, store_id: ' store-b ' })).toBe('store-b')
+    expect(targetStoreId(vendor, req)).toBeNull()
+    expect(targetStoreId({ ...vendor, storeId: 'store-v' }, req)).toBe('store-v')
+  })
+
+  it('the precheck refuses before the store is asked about, and pins the store it asks about', () => {
+    // index.ts calls store_is_register_only only when this says ok, so a
+    // cashier gets 403 even if that query would have failed.
+    expect(precheckCreateUser(cashier, req)).toEqual({
+      ok: false, status: 403, error: 'insufficient permission: staff.create',
+    })
+    expect(precheckCreateUser({ ...manager, uid: null }, req)).toMatchObject({ ok: false, status: 401 })
+    expect(precheckCreateUser(manager, { ...req, password: '1' })).toMatchObject({ ok: false, status: 400 })
+    // A cross-store request by a manager is refused, never queried.
+    expect(precheckCreateUser(manager, { ...req, store_id: 'store-b' })).toMatchObject({ ok: false, status: 403 })
+    expect(precheckCreateUser(vendor, req)).toMatchObject({ ok: false, status: 403 })
+    expect(precheckCreateUser(manager, req)).toEqual({ ok: true, storeId: 'store-a' })
+    expect(precheckCreateUser(vendor, { ...req, store_id: 'store-b' })).toEqual({ ok: true, storeId: 'store-b' })
+  })
+
+  it('the decision agrees with the precheck on every refusal it makes', () => {
+    for (const [c, r] of [
+      [cashier, req],
+      [{ ...manager, uid: null }, req],
+      [manager, { ...req, username: '' }],
+      [manager, { ...req, store_id: 'store-b' }],
+      [vendor, req],
+    ] as const) {
+      expect(authorizeCreateUser(c, r, { ...opts, registerOnly: true })).toEqual(precheckCreateUser(c, r))
+    }
+  })
+
+  it('reads store_is_register_only: missing function = false, other errors fail closed', () => {
+    expect(registerOnlyValue({ data: true, error: null })).toBe(true)
+    expect(registerOnlyValue({ data: false, error: null })).toBe(false)
+    expect(registerOnlyValue({ data: null, error: null })).toBe(false)
+    expect(registerOnlyValue({ data: null, error: { code: 'PGRST202', message: 'Could not find the function' } })).toBe(false)
+    expect(registerOnlyValue({ data: null, error: { code: '42883', message: 'function does not exist' } })).toBe(false)
+    expect(() => registerOnlyValue({ data: null, error: { code: '57014', message: 'timeout' } })).toThrow('timeout')
   })
 })

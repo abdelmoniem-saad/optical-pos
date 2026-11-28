@@ -15,3 +15,31 @@ describe('create-user seat count (offline-v2 Phase 0b)', () => {
     expect(block).toContain(".eq('is_active', true)")
   })
 })
+
+describe('create-user refuses a register_only store (offline-v2 Phase 1, 033)', () => {
+  const check = source.indexOf("asCaller.rpc('store_is_register_only'")
+  const precheck = source.indexOf('precheckCreateUser(caller, body)')
+  const decide = source.indexOf('authorizeCreateUser(caller')
+  const create = source.indexOf('admin.auth.admin.createUser')
+
+  it('asks store_is_register_only as the caller, about the target store', () => {
+    expect(check).toBeGreaterThan(-1)
+    expect(source).toContain("asCaller.rpc('store_is_register_only', { p_store: target })")
+    expect(source).toContain('const target = pre.storeId')
+  })
+
+  it('asks only after the permission checks, so their refusal is returned first', () => {
+    // A cashier without staff.create must get its 403, not a 400 from a
+    // store_is_register_only failure (EXECUTE missing, bad uuid, timeout).
+    expect(precheck).toBeGreaterThan(-1)
+    expect(precheck).toBeLessThan(check)
+    const between = source.slice(precheck, check)
+    expect(between).toContain('if (!pre.ok) return json({ error: pre.error }, pre.status)')
+  })
+
+  it('passes the answer to the decision, before any account is created', () => {
+    expect(source).toContain('{ domain, plan, registerOnly }')
+    expect(check).toBeLessThan(decide)
+    expect(decide).toBeLessThan(create)
+  })
+})

@@ -111,6 +111,11 @@ describe('schema version', () => {
     // database prices correctly, so the banner must flag a shop still on 29.
     // 031 (per-store unique) adds the (store_id, key) settings index the app
     // now upserts on; without it every settings save fails.
-    expect(EXPECTED_SCHEMA_VERSION).toBe(31)
+    // 033 (register, dark) is the next client step, skipping 32: the phone
+    // reads my_permissions().read_only / is_owner and calls register_status,
+    // revoke_register and owner_deactivate_staff, and create-user asks
+    // store_is_register_only. 032 (actor core) changes no client contract, so
+    // the client goes straight from 31 to the highest migration it needs.
+    expect(EXPECTED_SCHEMA_VERSION).toBe(33)
   })
 })
