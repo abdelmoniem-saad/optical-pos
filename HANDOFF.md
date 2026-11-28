@@ -36,7 +36,7 @@ the owner's phone), built so it can host more stores later.
 
 Production database version today: **33**. No store is register-only; the shop works online as before.
 
-**Store owner.** Main Store (`d2fa0efc-5aab-445d-8888-ac68f8088928`) has two admin logins (`admin`, `d`), so 033's backfill left `owner_uid` empty. The owner chose `admin` (`c6abb73f-3f73-4aef-8bbe-b07bc88ab268`); it is set by the vendor with `set_store_owner` (command in `RELEASE_033.md`, run as the `superadmin` platform account). Confirm with `select id, name, owner_uid from public.stores;` before Phase 4 setup. `teststore` has no owner yet; give it one before the dry run. Staff row `o` has no login (cannot sign in): recreate or switch off.
+**Store owner.** Main Store (`d2fa0efc-5aab-445d-8888-ac68f8088928`) has two admin logins (`admin`, `d`), so 033's backfill left `owner_uid` empty. The owner chose `admin` (`c6abb73f-3f73-4aef-8bbe-b07bc88ab268`); the vendor set it with `set_store_owner` on 2026-11-28 (command in `RELEASE_033.md`, run as the `superadmin` platform account) and the owner confirmed `owner_uid` reads it. Re-check with `select id, name, owner_uid from public.stores;` before Phase 4 setup. `teststore` has no owner yet; give it one before the dry run. Staff row `o` has no login (cannot sign in): recreate or switch off.
 
 ## 3. The big goal: an offline-first register
 
