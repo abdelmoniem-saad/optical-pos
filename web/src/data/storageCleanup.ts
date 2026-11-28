@@ -103,6 +103,37 @@ async function scanStore(
   }
 }
 
+type StoreRow = { id: string; name: string; register_only?: boolean | null }
+
+/** True when PostgREST refused because a selected column does not exist:
+ *  stores.register_only before migration 033 is applied. */
+function isMissingColumn(error: { code?: string; message?: string } | null): boolean {
+  if (!error) return false
+  const msg = error.message ?? ''
+  return error.code === '42703' ||
+    (/register_only/i.test(msg) && /(does not exist|could not find|schema cache)/i.test(msg))
+}
+
+/** The stores the sweep may touch. A register_only store (033) keeps every
+ *  photo: the PC is its system of record and the storage policy refuses
+ *  deletes there for everyone (design 2.9), so it is never listed. A row
+ *  without the flag (a database before 033) is an ordinary store. */
+export function storesToScan(rows: readonly StoreRow[]): { id: string; name: string }[] {
+  return rows.filter((s) => s.register_only !== true).map(({ id, name }) => ({ id, name }))
+}
+
+/** Every store, with register_only when the column exists (033); before it,
+ *  the plain list, so the sweep keeps working on an older database. */
+export async function listStoresForScan(): Promise<{ id: string; name: string }[]> {
+  const res = await supabase.from('stores').select('id, name, register_only').order('created_at')
+    .returns<StoreRow[]>()
+  if (!res.error) return storesToScan(res.data ?? [])
+  if (!isMissingColumn(res.error)) throw res.error
+  const old = await supabase.from('stores').select('id, name').order('created_at').returns<StoreRow[]>()
+  if (old.error) throw old.error
+  return storesToScan(old.data ?? [])
+}
+
 /** Read-only scan across every store. Does not delete anything. */
 export function useOrphanScan() {
   const platform = useIsPlatformAdminQuery()
@@ -110,14 +141,9 @@ export function useOrphanScan() {
     queryKey: ['orphan-scan'],
     enabled: platform.data === true,
     queryFn: async (): Promise<OrphanScan[]> => {
-      const { data: stores, error } = await supabase
-        .from('stores')
-        .select('id, name')
-        .order('created_at')
-        .returns<{ id: string; name: string }[]>()
-      if (error) throw error
+      const stores = await listStoresForScan()
       const out: OrphanScan[] = []
-      for (const s of stores ?? []) out.push(await scanStore(s))
+      for (const s of stores) out.push(await scanStore(s))
       return out
     },
   })

@@ -14,6 +14,8 @@ import {
   isSuperUsername,
   resolveCan,
   readEffectiveAccess,
+  accessAllows,
+  readOnlyAllows,
 } from './permissionModel'
 
 describe('permission universe', () => {
@@ -76,5 +78,46 @@ describe('resolveCan', () => {
 
   it('lets an explicit deny override a position grant', () => {
     expect(resolveCan(granted, { 'history.view': false }, 'history.view')).toBe(false)
+  })
+})
+
+describe('read-only access (033 register_only)', () => {
+  const base = { is_admin: true, active: true, assigned: true, codes: ['pos.view', 'history.view', 'history.void'] }
+
+  it('treats missing read_only / is_owner as false: a database before 033 is unchanged', () => {
+    const v = readEffectiveAccess(base)
+    expect(v.read_only).toBe(false)
+    expect(v.is_owner).toBe(false)
+    expect(v.is_admin).toBe(true)
+    expect(v.codes).toEqual(base.codes)
+  })
+
+  it('reads read_only and is_owner when 033 sends them', () => {
+    const v = readEffectiveAccess({ ...base, is_admin: false, read_only: true, is_owner: true })
+    expect(v.read_only).toBe(true)
+    expect(v.is_owner).toBe(true)
+  })
+
+  it('never reads a non-boolean flag as true', () => {
+    const v = readEffectiveAccess({ ...base, read_only: 'true', is_owner: 1 })
+    expect(v.read_only).toBe(false)
+    expect(v.is_owner).toBe(false)
+  })
+
+  it('narrows every code to viewing when read_only, and hides the POS', () => {
+    const ro = { codes: base.codes, read_only: true }
+    expect(accessAllows(ro, 'history.view')).toBe(true)
+    expect(accessAllows(ro, 'history.void')).toBe(false)
+    expect(accessAllows(ro, 'pos.view')).toBe(false)
+    expect(accessAllows(ro, 'customers.view')).toBe(false) // never granted
+    expect(readOnlyAllows('settings.edit')).toBe(false)
+  })
+
+  it('answers exactly the granted codes otherwise, including a cached answer with no flag', () => {
+    for (const v of [{ codes: base.codes, read_only: false }, { codes: base.codes }]) {
+      expect(accessAllows(v, 'history.void')).toBe(true)
+      expect(accessAllows(v, 'pos.view')).toBe(true)
+      expect(accessAllows(v, 'settings.edit')).toBe(false)
+    }
   })
 })

@@ -7,8 +7,12 @@ import { isMissingRpc } from '../data/rpc'
  *  Bump this ONLY together with a migration in web/supabase/. It is the single
  *  fact the UI compares the live database against, so if the two ever disagree
  *  the banner tells the shop what to run instead of the app guessing from an
- *  error code. */
-export const EXPECTED_SCHEMA_VERSION = 31
+ *  error code.
+ *
+ *  33 (offline-v2 Phase 1): ship this web build only AFTER 032 and 033 are
+ *  applied. A database still on 031 shows every shop the red "database
+ *  update" bar; that is this banner working, so the order is a release step. */
+export const EXPECTED_SCHEMA_VERSION = 33
 
 export type SchemaVersion =
   /** Database confirmed current (or newer) - nothing to show. */

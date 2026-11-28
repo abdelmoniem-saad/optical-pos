@@ -5,10 +5,20 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
  *  from it and were offered for deletion. It is now walked page by page, and
  *  any error fails the scan rather than returning a partial list. */
 const rpc = vi.fn()
-vi.mock('../lib/supabase', () => ({ supabase: { rpc } }))
+/** stores select: each call records its column list and answers the next queued result. */
+const storeSelects: string[] = []
+const storeResults: { data: unknown; error: unknown }[] = []
+const from = vi.fn(() => ({
+  select: (cols: string) => {
+    storeSelects.push(cols)
+    const res = storeResults.shift() ?? { data: [], error: null }
+    return { order: () => ({ returns: () => Promise.resolve(res) }) }
+  },
+}))
+vi.mock('../lib/supabase', () => ({ supabase: { rpc, from } }))
 vi.mock('../lib/licensing', () => ({ useIsPlatformAdminQuery: vi.fn() }))
 
-const { referencedPaths } = await import('./storageCleanup')
+const { referencedPaths, storesToScan, listStoresForScan } = await import('./storageCleanup')
 
 const page = (from: number, n: number) =>
   Array.from({ length: n }, (_, i) => ({ path: `store/s/orders/p-${String(from + i).padStart(5, '0')}.jpg` }))
@@ -40,5 +50,45 @@ describe('referencedPaths', () => {
       .mockResolvedValueOnce({ data: page(0, 1000), error: null })
       .mockResolvedValueOnce({ data: null, error: { message: 'platform admin only' } })
     await expect(referencedPaths('s')).rejects.toMatchObject({ message: 'platform admin only' })
+  })
+})
+
+/** Phase 1 (033, design 2.9): a register_only store keeps every photo - the
+ *  PC is its system of record and storage refuses deletes there - so the
+ *  platform sweep never lists it. Before 033 the column does not exist. */
+describe('orphan scan skips register_only stores', () => {
+  beforeEach(() => {
+    storeSelects.length = 0
+    storeResults.length = 0
+  })
+
+  it('drops a register_only store and keeps the rest (absent flag = ordinary store)', () => {
+    expect(storesToScan([
+      { id: 'a', name: 'A', register_only: true },
+      { id: 'b', name: 'B', register_only: false },
+      { id: 'c', name: 'C', register_only: null },
+      { id: 'd', name: 'D' },
+    ])).toEqual([{ id: 'b', name: 'B' }, { id: 'c', name: 'C' }, { id: 'd', name: 'D' }])
+  })
+
+  it('selects register_only with the stores list', async () => {
+    storeResults.push({ data: [{ id: 'a', name: 'A', register_only: true }, { id: 'b', name: 'B', register_only: false }], error: null })
+    expect(await listStoresForScan()).toEqual([{ id: 'b', name: 'B' }])
+    expect(storeSelects).toEqual(['id, name, register_only'])
+  })
+
+  it('falls back to the plain list when the column is missing (database before 033)', async () => {
+    storeResults.push(
+      { data: null, error: { code: '42703', message: 'column stores.register_only does not exist' } },
+      { data: [{ id: 'a', name: 'A' }], error: null },
+    )
+    expect(await listStoresForScan()).toEqual([{ id: 'a', name: 'A' }])
+    expect(storeSelects).toEqual(['id, name, register_only', 'id, name'])
+  })
+
+  it('surfaces any other error instead of scanning a guessed list', async () => {
+    storeResults.push({ data: null, error: { code: '42501', message: 'permission denied' } })
+    await expect(listStoresForScan()).rejects.toMatchObject({ message: 'permission denied' })
+    expect(storeSelects).toHaveLength(1)
   })
 })

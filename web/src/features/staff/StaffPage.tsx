@@ -9,6 +9,7 @@ import { invalidateAccess } from '../../data/refresh'
 import { supabase } from '../../lib/supabase'
 import { useI18n } from '../../i18n/LanguageContext'
 import { useToast, useConfirm } from '../../components/Feedback'
+import { useOwnerDeactivateStaff } from '../../data/register'
 
 const field = 'rounded-lg border border-line bg-white px-3 py-2 text-sm outline-none focus:border-brand disabled:opacity-50'
 const button = 'rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white disabled:opacity-50'
@@ -180,6 +181,16 @@ export function StaffPage() {
   const [adding,setAdding]=useState(false)
   const canEdit=perms.can('staff.edit')
   const access=params.get('tab')==='access' && canEdit
+  // Read-only phone view (033): staff live on the register PC, and the owner's
+  // one lever here is a switch-off command the PC applies when it next
+  // connects (design 2.7). Owner-only in SQL too.
+  const ownerPhone=perms.readOnly && perms.isOwner
+  const switchOff=useOwnerDeactivateStaff()
+  async function requestSwitchOff(u: NonNullable<typeof users.data>[number]) {
+    if (switchOff.isPending || !await confirm(t('Switch off this employee? The shop PC signs them out when it next connects.'))) return
+    try { await switchOff.mutateAsync({ userId:u.id }); notify(t('Switch-off sent to the shop PC.'), 'success') }
+    catch(e) { notify(message(e)) }
+  }
   async function change(u: NonNullable<typeof users.data>[number], role: string | null, active: boolean) {
     if (isBypassRoleName(roles.data?.find(r=>r.id===role)?.name) && role!==u.role_id &&
       !await confirm(t('This position gives full administrator access. Continue?'))) return
@@ -198,6 +209,7 @@ export function StaffPage() {
     {access ? <AccessControl/> : <div className="overflow-x-auto rounded-xl border border-line bg-white">
       <table className="w-full text-sm"><thead className="bg-surface"><tr>
         {['Username','Full Name','Position','Active'].map(h=><th key={h} className="p-3 text-start">{t(h)}</th>)}
+        {ownerPhone && <th className="p-3"/>}
       </tr></thead><tbody className="divide-y divide-line/40">
         {(users.data ?? []).filter(u=>!isSuperUsername(u.username)).map(u=>{
           const locked=!canEdit || u.id===me.data?.id || update.isPending || roles.isPending || roles.isError ||
@@ -211,6 +223,9 @@ export function StaffPage() {
             <td className="p-3"><label className="flex items-center gap-2"><input type="checkbox" aria-label={`${t('Active')}: ${u.username}`}
               checked={u.is_active===true} disabled={locked || !perms.can('staff.delete')}
               onChange={e=>void change(u,u.role_id,e.target.checked)}/>{t(u.is_active ? 'Active':'Inactive')}</label></td>
+            {ownerPhone && <td className="p-3 text-end">{u.is_active===true && u.id!==me.data?.id &&
+              <button type="button" className="rounded-lg border border-danger/40 px-3 py-1 text-xs font-semibold text-danger disabled:opacity-50"
+                disabled={switchOff.isPending} onClick={()=>void requestSwitchOff(u)}>{t('Switch off')}</button>}</td>}
           </tr>
         })}
       </tbody></table>

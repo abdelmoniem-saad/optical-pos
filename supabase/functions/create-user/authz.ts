@@ -58,9 +58,43 @@ export type CreateUserDecision =
       /** True when the role was actually applied; false when silently dropped. */
       roleGranted: boolean
     }
-  | { ok: false; status: 400 | 401 | 403; error: string }
+  | { ok: false; status: 400 | 401 | 403 | 409; error: string }
 
 const MIN_PASSWORD = 6
+
+/** The refusal for a store that records on its register PC (migration 033,
+ *  stores.register_only). Its staff are created at the PC, with a PIN; a cloud
+ *  login made here would be a second, unsynced source of staff (design 4.5). */
+export const REGISTER_ONLY_ERROR = 'Add staff at the shop PC'
+
+/**
+ * The store the new account would be created in, by the same rule
+ * authorizeCreateUser applies: the caller's own store, or for a vendor
+ * account the store it names. The Edge Function asks
+ * `store_is_register_only` about exactly this store before deciding.
+ */
+export function targetStoreId(caller: CreateUserCaller, req: CreateUserRequest): string | null {
+  const requested = (req.store_id ?? '').trim() || null
+  return caller.isPlatformAdmin ? requested ?? caller.storeId : caller.storeId
+}
+
+/**
+ * Unwrap `store_is_register_only(p_store)`. A database before 033 has no such
+ * function (PGRST202 / 42883): no store can be register_only there, so false,
+ * and create-user keeps working exactly as before. Any other error throws, so
+ * the function fails closed rather than creating a login it could not check.
+ */
+export function registerOnlyValue(result: {
+  data: unknown
+  error: { message: string; code?: string } | null
+}): boolean {
+  if (result.error) {
+    const code = result.error.code ?? ''
+    if (code === 'PGRST202' || code === '42883') return false
+    throw new Error(result.error.message)
+  }
+  return result.data === true
+}
 
 /** Supabase RPCs return an envelope; Boolean(envelope) is always true. */
 export function rpcValue<T>(result: { data: T; error: { message: string } | null }): T {
@@ -68,19 +102,21 @@ export function rpcValue<T>(result: { data: T; error: { message: string } | null
   return result.data
 }
 
+export type CreateUserRefusal = Extract<CreateUserDecision, { ok: false }>
+
 /**
- * Decide whether this caller may create this account, and pin the values the
- * row will be written with.
- *
- * The store is never taken from the request for an ordinary staff member: it is
- * the caller's own. A vendor account may name any store, because that is the
- * one job it exists for.
+ * The checks that need nothing but the caller and the request: signed in, a
+ * valid username and password, staff.create, and the pinned store. The Edge
+ * Function runs this BEFORE it asks the database anything about the target
+ * store (store_is_register_only), so a cashier without staff.create, or a
+ * request naming somebody else's store, is refused with its own 401/400/403
+ * and never reaches a query whose failure would turn that into a 400.
+ * authorizeCreateUser starts with the same checks, so the two cannot drift.
  */
-export function authorizeCreateUser(
+export function precheckCreateUser(
   caller: CreateUserCaller,
   req: CreateUserRequest,
-  opts: { domain: string; plan?: CreateUserPlan },
-): CreateUserDecision {
+): CreateUserRefusal | { ok: true; storeId: string } {
   if (!caller.uid) {
     return { ok: false, status: 401, error: 'not signed in' }
   }
@@ -107,12 +143,7 @@ export function authorizeCreateUser(
 
   // The store. Pinned, not requested.
   const requested = (req.store_id ?? '').trim() || null
-  let storeId: string | null
-  if (caller.isPlatformAdmin) {
-    storeId = requested ?? caller.storeId
-  } else {
-    storeId = caller.storeId
-  }
+  const storeId = targetStoreId(caller, req)
   if (!storeId) {
     return {
       ok: false,
@@ -124,6 +155,38 @@ export function authorizeCreateUser(
     // Not a refusal: we simply do not honour a cross-store request. Saying so
     // would tell a probing cashier that another store exists.
     return { ok: false, status: 403, error: 'insufficient permission: staff.create' }
+  }
+  return { ok: true, storeId }
+}
+
+/**
+ * Decide whether this caller may create this account, and pin the values the
+ * row will be written with.
+ *
+ * The store is never taken from the request for an ordinary staff member: it is
+ * the caller's own. A vendor account may name any store, because that is the
+ * one job it exists for.
+ */
+export function authorizeCreateUser(
+  caller: CreateUserCaller,
+  req: CreateUserRequest,
+  opts: {
+    domain: string
+    plan?: CreateUserPlan
+    /** `store_is_register_only` for targetStoreId(caller, req) (033). */
+    registerOnly?: boolean
+  },
+): CreateUserDecision {
+  const pre = precheckCreateUser(caller, req)
+  if (!pre.ok) return pre
+  const { storeId } = pre
+  const username = (req.username ?? '').trim()
+
+  // A store that records on its register PC (033) adds staff there, for
+  // everyone including the vendor: the database's guard would refuse the
+  // users row anyway, and only after the auth login had been created.
+  if (opts.registerOnly === true) {
+    return { ok: false, status: 409, error: REGISTER_ONLY_ERROR }
   }
 
   // The position. Handing out a role is a stronger act than creating a login.

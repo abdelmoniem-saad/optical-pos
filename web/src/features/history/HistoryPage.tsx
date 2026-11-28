@@ -284,7 +284,7 @@ function OrderImages({ sale, onQr }: { sale: Sale; onQr: () => void }) {
                   onChange={(e) => onFile(slot, e.target.files?.[0])}
                 />
               </label>
-            ) : (
+            ) : perms.readOnly ? null : (
               <span className="text-faint">{t('Replace requires admin')}</span>
             )
           ) : canAttach ? (

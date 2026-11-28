@@ -7,6 +7,20 @@
 export type Lang = 'ar' | 'en'
 
 export const ar: Record<string, string> = {
+  // Read-only phone view of a store that records on its register PC (033)
+  'Read-only: the shop PC is the system of record': 'للعرض فقط: جهاز المحل هو السجل المعتمد',
+  'Last sync': 'آخر مزامنة',
+  'The shop PC has not synced yet': 'لم يقم جهاز المحل بالمزامنة بعد',
+  'Waiting on the PC': 'بانتظار الإرسال من الجهاز',
+  'Revoke register': 'إلغاء تفويض الجهاز',
+  'Revoke the register? The shop PC stops syncing until it is set up again. Use this only if the PC is lost or stolen.': 'إلغاء تفويض جهاز المحل؟ سيتوقف الجهاز عن المزامنة حتى يُعاد إعداده. استخدم هذا فقط إذا فُقد الجهاز أو سُرق.',
+  'Register revoked.': 'تم إلغاء تفويض الجهاز.',
+  'Attach photos from the shop PC.': 'أرفق الصور من جهاز المحل.',
+  'Switch off': 'إيقاف',
+  'Switch off this employee? The shop PC signs them out when it next connects.': 'إيقاف هذا الموظف؟ سيقوم جهاز المحل بتسجيل خروجه عند اتصاله التالي بالإنترنت.',
+  'Switch-off sent to the shop PC.': 'تم إرسال أمر الإيقاف إلى جهاز المحل.',
+  'Add staff at the shop PC': 'أضف الموظفين من جهاز المحل',
+  'This shop now records sales on its shop PC. Enter this sale at the shop PC.': 'هذا المحل يسجّل المبيعات الآن على جهاز المحل. أدخل هذا البيع من جهاز المحل.',
   'Payment method': 'طريقة الدفع',
   'Refund amount': 'مبلغ الاسترداد',
   'Available to refund': 'المتاح للاسترداد',

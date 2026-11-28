@@ -20,6 +20,14 @@ describe('checkoutErrorMessage (030 server errors)', () => {
     expect(checkoutErrorMessage({ message: 'Invalid payment method' }, t)).toBe('Invalid payment method')
   })
 
+  it('explains the 033 register_only refusal of a replayed held sale', () => {
+    // A sale held offline on a phone, replayed after the store became
+    // register_only: the guard trigger refuses it (design 4.3) and the
+    // journal must say where the sale goes instead of the raw message.
+    expect(checkoutErrorMessage({ message: 'read-only: this shop records on its register PC' }, t))
+      .toBe('This shop now records sales on its shop PC. Enter this sale at the shop PC.')
+  })
+
   it('keeps the 012 guards and passes anything else through', () => {
     expect(checkoutErrorMessage({ message: 'insufficient stock: Frame X' }, t)).toBe('Insufficient stock for: Frame X')
     expect(checkoutErrorMessage({ message: 'price changed: Lens' }, t)).toBe('Price changed for: Lens')

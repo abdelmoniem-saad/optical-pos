@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useLocation } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/auth'
-import { ACCESS_STALE_MS, isAuthDenial, readEffectiveAccess, type EffectiveAccess } from './permissionModel'
+import { ACCESS_STALE_MS, accessAllows, isAuthDenial, readEffectiveAccess, type EffectiveAccess } from './permissionModel'
 import { invalidateAccess } from './refresh'
 export * from './permissionModel'
 
@@ -50,9 +50,13 @@ export function useSetUserOverride() {
     onSuccess: () => invalidateAccess(qc),
   })
 }
-type PermsState = {
+export type PermsState = {
   loading: boolean; isAdmin: boolean; can: (c: string) => boolean
   openAccess: boolean; error: string | null; active: boolean
+  /** The store records on its register PC (033): look, never write. */
+  readOnly: boolean
+  /** The signed-in account is the store owner (stores.owner_uid, 033). */
+  isOwner: boolean
 }
 const Ctx = createContext<PermsState | undefined>(undefined)
 
@@ -116,15 +120,19 @@ export function PermissionsProvider({ children }: { children: ReactNode }) {
       isError: access.isError,
       errorCode: errorCode === undefined ? undefined : String(errorCode),
     })
-    const codes = new Set(ready && v ? v.codes : [])
+    // A cached answer from a build before 033 has no read_only: false.
+    const readOnly = ready && !!v && v.read_only === true
     return {
       loading: !!user && access.isPending,
-      isAdmin: ready && !!v && v.is_admin,
+      // Read-only: no admin bypass, so every `isAdmin || can(x)` gate is false.
+      isAdmin: ready && !!v && v.is_admin && !readOnly,
       openAccess: !!v && !v.assigned,
       active: v?.active ?? false,
       // Only when it actually blocks: a failed refetch over a good answer keeps working.
       error: access.isError && !ready ? 'Could not load permissions.' : null,
-      can: c => ready && codes.has(c),
+      can: c => ready && !!v && accessAllows(v, c),
+      readOnly,
+      isOwner: ready && !!v && v.is_owner === true,
     }
   }, [user, access.data, access.isError, access.isPending, errorCode])
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>

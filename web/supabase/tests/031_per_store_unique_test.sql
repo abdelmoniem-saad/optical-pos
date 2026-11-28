@@ -8,8 +8,8 @@
 --     stores may share one, the same store may not, and several products may
 --     have no SKU. The global constraints are gone; the per-store indexes
 --     exist.
--- ST  settings gains (store_id, key) while the global key stays (the app
---     still in the field upserts on it until 032), and a signed-in upsert
+-- ST  settings gains (store_id, key); the global key 031 kept for cached apps
+--     is gone once 032 runs (ST1, edited with 032); and a signed-in upsert
 --     on (store_id, key) updates the existing row instead of adding one.
 -- R   referenced_image_paths pages a store's keep-list to the end past the
 --     1,000-row cap that cut the old one short, includes a path in the
@@ -88,10 +88,13 @@ select throws_ok($$ insert into public.frame_colors (name, store_id) values ('Co
   '23505', null, 'U11 one store may not repeat a frame colour name');
 
 -- ===== ST: settings ========================================================
-select ok(exists (select 1 from pg_constraint
-                   where conrelid = 'public.settings'::regclass and contype = 'u'
-                     and conname = 'settings_key_key'),
-  'ST1 the global settings key stays until 032 (cached apps still upsert on it)');
+-- 031 kept settings_key_key for cached apps that still upserted on (key);
+-- 032 drops it (the gates run after every migration), so this now pins that
+-- the global key is gone and only the per-store key from U2 remains.
+select ok(not exists (select 1 from pg_constraint
+                       where conrelid = 'public.settings'::regclass and contype = 'u'
+                         and conname = 'settings_key_key'),
+  'ST1 the global settings key kept by 031 is gone once 032 is applied');
 
 set role authenticated; select _as('31000000-0000-4000-8000-0000000000a2');
 insert into public.settings (key, value) values ('k031', 'one')

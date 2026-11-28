@@ -31,6 +31,10 @@ export function checkoutErrorMessage(e: unknown, t: T): string {
   const refund = /^refund first:\s*([\d.]+)/i.exec(msg)
   if (refund) return refundFirstMessage(Number(refund[1]), t)
   if (/^invalid payment method/i.test(msg)) return t('Invalid payment method')
+  // 033 guard trigger (42501): the store switched to its register PC while
+  // this sale was held on a phone. Nothing landed; it belongs on the PC.
+  if (/^read-only: this shop records on its register PC/i.test(msg))
+    return t('This shop now records sales on its shop PC. Enter this sale at the shop PC.')
   return msg
 }
 

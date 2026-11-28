@@ -792,6 +792,51 @@ Then deploy `create-user` (a switched-off staff member no longer takes a seat).
 Gate: [`tests/031_per_store_unique_test.sql`](./tests/031_per_store_unique_test.sql)
 (24 assertions).
 
+## Step 29 — `032_actor_core.sql` (who did it, and the right cost)
+
+**After step 28's web app is live and every shop device has been reloaded**:
+032 drops the global `settings_key_key` that older (pre-031) apps upsert on.
+Run the checks in [`RELEASE_033.md`](../../RELEASE_033.md) first (payments with
+no store, money actions by a login with no staff row).
+
+- Permission checks (`resolve_can`, `is_store_admin`) answer "no" about a user
+  of another store unless the asker is a platform admin; store-scoped internals
+  `_resolve_can_for` / `_is_store_admin_for` / `_z_report` exist for the
+  register and are not callable by clients. `tender_key(method)` normalises a
+  tender name.
+- `sale_payments.recorded_by`, `sales.voided_by` and `shift_closes.closed_by`
+  now reference staff rows: a login with no staff row can no longer take
+  money, void or close. Orphaned old values make the paste WARN, not fail; fix
+  them, then `select public._repoint_actor_keys();`.
+- `sale_payments.store_id` is NOT NULL (filled from the sale first).
+- `receive_purchase` averages the cost over the stock held BEFORE the delivery
+  (10 @ 4.00 + 10 @ 6.00 = 5.00, not 4.67).
+
+Gate: [`tests/032_actor_core_test.sql`](./tests/032_actor_core_test.sql) (67 assertions).
+
+## Step 30 — `033_register.sql` (the register's groundwork, dark)
+
+**After step 29, at closing time** (it adds a trigger to 25 tables). Nothing
+changes for a store until a register is set up for it (Phase 4).
+
+- `stores.register_only` (default false) and `stores.owner_uid`, backfilled to
+  the store's single active admin login; otherwise a NOTICE names the store and
+  the vendor runs `set_store_owner(store, uid)` as their own login. A direct
+  write of `owner_uid` is refused.
+- A guard trigger refuses every write to a register-only store's rows
+  (`read-only: this shop records on its register PC`, 42501) except through
+  the register's own definer paths, which need a one-time token.
+- Register tables (`store_registers`, `register_ops`, `register_commands`,
+  `register_photo_tickets`), the owner's phone actions (`revoke_register`,
+  `owner_deactivate_staff`, `register_status`, `register_flags`),
+  `end_register_mode`, `release_register`, service-role setup functions,
+  register storage policies, `my_permissions` with `read_only` and `is_owner`.
+- Logins stay unique system-wide; register-PC staff names are unique per store.
+
+Then deploy `create-user` and the web app (version 33).
+
+Gate: [`tests/033_register_test.sql`](./tests/033_register_test.sql) (189 assertions).
+
 ## Schema baseline (recommended, ~2 minutes)
 
 The hardening roadmap (Phase 0) wants a `pg_dump` of the **live** `public`
